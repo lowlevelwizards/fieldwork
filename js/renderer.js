@@ -1,4 +1,5 @@
 import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js";
+import { drawOperator } from "./presentation/operator-renderer.js";
 
 export class Renderer {
   constructor(canvas, camera) {
@@ -30,11 +31,20 @@ export class Renderer {
     this.#drawBrush(ctx, game.map.brush);
     this.#drawExtraction(ctx, game.map.extraction);
     this.#drawShed(ctx, game.map.shed);
-    this.#drawObstacles(ctx, game.map.obstacles);
-    this.#drawOperator(ctx, game.operator);
+    this.#drawDepthSortedActors(ctx, game);
     this.#drawMapBorder(ctx);
 
     ctx.restore();
+  }
+
+  #drawDepthSortedActors(ctx, game) {
+    const entries = game.map.obstacles.map((obstacle) => ({
+      y: obstacle.y + obstacle.radius * 0.5,
+      draw: () => obstacle.type === "tree" ? this.#drawTree(ctx, obstacle) : this.#drawRock(ctx, obstacle)
+    }));
+    entries.push({ y: game.operator.y + game.operator.radius, draw: () => drawOperator(ctx, game.operator) });
+    entries.sort((a, b) => a.y - b.y);
+    for (const entry of entries) entry.draw();
   }
 
   #drawGround(ctx) {
@@ -125,13 +135,6 @@ export class Renderer {
     ctx.fillText("UTILITY SHED", shed.x + shed.width / 2, shed.y + 42);
   }
 
-  #drawObstacles(ctx, obstacles) {
-    for (const obstacle of obstacles) {
-      if (obstacle.type === "tree") this.#drawTree(ctx, obstacle);
-      else this.#drawRock(ctx, obstacle);
-    }
-  }
-
   #drawTree(ctx, tree) {
     ctx.fillStyle = "rgba(20, 28, 22, 0.24)";
     ctx.beginPath();
@@ -156,37 +159,6 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(rock.x, rock.y, rock.radius, rock.radius * 0.75, -0.15, 0, Math.PI * 2);
     ctx.fill();
-  }
-
-  #drawOperator(ctx, op) {
-    const moving = Math.hypot(op.vx, op.vy) > 5;
-    const bob = moving ? Math.sin(op.walkingPhase) * 2.5 : 0;
-    ctx.save();
-    ctx.translate(op.x, op.y + bob);
-    ctx.rotate(op.facing + Math.PI / 2);
-
-    ctx.fillStyle = "rgba(18, 24, 20, 0.25)";
-    ctx.beginPath();
-    ctx.ellipse(0, 14, 24, 12, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#30372f";
-    ctx.fillRect(-17, -15, 34, 42);
-    ctx.fillStyle = "#7f6d4f";
-    ctx.fillRect(-20, -2, 40, 25);
-    ctx.fillStyle = "#d3bea1";
-    ctx.beginPath();
-    ctx.arc(0, -22, 13, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#42493f";
-    ctx.beginPath();
-    ctx.arc(0, -27, 14, Math.PI, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#263329";
-    ctx.fillRect(-16, 5, 32, 24);
-    ctx.fillStyle = "#d99a4a";
-    ctx.fillRect(-3, -34, 6, 12);
-    ctx.restore();
   }
 
   #drawMapBorder(ctx) {

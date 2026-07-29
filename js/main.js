@@ -9,6 +9,7 @@ const beginButton = document.querySelector("#begin-button");
 const resetPositionButton = document.querySelector("#reset-position-button");
 const debugButton = document.querySelector("#debug-button");
 const debugPanel = document.querySelector("#debug-panel");
+const objectiveCard = document.querySelector("#objective-card");
 const canvas = document.querySelector("#game-canvas");
 
 const camera = new Camera();
@@ -25,6 +26,7 @@ let lastTime = performance.now();
 let fpsAccumulator = 0;
 let fpsFrames = 0;
 let fpsValue = 0;
+let objectiveTimer = null;
 
 function resize() {
   renderer.resize();
@@ -37,6 +39,7 @@ function startGame() {
   started = true;
   resize();
   lastTime = performance.now();
+  objectiveTimer = window.setTimeout(() => objectiveCard.classList.add("objective-card--collapsed"), 5200);
 }
 
 function updateDebug(delta) {
@@ -50,6 +53,7 @@ function updateDebug(delta) {
   document.querySelector("#debug-fps").textContent = fpsValue;
   document.querySelector("#debug-position").textContent = `${Math.round(game.operator.x)}, ${Math.round(game.operator.y)}`;
   document.querySelector("#debug-speed").textContent = Math.round(Math.hypot(game.operator.vx, game.operator.vy));
+  document.querySelector("#debug-facing").textContent = game.operator.facing;
   document.querySelector("#debug-orientation").textContent = matchMedia("(orientation: portrait)").matches ? "Portrait" : "Landscape";
 }
 
@@ -76,6 +80,12 @@ debugButton.addEventListener("click", () => {
   const active = debugButton.getAttribute("aria-pressed") === "true";
   debugButton.setAttribute("aria-pressed", String(!active));
   debugPanel.hidden = active;
+  resetPositionButton.hidden = active;
+});
+
+objectiveCard.addEventListener("click", () => {
+  objectiveCard.classList.toggle("objective-card--collapsed");
+  if (objectiveTimer) window.clearTimeout(objectiveTimer);
 });
 
 window.addEventListener("resize", () => {

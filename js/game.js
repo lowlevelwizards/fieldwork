@@ -13,6 +13,12 @@ function circleRectCollision(cx, cy, radius, rect) {
   return dx * dx + dy * dy < radius * radius;
 }
 
+export function resolveFacing(move, currentFacing) {
+  if (Math.hypot(move.x, move.y) < 0.08) return currentFacing;
+  if (Math.abs(move.x) > Math.abs(move.y)) return move.x < 0 ? "left" : "right";
+  return move.y < 0 ? "up" : "down";
+}
+
 export class GameState {
   constructor() {
     this.map = mapData;
@@ -22,7 +28,7 @@ export class GameState {
       y: mapData.spawn.y,
       vx: 0,
       vy: 0,
-      facing: 0,
+      facing: operatorDefinition.startingFacing,
       walkingPhase: 0
     };
   }
@@ -32,6 +38,7 @@ export class GameState {
     this.operator.y = this.map.spawn.y;
     this.operator.vx = 0;
     this.operator.vy = 0;
+    this.operator.facing = this.operator.startingFacing;
   }
 
   update(delta, move) {
@@ -44,11 +51,9 @@ export class GameState {
 
     op.vx += clamp(targetVx - op.vx, -maxChange, maxChange);
     op.vy += clamp(targetVy - op.vy, -maxChange, maxChange);
+    op.facing = resolveFacing(move, op.facing);
 
-    if (Math.hypot(op.vx, op.vy) > 4) {
-      op.facing = Math.atan2(op.vy, op.vx);
-      op.walkingPhase += delta * 9;
-    }
+    if (Math.hypot(op.vx, op.vy) > 4) op.walkingPhase += delta * 9;
 
     this.#moveAxis("x", op.vx * delta);
     this.#moveAxis("y", op.vy * delta);

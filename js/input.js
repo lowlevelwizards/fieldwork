@@ -50,7 +50,7 @@ export class InputController {
       this.vector.x = 0;
       this.vector.y = 0;
       this.joystickKnob.style.transform = "translate(0px, 0px)";
-      this.joystickBase.style.opacity = "0.72";
+      this.joystickBase.style.opacity = "0";
     };
 
     this.joystickZone.addEventListener("pointerup", release);
