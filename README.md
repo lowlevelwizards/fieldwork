@@ -1,5 +1,16 @@
-# Fieldwork 0.1C — Character Identity
+# Fieldwork 0.1D — Proportion and Readability
 
+## 0.1D focus
+
+This pass improves the primitive operator without adding new gameplay:
+
+- shadow anchored beneath the boots
+- helmet overhang beyond the face
+- structured stock/receiver/barrel weapon silhouette
+- smaller capsule-shaped gripping hands
+- reduced backpack dominance
+- distinct torso, waist, pants, legs, and boots
+- subtler body bob with clearer stepping feet
 A phone-first browser prototype for the earliest playable seed of Fieldwork.
 
 ## Included

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1D.0 — Proportion and Readability
+
+- Moved and flattened the ground shadow beneath the boots.
+- Extended the helmet beyond the face for a clearer equipment silhouette.
+- Rebuilt the rifle from stock, receiver, barrel, magazine, and butt masses.
+- Replaced large circular hands with smaller gripping capsules.
+- Reduced the rear and side backpack dimensions so the body remains visible.
+- Added distinct torso, belt, trousers, legs, and boot sections in every facing.
+- Retuned the walk cycle so the feet step more while the body bobs less.
+
 ## 0.1C.0 — Character Identity
 
 - Moved the north-facing weapon and hands behind the operator body and backpack.
