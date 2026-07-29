@@ -1,4 +1,4 @@
-# Fieldwork 0.1A — Movement Test
+# Fieldwork 0.1B — Equipped Operator
 
 A phone-first browser prototype for the earliest playable seed of Fieldwork.
 

@@ -248,3 +248,51 @@ h1 {
   .objective-card { display: none; }
   .joystick-base { width: 100px; height: 100px; }
 }
+
+/* 0.1B operator/readability pass */
+.objective-card {
+  cursor: pointer;
+  transition: width 180ms ease, padding 180ms ease, opacity 180ms ease, transform 180ms ease;
+  pointer-events: auto;
+}
+
+.objective-card--collapsed {
+  width: 54px;
+  min-height: 42px;
+  padding: 11px 9px;
+  overflow: hidden;
+  transform: translateY(-2px);
+}
+
+.objective-card--collapsed strong,
+.objective-card--collapsed span:last-child {
+  display: none;
+}
+
+.objective-card--collapsed .objective-kicker {
+  font-size: 0;
+}
+
+.objective-card--collapsed .objective-kicker::after {
+  content: "FIELD";
+  font-size: 0.64rem;
+}
+
+.joystick-base {
+  opacity: 0;
+  transition: opacity 120ms ease;
+  background: rgba(15, 22, 18, 0.3);
+  border-color: rgba(255,255,255,0.16);
+}
+
+.joystick-knob {
+  background: rgba(230, 233, 218, 0.82);
+}
+
+.utility-button[hidden] { display: none; }
+
+.utility-button {
+  min-height: 42px;
+  padding: 0 14px;
+  font-size: 0.86rem;
+}
