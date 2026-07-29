@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f2a24" />
+  <title>Fieldwork 0.1A — Movement Test</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="app">
+    <section id="title-screen" class="screen screen--active" aria-labelledby="game-title">
+      <div class="title-card">
+        <p class="eyebrow">FIELD TEST 0.1A</p>
+        <h1 id="game-title">FIELDWORK</h1>
+        <p class="subtitle">Movement Test</p>
+        <p class="intro">Walk the roadside clearing. Test the camera, touch controls, collision, and orientation.</p>
+        <button id="begin-button" class="primary-button" type="button">Begin Field Test</button>
+        <p class="version">Build 0.1A.0</p>
+      </div>
+    </section>
+
+    <section id="game-screen" class="screen" aria-label="Fieldwork movement test">
+      <canvas id="game-canvas"></canvas>
+
+      <div class="hud hud--top">
+        <div class="hud-chip">
+          <span class="hud-label">Operator</span>
+          <strong>Mara Velez</strong>
+        </div>
+        <button id="debug-button" class="hud-button" type="button" aria-pressed="false">Debug</button>
+      </div>
+
+      <div id="objective-card" class="objective-card">
+        <span class="objective-kicker">FIELD TEST</span>
+        <strong>Walk the clearing</strong>
+        <span>Try roads, brush, trees, and the shed perimeter.</span>
+      </div>
+
+      <div id="joystick-zone" class="joystick-zone" aria-label="Movement joystick">
+        <div id="joystick-base" class="joystick-base" aria-hidden="true">
+          <div id="joystick-knob" class="joystick-knob"></div>
+        </div>
+      </div>
+
+      <button id="reset-position-button" class="utility-button" type="button">Reset Position</button>
+
+      <aside id="debug-panel" class="debug-panel" hidden>
+        <div><span>FPS</span><strong id="debug-fps">0</strong></div>
+        <div><span>Position</span><strong id="debug-position">0, 0</strong></div>
+        <div><span>Speed</span><strong id="debug-speed">0</strong></div>
+        <div><span>Orientation</span><strong id="debug-orientation">—</strong></div>
+      </aside>
+    </section>
+  </main>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
