@@ -1,4 +1,4 @@
-# Fieldwork 0.1B — Equipped Operator
+# Fieldwork 0.1C — Character Identity
 
 A phone-first browser prototype for the earliest playable seed of Fieldwork.
 
