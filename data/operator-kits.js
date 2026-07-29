@@ -4,18 +4,20 @@ export const operatorKits = {
     palette: {
       skin: "#d3bea1",
       hair: "#3d443d",
-      headwear: "#42493f",
-      torso: "#263329",
+      headwear: "#394238",
+      helmetRear: "#2c342e",
+      torso: "#26372e",
       trousers: "#30372f",
-      boots: "#202721",
-      webbing: "#806e50",
-      backpack: "#2a382f",
-      backpackFlap: "#35463a",
-      bedroll: "#77664c",
-      weaponWood: "#795b3e",
-      weaponMetal: "#343c38",
+      boots: "#1f2822",
+      webbing: "#7b6848",
+      rigPouch: "#67593f",
+      backpack: "#2c3b31",
+      backpackFlap: "#3a4a3d",
+      bedroll: "#766248",
+      weaponWood: "#78583b",
+      weaponMetal: "#303936",
       hand: "#d3bea1",
-      accent: "#d99a4a"
+      accent: "#547493"
     }
   }
 };
