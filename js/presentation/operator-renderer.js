@@ -21,162 +21,193 @@ function drawAccentPatch(ctx, x, y, width, height, palette) {
 }
 
 function drawHelmet(ctx, x, y, palette, { facing = "down", sideSign = 1 } = {}) {
-  const helmetRadius = 17;
+  const headRadius = 15.5;
+  const helmetRadius = 19;
 
-  drawCircle(ctx, x, y, 15.5, palette.skin);
+  drawCircle(ctx, x, y, headRadius, palette.skin);
 
+  // The helmet deliberately overhangs the face so it reads as carried gear,
+  // rather than replacing the upper half of the head.
   ctx.fillStyle = palette.headwear;
   ctx.beginPath();
   ctx.arc(x, y - 4, helmetRadius, Math.PI, Math.PI * 2);
-  ctx.lineTo(x + helmetRadius, y - 2);
-  ctx.quadraticCurveTo(x, y - 7, x - helmetRadius, y - 2);
+  ctx.lineTo(x + helmetRadius, y - 1);
+  ctx.quadraticCurveTo(x, y - 7, x - helmetRadius, y - 1);
   ctx.closePath();
   ctx.fill();
 
   if (facing === "down") {
+    roundedRect(ctx, x - helmetRadius, y - 3, helmetRadius * 2, 4, 2, palette.headwear);
     roundedRect(ctx, x - 5, y - 2, 10, 3, 2, palette.hair);
-    drawAccentPatch(ctx, x - 3, y - 15, 6, 3, palette.accent);
+    drawAccentPatch(ctx, x - 3, y - 16, 6, 3, palette.accent);
   } else if (facing === "up") {
-    roundedRect(ctx, x - 8, y - 16, 16, 4, 2, palette.helmetRear);
-    drawAccentPatch(ctx, x - 3, y - 15, 6, 3, palette.accent);
+    roundedRect(ctx, x - helmetRadius, y - 3, helmetRadius * 2, 4, 2, palette.headwear);
+    roundedRect(ctx, x - 9, y - 17, 18, 4, 2, palette.helmetRear);
+    drawAccentPatch(ctx, x - 3, y - 16, 6, 3, palette.accent);
   } else {
-    roundedRect(ctx, x + sideSign * 10 - (sideSign < 0 ? 5 : 0), y - 8, 5, 9, 2, palette.helmetRear);
-    drawAccentPatch(ctx, x + sideSign * 11 - (sideSign < 0 ? 4 : 0), y - 7, 3, 5, palette.accent);
+    const earX = x + sideSign * 12 - (sideSign < 0 ? 6 : 0);
+    roundedRect(ctx, x - helmetRadius, y - 3, helmetRadius * 2, 4, 2, palette.headwear);
+    roundedRect(ctx, earX, y - 9, 6, 10, 2, palette.helmetRear);
+    drawAccentPatch(ctx, earX + 1, y - 7, 3, 5, palette.accent);
   }
+}
+
+function drawHandCapsule(ctx, x, y, angle, palette) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  roundedRect(ctx, -5, -3.5, 10, 7, 3.5, palette.hand);
+  ctx.restore();
 }
 
 function drawWeapon(ctx, { x1, y1, x2, y2, palette, rearHand, frontHand, drawHands = true }) {
   const dx = x2 - x1;
   const dy = y2 - y1;
-  const length = Math.hypot(dx, dy);
+  const length = Math.max(24, Math.hypot(dx, dy));
   const angle = Math.atan2(dy, dx);
 
   ctx.save();
   ctx.translate(x1, y1);
   ctx.rotate(angle);
 
-  ctx.lineCap = "round";
-  ctx.strokeStyle = palette.weaponWood;
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(length * 0.43, 0);
-  ctx.stroke();
+  // Three strong masses: stock, receiver, and barrel.
+  roundedRect(ctx, -2, -5, length * 0.31, 10, 4, palette.weaponWood);
+  roundedRect(ctx, length * 0.24, -5, length * 0.31, 10, 3, palette.weaponMetal);
+  roundedRect(ctx, length * 0.51, -2.5, length * 0.49, 5, 2.5, palette.weaponMetal);
+  roundedRect(ctx, length * 0.36, 3, 7, 8, 2, palette.weaponMetal);
+  roundedRect(ctx, -4, -6, 5, 12, 2, palette.weaponButt);
 
-  ctx.strokeStyle = palette.weaponMetal;
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(length * 0.34, 0);
-  ctx.lineTo(length, 0);
-  ctx.stroke();
-
-  roundedRect(ctx, length * 0.29, -5, 19, 10, 3, palette.weaponMetal);
   ctx.restore();
 
   if (drawHands) {
-    drawCircle(ctx, rearHand.x, rearHand.y, 6, palette.hand);
-    drawCircle(ctx, frontHand.x, frontHand.y, 6, palette.hand);
+    drawHandCapsule(ctx, rearHand.x, rearHand.y, angle, palette);
+    drawHandCapsule(ctx, frontHand.x, frontHand.y, angle, palette);
   }
 }
 
 function drawShadow(ctx, moving, walkingPhase) {
-  const stretch = moving ? Math.sin(walkingPhase) * 1.2 : 0;
+  const stretch = moving ? Math.sin(walkingPhase) * 0.8 : 0;
   ctx.fillStyle = "rgba(18, 24, 20, 0.25)";
   ctx.beginPath();
-  ctx.ellipse(0, 25, 24 + stretch, 7.5, 0, 0, Math.PI * 2);
+  // Fixed to the foot contact point, slightly below the body and independent of bob.
+  ctx.ellipse(0, 33, 23 + stretch, 6.25, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
-function drawBoots(ctx, bob, palette) {
-  roundedRect(ctx, -16, 10 + bob, 13, 21, 6, palette.boots);
-  roundedRect(ctx, 3, 10 - bob, 13, 21, 6, palette.boots);
+function drawFrontLegs(ctx, step, palette) {
+  roundedRect(ctx, -15, 10 + step, 12, 16, 4, palette.trousers);
+  roundedRect(ctx, 3, 10 - step, 12, 16, 4, palette.trousers);
+  roundedRect(ctx, -17, 23 + step, 14, 10, 5, palette.boots);
+  roundedRect(ctx, 3, 23 - step, 14, 10, 5, palette.boots);
+}
+
+function drawRearLegs(ctx, step, palette) {
+  roundedRect(ctx, -15, 10 + step, 12, 16, 4, palette.trousers);
+  roundedRect(ctx, 3, 10 - step, 12, 16, 4, palette.trousers);
+  roundedRect(ctx, -16, 23 + step, 13, 10, 5, palette.boots);
+  roundedRect(ctx, 3, 23 - step, 13, 10, 5, palette.boots);
+}
+
+function drawSideLegs(ctx, step, palette, sign) {
+  // Rear leg first, then the near leg, so both remain visible in profile.
+  roundedRect(ctx, -6 - sign * 4, 11 - step, 11, 15, 4, palette.trousers);
+  roundedRect(ctx, -7 - sign * 5, 23 - step, 14, 10, 5, palette.boots);
+  roundedRect(ctx, -5 + sign * 4, 10 + step, 12, 16, 4, palette.trousers);
+  roundedRect(ctx, -6 + sign * 5, 23 + step, 15, 10, 5, palette.boots);
+}
+
+function drawWaist(ctx, palette) {
+  roundedRect(ctx, -18, 8, 36, 7, 3, palette.belt);
 }
 
 function drawFrontRig(ctx, palette) {
-  roundedRect(ctx, -17, -5, 34, 15, 5, palette.webbing);
-  roundedRect(ctx, -14, -1, 8, 8, 2, palette.rigPouch);
-  roundedRect(ctx, -4, -1, 8, 8, 2, palette.rigPouch);
-  roundedRect(ctx, 6, -1, 8, 8, 2, palette.rigPouch);
-  drawAccentPatch(ctx, 11, -4, 5, 3, palette.accent);
+  roundedRect(ctx, -16, -7, 32, 14, 5, palette.webbing);
+  roundedRect(ctx, -12, -3, 14, 8, 3, palette.rigPouch);
+  roundedRect(ctx, 4, -3, 9, 8, 3, palette.rigPouch);
+  drawAccentPatch(ctx, 10, -6, 5, 3, palette.accent);
 }
 
 function drawUp(ctx, palette, motion) {
-  const { bob, sway, packBounce } = motion;
+  const { step, sway, packBounce } = motion;
 
-  drawBoots(ctx, bob, palette);
+  drawRearLegs(ctx, step, palette);
 
-  // Weapon and hands belong behind the body when moving north.
+  // The rifle and gripping hands are entirely behind the body when facing north.
   drawWeapon(ctx, {
-    x1: -10 + sway, y1: 0,
-    x2: 0 + sway, y2: -50,
+    x1: -10 + sway, y1: 1,
+    x2: 1 + sway, y2: -47,
     palette,
-    rearHand: { x: -8 + sway, y: -8 },
-    frontHand: { x: -4 + sway, y: -24 }
+    rearHand: { x: -7 + sway, y: -7 },
+    frontHand: { x: -3 + sway, y: -21 }
   });
 
-  roundedRect(ctx, -19, -12, 38, 39, 11, palette.torso);
+  roundedRect(ctx, -20, -13, 40, 29, 10, palette.torso);
+  drawWaist(ctx, palette);
 
-  // Larger pack silhouette with clear flap, side pouches, and bedroll.
-  roundedRect(ctx, -25, -10 + packBounce, 50, 35, 10, palette.backpack);
-  roundedRect(ctx, -22, -16 + packBounce, 44, 15, 7, palette.backpackFlap);
-  roundedRect(ctx, -29, -4 + packBounce, 8, 21, 4, palette.rigPouch);
-  roundedRect(ctx, 21, -4 + packBounce, 8, 21, 4, palette.rigPouch);
-  roundedRect(ctx, -19, 21 + packBounce, 38, 10, 5, palette.bedroll);
+  // Reduced pack: shoulders, waist, pants, and boots remain readable around it.
+  roundedRect(ctx, -21, -9 + packBounce, 42, 29, 9, palette.backpack);
+  roundedRect(ctx, -18, -15 + packBounce, 36, 12, 6, palette.backpackFlap);
+  roundedRect(ctx, -24, -1 + packBounce, 6, 16, 3, palette.rigPouch);
+  roundedRect(ctx, 18, -1 + packBounce, 6, 16, 3, palette.rigPouch);
+  roundedRect(ctx, -15, 17 + packBounce, 30, 8, 4, palette.bedroll);
   ctx.fillStyle = palette.webbing;
-  ctx.fillRect(-2, -14 + packBounce, 4, 42);
-  ctx.fillRect(-18, 5 + packBounce, 36, 4);
-  drawAccentPatch(ctx, 8, -10 + packBounce, 8, 4, palette.accent);
+  ctx.fillRect(-2, -13 + packBounce, 4, 34);
+  ctx.fillRect(-15, 4 + packBounce, 30, 3);
+  drawAccentPatch(ctx, 8, -10 + packBounce, 7, 4, palette.accent);
 
-  drawHelmet(ctx, 0, -29, palette, { facing: "up" });
+  drawHelmet(ctx, 0, -31, palette, { facing: "up" });
 }
 
 function drawDown(ctx, palette, motion) {
-  const { bob, sway } = motion;
+  const { step, sway } = motion;
 
-  roundedRect(ctx, -20, -10, 7, 28, 3, palette.backpack);
-  roundedRect(ctx, 13, -10, 7, 28, 3, palette.backpack);
-  roundedRect(ctx, -18, -16, 5, 38, 2, palette.webbing);
-  roundedRect(ctx, 13, -16, 5, 38, 2, palette.webbing);
+  roundedRect(ctx, -18, -10, 5, 25, 3, palette.backpack);
+  roundedRect(ctx, 13, -10, 5, 25, 3, palette.backpack);
+  roundedRect(ctx, -16, -14, 4, 30, 2, palette.webbing);
+  roundedRect(ctx, 12, -14, 4, 30, 2, palette.webbing);
 
-  drawBoots(ctx, bob, palette);
-  roundedRect(ctx, -19, -14, 38, 41, 11, palette.torso);
+  drawFrontLegs(ctx, step, palette);
+  roundedRect(ctx, -20, -14, 40, 29, 10, palette.torso);
+  drawWaist(ctx, palette);
   drawFrontRig(ctx, palette);
 
-  drawHelmet(ctx, 0, -29, palette, { facing: "down" });
+  drawHelmet(ctx, 0, -31, palette, { facing: "down" });
 
   drawWeapon(ctx, {
     x1: -17 + sway, y1: -2,
-    x2: 20 + sway, y2: 29,
+    x2: 22 + sway, y2: 28,
     palette,
     rearHand: { x: -7 + sway, y: 4 },
-    frontHand: { x: 8 + sway, y: 16 }
+    frontHand: { x: 8 + sway, y: 15 }
   });
 }
 
 function drawSide(ctx, palette, motion, direction) {
   const sign = direction === "right" ? 1 : -1;
-  const { bob, sway, packBounce } = motion;
+  const { step, sway, packBounce } = motion;
 
-  drawBoots(ctx, bob, palette);
+  drawSideLegs(ctx, step, palette, sign);
 
-  const packX = sign === 1 ? -29 : 7;
-  roundedRect(ctx, packX, -12 + packBounce, 24, 37, 9, palette.backpack);
-  roundedRect(ctx, packX + 1, -17 + packBounce, 22, 13, 6, palette.backpackFlap);
-  roundedRect(ctx, packX + 3, 20 + packBounce, 18, 9, 4, palette.bedroll);
-  roundedRect(ctx, packX + (sign === 1 ? -4 : 20), -2 + packBounce, 7, 18, 4, palette.rigPouch);
+  const packX = sign === 1 ? -26 : 5;
+  roundedRect(ctx, packX, -10 + packBounce, 21, 30, 8, palette.backpack);
+  roundedRect(ctx, packX + 1, -15 + packBounce, 19, 11, 6, palette.backpackFlap);
+  roundedRect(ctx, packX + 3, 17 + packBounce, 15, 8, 4, palette.bedroll);
+  roundedRect(ctx, packX + (sign === 1 ? -3 : 17), -1 + packBounce, 6, 15, 3, palette.rigPouch);
 
-  roundedRect(ctx, -16, -14, 32, 41, 10, palette.torso);
-  roundedRect(ctx, -13, -3, 26, 12, 5, palette.webbing);
-  drawAccentPatch(ctx, sign > 0 ? 7 : -12, -1, 5, 4, palette.accent);
+  roundedRect(ctx, -17, -14, 34, 29, 10, palette.torso);
+  drawWaist(ctx, palette);
+  roundedRect(ctx, -13, -5, 26, 11, 5, palette.webbing);
+  roundedRect(ctx, sign > 0 ? 0 : -12, -2, 12, 7, 3, palette.rigPouch);
+  drawAccentPatch(ctx, sign > 0 ? 8 : -13, -5, 5, 4, palette.accent);
 
-  drawHelmet(ctx, sign * 5, -29, palette, { facing: direction, sideSign: sign });
+  drawHelmet(ctx, sign * 4, -31, palette, { facing: direction, sideSign: sign });
 
   drawWeapon(ctx, {
     x1: sign * (-7 + sway), y1: 0,
-    x2: sign * (46 + sway), y2: -7,
+    x2: sign * (47 + sway), y2: -7,
     palette,
-    rearHand: { x: sign * (4 + sway), y: -1 },
-    frontHand: { x: sign * (21 + sway), y: -5 }
+    rearHand: { x: sign * (5 + sway), y: -1 },
+    frontHand: { x: sign * (21 + sway), y: -4 }
   });
 }
 
@@ -187,18 +218,18 @@ export function drawOperator(ctx, operator) {
   const moving = Math.hypot(operator.vx, operator.vy) > 5;
   const phase = operator.walkingPhase;
   const motion = {
-    bob: moving ? Math.sin(phase) * 1.8 : 0,
-    sway: moving ? Math.sin(phase * 0.5) * 1.2 : 0,
-    packBounce: moving ? Math.abs(Math.sin(phase)) * 1.25 : 0
+    step: moving ? Math.sin(phase) * 1.7 : 0,
+    sway: moving ? Math.sin(phase * 0.5) * 1.0 : 0,
+    packBounce: moving ? Math.abs(Math.sin(phase)) * 0.9 : 0
   };
 
   ctx.save();
   ctx.translate(operator.x, operator.y);
 
-  // Shadow stays locked to the operator's ground contact, independent of body bob.
   drawShadow(ctx, moving, phase);
 
-  ctx.translate(0, moving ? Math.sin(phase) * 1.3 : 0);
+  // Body bob is subtle; feet do most of the animation work.
+  ctx.translate(0, moving ? Math.sin(phase) * 0.8 : 0);
 
   if (facing === "up") drawUp(ctx, palette, motion);
   else if (facing === "down") drawDown(ctx, palette, motion);
