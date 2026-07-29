@@ -9,6 +9,7 @@ export const operatorKits = {
       torso: "#26372e",
       trousers: "#30372f",
       boots: "#1f2822",
+      belt: "#202b25",
       webbing: "#7b6848",
       rigPouch: "#67593f",
       backpack: "#2c3b31",
@@ -16,6 +17,7 @@ export const operatorKits = {
       bedroll: "#766248",
       weaponWood: "#78583b",
       weaponMetal: "#303936",
+      weaponButt: "#4d3928",
       hand: "#d3bea1",
       accent: "#547493"
     }
