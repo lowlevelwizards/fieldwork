@@ -28,15 +28,29 @@ export class Renderer {
     ctx.save();
     ctx.translate(-Math.round(this.camera.x), -Math.round(this.camera.y));
 
-    this.#drawGround(ctx);
+    this.#drawGround(ctx, game);
     this.#drawRoad(ctx, game.map.road);
     this.#drawBrush(ctx, game.map.brush);
     this.#drawExtraction(ctx, game.map.extraction);
     this.#drawSiteGround(ctx, game.map.site);
     this.#drawShed(ctx, game.map.shed);
+    this.#drawWildlife(ctx, game);
     this.#drawDepthSortedActors(ctx, game);
     this.#drawMapBorder(ctx);
 
+    ctx.restore();
+  }
+
+
+  #drawWildlife(ctx, game) {
+    ctx.save();
+    for (const bird of game.wildlife) {
+      ctx.globalAlpha = game.weather === "Fog" ? 0.22 : 0.45;
+      ctx.fillStyle = "#d7d0a6";
+      ctx.beginPath();
+      ctx.ellipse(bird.x, bird.y, 3.4, 1.8, Math.sin(bird.phase) * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -55,6 +69,11 @@ export class Renderer {
       });
     }
 
+    for (const actor of game.actors) {
+      const renderActor = actor.seated ? { ...actor, y: actor.y + 10, vx: 0, vy: 0 } : actor;
+      entries.push({ y: actor.groundY, draw: () => drawOperator(ctx, renderActor, null) });
+    }
+
     game.operator.backpackLoadRatio = game.inventory.getUsedPips() / game.backpack.capacityPips;
     const carriedItem = game.operator.carriedItemInstanceId
       ? findEntity(game.entities, game.operator.carriedItemInstanceId)
@@ -64,8 +83,8 @@ export class Renderer {
     for (const entry of entries) entry.draw();
   }
 
-  #drawGround(ctx) {
-    ctx.fillStyle = "#758467";
+  #drawGround(ctx, game) {
+    ctx.fillStyle = game.weather === "Fog" ? "#7d8878" : game.weather === "Cloudy" ? "#6f7b68" : "#758467";
     ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
     ctx.fillStyle = "rgba(49, 62, 48, 0.09)";
     for (let y = 30; y < MAP_HEIGHT; y += 70) {

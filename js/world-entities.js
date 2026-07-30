@@ -79,6 +79,7 @@ export function findEntity(entities, id) { return entities.find((entity) => enti
 
 export function getAvailableAction(entity, game) {
   if (!entity) return null;
+  if (entity.type === "actor") return { id: "talk", label: "Talk" };
   if (entity.type === "door") {
     if (entity.state === "closed") return { id: "open", label: "Open" };
     if (entity.state === "open") return { id: "close", label: "Close" };

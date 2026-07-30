@@ -44,7 +44,7 @@ export class InteractionSystem {
     const op = this.game.operator;
     const forward = facingVector(op.facing);
     const candidates = [];
-    for (const entity of this.game.entities) {
+    for (const entity of [...this.game.entities, ...this.game.actors]) {
       const action = getAvailableAction(entity, this.game);
       if (!action) continue;
       const cx = entity.x + entity.width / 2;
@@ -68,10 +68,11 @@ export class InteractionSystem {
 
   trigger() {
     if (!this.targetId || !this.activeAction || this.activeAction.disabled) return false;
-    const entity = findEntity(this.game.entities, this.targetId);
+    const entity = findEntity([...this.game.entities, ...this.game.actors], this.targetId);
     if (!entity) return false;
     const action = this.activeAction.id;
 
+    if (action === "talk") { this.game.openDialogue(entity); return true; }
     if (action === "open") {
       entity.state = "opening"; entity.collision = false; this.game.emitEvent("doorOpened", entity); this.game.pushMessage("Door opened"); return true;
     }
@@ -131,5 +132,5 @@ export class InteractionSystem {
     this.game.emitEvent("searchCompleted", container);
   }
 
-  getTarget() { return findEntity(this.game.entities, this.targetId); }
+  getTarget() { return findEntity([...this.game.entities, ...this.game.actors], this.targetId); }
 }

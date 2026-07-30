@@ -3,6 +3,7 @@ import { operatorDefinition } from "../data/operators.js";
 import { createWorldEntities } from "./world-entities.js";
 import { InteractionSystem } from "./interaction.js";
 import { InventorySystem } from "./inventory.js";
+import { createActors, updateActors } from "./actors.js";
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 function circleRectCollision(cx, cy, radius, rect) {
@@ -26,6 +27,12 @@ export class GameState {
     this.siteLayoutIndex = Math.floor(Math.random() * 3);
     this.siteLayoutId = ["A", "B", "C"][this.siteLayoutIndex];
     this.entities = createWorldEntities(mapData, this.siteLayoutIndex);
+    this.actors = createActors();
+    this.clockMinutes = 7 * 60 + 45;
+    this.timeScale = 1;
+    this.weather = ["Clear", "Cloudy", "Fog"][Math.floor(Math.random() * 3)];
+    this.dialogueRequest = null;
+    this.wildlife = Array.from({ length: 9 }, (_, index) => ({ id: `wild_${index}`, x: 220 + Math.random() * 1700, y: 220 + Math.random() * 1180, phase: Math.random() * Math.PI * 2, speed: 7 + Math.random() * 10 }));
     this.backpack = { id: "mara_field_pack", ownerOperatorId: "mara_velez", capacityPips: 8, itemInstanceIds: [] };
     this.operator = { ...operatorDefinition, x: mapData.spawn.x, y: mapData.spawn.y, vx: 0, vy: 0, facing: operatorDefinition.startingFacing, walkingPhase: 0, carriedItemInstanceId: null, lockedByInteraction: false, packPulse: 0, searchPose: 0, searchTargetId: null };
     this.inventory = new InventorySystem(this);
@@ -45,12 +52,30 @@ export class GameState {
 
   openWorldText(entity, mode) { this.worldTextRequest = { entity, mode }; }
 
+  openDialogue(actor) {
+    const lineIndex = actor.relationship === "Unknown" ? 0 : 1 + Math.floor(Math.random() * Math.max(1, actor.greeting.length - 1));
+    actor.relationship = "Met";
+    this.dialogueRequest = { actor, text: actor.greeting[lineIndex] ?? actor.greeting[0] };
+  }
+
+  getTimeLabel() {
+    const total = Math.floor(this.clockMinutes) % 1440;
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  }
+
+  getDayPhase() { const h = (this.clockMinutes / 60) % 24; return h < 12 ? "Morning" : h < 18 ? "Afternoon" : "Evening"; }
+
   pushMessage(text, duration = 2.1) {
     this.messages = this.messages.filter((message) => message.text !== text).slice(-1);
     this.messages.push({ text, time: duration, duration });
   }
 
   update(delta, move) {
+    this.clockMinutes = (this.clockMinutes + delta * this.timeScale) % 1440;
+    updateActors(this, delta);
+    for (const bird of this.wildlife) { bird.phase += delta * bird.speed * 0.1; bird.x += Math.cos(bird.phase) * delta * bird.speed; bird.y += Math.sin(bird.phase * 0.7) * delta * bird.speed * 0.35; }
     const op = this.operator;
     const effectiveMove = op.lockedByInteraction ? { x: 0, y: 0 } : move;
     const targetVx = effectiveMove.x * op.moveSpeed;

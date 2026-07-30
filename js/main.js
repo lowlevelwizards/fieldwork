@@ -13,11 +13,11 @@ const actionPanel = $("#action-panel"), actionName = $("#action-name"), actionBu
 const inventoryOverlay = $("#inventory-overlay"), inspectOverlay = $("#inspect-overlay"), inventoryList = $("#inventory-list");
 const camera = new Camera(), game = new GameState(), renderer = new Renderer(canvas, camera);
 const input = new InputController({ joystickZone: $("#joystick-zone"), joystickBase: $("#joystick-base"), joystickKnob: $("#joystick-knob") });
-let started = false, inventoryOpen = false, worldTextOpen = false, lastTime = performance.now(), fpsAccumulator = 0, fpsFrames = 0, fpsValue = 0, objectiveTimer = null;
+let started = false, inventoryOpen = false, worldTextOpen = false, dialogueOpen = false, lastTime = performance.now(), fpsAccumulator = 0, fpsFrames = 0, fpsValue = 0, objectiveTimer = null;
 
 function resize() { renderer.resize(); camera.snapTo(game.operator); }
 function startGame() { titleScreen.classList.remove("screen--active"); gameScreen.classList.add("screen--active"); started = true; resize(); lastTime = performance.now(); objectiveTimer = setTimeout(() => $("#objective-card").classList.add("objective-card--collapsed"), 5200); }
-function triggerContextAction() { if (inventoryOpen || worldTextOpen) return; if (game.operator.carriedItemInstanceId) game.interaction.dropCarriedItem(); else game.interaction.trigger(); }
+function triggerContextAction() { if (inventoryOpen || worldTextOpen || dialogueOpen) return; if (game.operator.carriedItemInstanceId) game.interaction.dropCarriedItem(); else game.interaction.trigger(); }
 
 function updateInteractionUI() {
   const target = game.interaction.getTarget(), searching = Boolean(game.interaction.searchingEntityId), carryingId = game.operator.carriedItemInstanceId, action = game.interaction.activeAction;
@@ -86,6 +86,23 @@ function closeInspect() {
   if (!inventoryOpen) game.operator.lockedByInteraction = false;
 }
 
+function openDialogue(request) {
+  if (!request) return;
+  dialogueOpen = true;
+  game.operator.lockedByInteraction = true;
+  $("#dialogue-role").textContent = request.actor.role;
+  $("#dialogue-name").textContent = request.actor.name;
+  $("#dialogue-text").textContent = request.text;
+  $("#dialogue-overlay").hidden = false;
+  game.dialogueRequest = null;
+}
+
+function closeDialogue() {
+  dialogueOpen = false;
+  $("#dialogue-overlay").hidden = true;
+  if (!inventoryOpen && !worldTextOpen) game.operator.lockedByInteraction = false;
+}
+
 function updateDebug(delta) {
   fpsAccumulator += delta; fpsFrames += 1; if (fpsAccumulator >= 0.5) { fpsValue = Math.round(fpsFrames / fpsAccumulator); fpsAccumulator = 0; fpsFrames = 0; }
   $("#debug-fps").textContent = fpsValue; $("#debug-position").textContent = `${Math.round(game.operator.x)}, ${Math.round(game.operator.y)}`; $("#debug-facing").textContent = game.operator.facing;
@@ -93,24 +110,26 @@ function updateDebug(delta) {
   $("#debug-world-items").textContent = game.entities.filter((e) => e.type === "item" && e.locationType === "world").length;
   $("#debug-door").textContent = findEntity(game.entities, "shed_door_01")?.state ?? "—"; $("#debug-crate").textContent = game.entities.filter((e) => e.type === "container" && e.searched).length + "/" + game.entities.filter((e) => e.type === "container").length;
   $("#debug-layout").textContent = game.siteLayoutId; $("#debug-hidden").textContent = game.entities.filter((e) => e.type === "item" && !e.revealed && e.locationType !== "backpack" && e.locationType !== "hands").length;
+  $("#debug-time").textContent = game.getTimeLabel(); $("#debug-weather").textContent = game.weather;
+  $("#debug-ada").textContent = game.actors[0]?.currentTask ?? "—"; $("#debug-tomas").textContent = game.actors[1]?.currentTask ?? "—";
   const errors = validateItemLocations(game); $("#debug-audit").textContent = errors.length ? `${errors.length} issue(s)` : "OK";
 }
 
 function frame(now) {
   const delta = Math.min((now - lastTime) / 1000, 0.033); lastTime = now;
-  if (started) { game.update(delta, inventoryOpen ? { x: 0, y: 0 } : input.getMoveVector()); camera.update(game.operator, delta); renderer.render(game); updateInteractionUI(); if (game.worldTextRequest && !worldTextOpen) openWorldText(game.worldTextRequest);
+  if (started) { game.update(delta, inventoryOpen ? { x: 0, y: 0 } : input.getMoveVector()); camera.update(game.operator, delta); renderer.render(game); updateInteractionUI(); if (game.worldTextRequest && !worldTextOpen) openWorldText(game.worldTextRequest); if (game.dialogueRequest && !dialogueOpen) openDialogue(game.dialogueRequest); $("#world-time").textContent = game.getTimeLabel(); $("#world-phase").textContent = `${game.getDayPhase()} · ${game.weather}`;
     if (game.objectiveSecured) { $("#objective-card strong").textContent = "Radio battery secured"; $("#objective-card span:last-child").textContent = "Choose what else deserves space before returning."; } if (!$("#debug-panel").hidden) updateDebug(delta); }
   requestAnimationFrame(frame);
 }
 
 beginButton.addEventListener("click", startGame); actionButton.addEventListener("click", triggerContextAction); $("#backpack-button").addEventListener("click", () => inventoryOpen ? closeInventory() : openInventory());
 $("#inventory-close").addEventListener("click", closeInventory); inventoryOverlay.addEventListener("click", (event) => { if (event.target === inventoryOverlay) closeInventory(); });
-$("#inspect-close").addEventListener("click", closeInspect); inspectOverlay.addEventListener("click", (event) => { if (event.target === inspectOverlay) closeInspect(); });
+$("#inspect-close").addEventListener("click", closeInspect); $("#dialogue-close").addEventListener("click", closeDialogue); inspectOverlay.addEventListener("click", (event) => { if (event.target === inspectOverlay) closeInspect(); });
 window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key === "e" && started) { event.preventDefault(); triggerContextAction(); }
   if (key === "b" && started) { event.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
-  if (key === "escape") { if (!inspectOverlay.hidden) closeInspect(); else if (inventoryOpen) closeInventory(); }
+  if (key === "escape") { if (dialogueOpen) closeDialogue(); else if (!inspectOverlay.hidden) closeInspect(); else if (inventoryOpen) closeInventory(); }
 });
 $("#reset-position-button").addEventListener("click", () => { game.resetPosition(); camera.snapTo(game.operator); });
 $("#debug-button").addEventListener("click", () => { const active = $("#debug-button").getAttribute("aria-pressed") === "true"; $("#debug-button").setAttribute("aria-pressed", String(!active)); $("#debug-panel").hidden = active; $("#reset-position-button").hidden = active; });
