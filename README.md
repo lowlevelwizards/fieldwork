@@ -1,16 +1,21 @@
-# Fieldwork
+# Fieldwork 0.5A — Care Under Pressure
 
-## Field Test 0.4A — The Living Field
+A phone-first browser prototype built with HTML, CSS, ES modules, and Canvas 2D.
 
-This browser-native prototype now combines embodied movement, physical inventory, authored places, and a small living-world layer.
+## Field test loop
 
-The Old Maintenance Pull-Off contains two maintenance workers following simple independent routines. They walk between landmarks, pause to work, sit for breaks, notice Mara nearby, and offer short contextual greetings. A continuously advancing clock, day phase, weather preset, and ambient wildlife give the location motion beyond the player's direct interactions.
+- Find Ada injured beside the maintenance truck.
+- Assess her condition.
+- Search the site for a bandage, water, and the radio battery.
+- Hold the bandage and use it on Ada.
+- Assist her to the break table.
+- Install the battery in the empty radio cradle.
 
-### Controls
+The incident uses physical item custody, actor condition states, assisted movement, in-world treatment, and a reusable incident controller. No build tools are required.
+
+## Controls
 
 - Touch joystick or WASD: move
-- Context button or E: interact
-- Pack button or B: open backpack
-- Debug: inspect world, inventory, time, weather, and worker state
-
-No build step is required. Serve the repository through GitHub Pages or another static web server.
+- Context button or E: interact/use
+- Pack button or B: backpack
+- Escape: close panels

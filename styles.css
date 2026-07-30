@@ -434,3 +434,5 @@ h1 {
 }
 .dialogue-card h2 { margin: 6px 0 10px; }
 .dialogue-card p:not(.eyebrow) { color: var(--ink); line-height: 1.5; min-height: 48px; }
+/* 0.5A care incident: keep the existing quiet HUD while making urgent state legible. */
+.dialogue-card p#dialogue-text { white-space: pre-line; }

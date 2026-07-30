@@ -1,12 +1,11 @@
 # Changelog
 
-## 0.4A.0 — The Living Field
+## 0.5A.0 — Care Under Pressure
 
-- Added a continuously advancing world clock with morning, afternoon, and evening phases.
-- Added Clear, Cloudy, and Fog atmosphere presets selected at field-test start.
-- Added two maintenance workers who share the operator renderer and follow authored waypoint routines.
-- Added reusable walk, wait, sit, look, and awareness behavior through a small sequential task system.
-- Added contextual one-line conversations and simple Unknown/Met relationship continuity.
-- Added subtle ambient wildlife motion.
-- Added living-world HUD and debug readouts for time, weather, and current worker tasks.
-- Preserved all 0.3A discovery, container, inventory, and item-location systems.
+- Added the first authored incident: Ada injured beside the maintenance truck.
+- Added actor conditions, needs, assessment, stabilization, recovery, and gentle deterioration.
+- Made bandages and water usable on a nearby actor while held.
+- Added assisted movement from the truck to the break table.
+- Made the radio battery installable in the field-radio cradle.
+- Added incident outcome tracking and world-state reactions.
+- Added injury posture, blood evidence, objective updates, event hooks, and debug readouts.

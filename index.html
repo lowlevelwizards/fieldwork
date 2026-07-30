@@ -4,18 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1f2a24" />
-  <title>Fieldwork 0.4A — The Living Field</title>
+  <title>Fieldwork 0.5A — Care Under Pressure</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main id="app">
     <section id="title-screen" class="screen screen--active" aria-labelledby="game-title">
       <div class="title-card">
-        <p class="eyebrow">FIELD TEST 0.4A</p><h1 id="game-title">FIELDWORK</h1>
-        <p class="subtitle">The Living Field</p>
-        <p class="intro">Explore the old maintenance pull-off, read the site, and recover a replacement radio battery.</p>
+        <p class="eyebrow">FIELD TEST 0.5A</p><h1 id="game-title">FIELDWORK</h1>
+        <p class="subtitle">Care Under Pressure</p>
+        <p class="intro">Arrive at the pull-off, assess what happened, stabilize Ada, and restore communications.</p>
         <button id="begin-button" class="primary-button" type="button">Begin Field Test</button>
-        <p class="version">Build 0.4A.0</p>
+        <p class="version">Build 0.5A.0</p>
       </div>
     </section>
 
@@ -26,8 +26,8 @@
         <div class="world-status"><strong id="world-time">07:45</strong><span id="world-phase">Morning · Clear</span></div><button id="debug-button" class="hud-button" type="button" aria-pressed="false">Debug</button>
       </div>
       <div id="objective-card" class="objective-card">
-        <span class="objective-kicker">FIELD TEST</span><strong>Recover a radio battery</strong>
-        <span>Read the maintenance sign, explore the site, and find a usable replacement.</span>
+        <span class="objective-kicker">FIELD TEST</span><strong>Someone nearby needs assistance</strong>
+        <span>Find Ada near the truck, assess her condition, and use the supplies at the site.</span>
       </div>
       <div id="joystick-zone" class="joystick-zone" aria-label="Movement joystick"><div id="joystick-base" class="joystick-base" aria-hidden="true"><div id="joystick-knob" class="joystick-knob"></div></div></div>
 
@@ -49,7 +49,7 @@
         <div><span>Facing</span><strong id="debug-facing">up</strong></div><div><span>Target</span><strong id="debug-target">—</strong></div>
         <div><span>Hands</span><strong id="debug-carry">—</strong></div><div><span>Pack</span><strong id="debug-pack">0 / 8</strong></div>
         <div><span>World Items</span><strong id="debug-world-items">0</strong></div><div><span>Door</span><strong id="debug-door">closed</strong></div>
-        <div><span>Containers</span><strong id="debug-crate">0/0</strong></div><div><span>Time</span><strong id="debug-time">07:45</strong></div><div><span>Weather</span><strong id="debug-weather">Clear</strong></div><div><span>Ada Task</span><strong id="debug-ada">—</strong></div><div><span>Tomas Task</span><strong id="debug-tomas">—</strong></div><div><span>Layout</span><strong id="debug-layout">A</strong></div><div><span>Hidden Items</span><strong id="debug-hidden">0</strong></div><div><span>Audit</span><strong id="debug-audit">OK</strong></div>
+        <div><span>Containers</span><strong id="debug-crate">0/0</strong></div><div><span>Incident</span><strong id="debug-incident">active</strong></div><div><span>Ada Condition</span><strong id="debug-condition">bleeding</strong></div><div><span>Time</span><strong id="debug-time">07:45</strong></div><div><span>Weather</span><strong id="debug-weather">Clear</strong></div><div><span>Ada Task</span><strong id="debug-ada">—</strong></div><div><span>Tomas Task</span><strong id="debug-tomas">—</strong></div><div><span>Layout</span><strong id="debug-layout">A</strong></div><div><span>Hidden Items</span><strong id="debug-hidden">0</strong></div><div><span>Audit</span><strong id="debug-audit">OK</strong></div>
       </aside>
 
       <div id="inventory-overlay" class="inventory-overlay" hidden>
