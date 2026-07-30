@@ -1,4 +1,5 @@
 import { getOperatorKit } from "../../data/operator-kits.js";
+import { drawItemVisual, itemGrip } from "./item-renderer.js";
 
 const VALID_FACINGS = new Set(["up", "down", "left", "right"]);
 
@@ -127,12 +128,24 @@ function drawFrontRig(ctx, palette) {
   drawAccentPatch(ctx, 10, -6, 5, 3, palette.accent);
 }
 
+function drawHeldItem(ctx, definitionId, facing, palette) {
+  if (!definitionId) return;
+  const grip = itemGrip(definitionId, facing);
+  const angle = facing === "left" || facing === "right" ? 0 : 0;
+  ctx.save();
+  ctx.translate(grip.item.x, grip.item.y);
+  drawItemVisual(ctx, definitionId, { scale: grip.item.scale, facing });
+  ctx.restore();
+  for (const hand of grip.hands) drawHandCapsule(ctx, hand.x, hand.y, angle, palette);
+}
+
 function drawUp(ctx, palette, motion) {
   const { step, sway, packBounce, packScale } = motion;
 
   drawRearLegs(ctx, step, palette);
 
-  // The rifle and gripping hands are entirely behind the body when facing north.
+  // Carried objects and their hands sit behind the operator when facing north.
+  if (motion.carrying) drawHeldItem(ctx, motion.carriedDefinitionId, "up", palette);
   if (!motion.carrying) drawWeapon(ctx, {
     x1: -10 + sway, y1: 1,
     x2: 1 + sway, y2: -47,
@@ -161,10 +174,15 @@ function drawUp(ctx, palette, motion) {
 function drawDown(ctx, palette, motion) {
   const { step, sway } = motion;
 
-  roundedRect(ctx, -18, -10, 5, 25, 3, palette.backpack);
-  roundedRect(ctx, 13, -10, 5, 25, 3, palette.backpack);
-  roundedRect(ctx, -16, -14, 4, 30, 2, palette.webbing);
-  roundedRect(ctx, 12, -14, 4, 30, 2, palette.webbing);
+  // Front view: the pack is behind the torso, but its outer volume, flap,
+  // straps, and lower roll remain visible beyond the silhouette.
+  roundedRect(ctx, -19, -12, 38, 29, 9, palette.backpack);
+  roundedRect(ctx, -16, -16, 32, 10, 5, palette.backpackFlap);
+  roundedRect(ctx, -15, 14, 30, 7, 4, palette.bedroll);
+  roundedRect(ctx, -18, -4, 5, 19, 3, palette.rigPouch);
+  roundedRect(ctx, 13, -4, 5, 19, 3, palette.rigPouch);
+  roundedRect(ctx, -15, -14, 4, 30, 2, palette.webbing);
+  roundedRect(ctx, 11, -14, 4, 30, 2, palette.webbing);
 
   drawFrontLegs(ctx, step, palette);
   roundedRect(ctx, -20, -14, 40, 29, 10, palette.torso);
@@ -180,6 +198,7 @@ function drawDown(ctx, palette, motion) {
     rearHand: { x: -7 + sway, y: 4 },
     frontHand: { x: 8 + sway, y: 15 }
   });
+  else drawHeldItem(ctx, motion.carriedDefinitionId, "down", palette);
 }
 
 function drawSide(ctx, palette, motion, direction) {
@@ -209,27 +228,11 @@ function drawSide(ctx, palette, motion, direction) {
     rearHand: { x: sign * (5 + sway), y: -1 },
     frontHand: { x: sign * (21 + sway), y: -4 }
   });
+  else drawHeldItem(ctx, motion.carriedDefinitionId, direction, palette);
 }
 
-function drawCarriedBattery(ctx, facing, palette) {
-  if (facing === "up") {
-    roundedRect(ctx, -13, -7, 26, 16, 4, "#3d4741");
-    roundedRect(ctx, -8, -4, 16, 10, 3, "#6e6e5e");
-  } else if (facing === "down") {
-    roundedRect(ctx, -15, -3, 30, 18, 5, "#3d4741");
-    roundedRect(ctx, -10, 1, 20, 10, 3, "#6e6e5e");
-    drawHandCapsule(ctx, -14, 5, 0, palette);
-    drawHandCapsule(ctx, 14, 5, 0, palette);
-  } else {
-    const sign = facing === "right" ? 1 : -1;
-    roundedRect(ctx, sign > 0 ? 7 : -31, -3, 24, 17, 4, "#3d4741");
-    roundedRect(ctx, sign > 0 ? 11 : -27, 1, 16, 9, 3, "#6e6e5e");
-    drawHandCapsule(ctx, sign * 8, 4, 0, palette);
-    drawHandCapsule(ctx, sign * 22, 5, 0, palette);
-  }
-}
 
-export function drawOperator(ctx, operator) {
+export function drawOperator(ctx, operator, carriedItem = null) {
   const kit = getOperatorKit(operator.kitId);
   const palette = kit.palette;
   const facing = VALID_FACINGS.has(operator.facing) ? operator.facing : "up";
@@ -240,8 +243,9 @@ export function drawOperator(ctx, operator) {
     step: moving ? Math.sin(phase) * 1.7 : 0,
     sway: moving ? Math.sin(phase * 0.5) * 1.0 : 0,
     packBounce: (moving ? Math.abs(Math.sin(phase)) * 0.9 : 0) - (operator.packPulse || 0) * 1.5,
-    packScale: Math.round((operator.backpackLoadRatio || 0) * 2),
-    carrying
+    packScale: (operator.backpackLoadRatio || 0) * 2,
+    carrying,
+    carriedDefinitionId: carriedItem?.definitionId || null
   };
 
   ctx.save();
@@ -255,8 +259,6 @@ export function drawOperator(ctx, operator) {
   if (facing === "up") drawUp(ctx, palette, motion);
   else if (facing === "down") drawDown(ctx, palette, motion);
   else drawSide(ctx, palette, motion, facing);
-
-  if (carrying) drawCarriedBattery(ctx, facing, palette);
 
   ctx.restore();
 }
