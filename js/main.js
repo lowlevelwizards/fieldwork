@@ -123,12 +123,53 @@ function updateDebug(delta) {
   const errors = validateItemLocations(game); $("#debug-audit").textContent = errors.length ? `${errors.length} issue(s)` : "OK";
 }
 
+let reportedFrameError = false;
+
+function reportFrameError(error) {
+  console.error("Fieldwork frame error", error);
+  if (reportedFrameError) return;
+  reportedFrameError = true;
+  game.pushMessage("A presentation error was contained. Movement remains active.", 5);
+}
+
 function frame(now) {
-  const delta = Math.min((now - lastTime) / 1000, 0.033); lastTime = now;
-  if (started) { game.update(delta, inventoryOpen ? { x: 0, y: 0 } : input.getMoveVector()); camera.update(game.operator, delta); renderer.render(game); updateInteractionUI(); if (game.worldTextRequest && !worldTextOpen) openWorldText(game.worldTextRequest); if (game.dialogueRequest && !dialogueOpen) openDialogue(game.dialogueRequest); if (game.assessmentRequest && !dialogueOpen) { openDialogue({ actor: game.assessmentRequest.actor, text: game.assessmentRequest.text }); game.assessmentRequest = null; } $("#world-time").textContent = game.getTimeLabel(); $("#world-phase").textContent = `${game.getDayPhase()} · ${game.weather}`;
-    if (game.incident.state === "resolved") { $("#objective-card strong").textContent = "Situation stabilized"; $("#objective-card span:last-child").textContent = "Ada is safe and communications are restored."; }
-    else if (game.incident.bandageUsed) { $("#objective-card strong").textContent = "Move Ada to safety"; $("#objective-card span:last-child").textContent = "Assist her to the break table and restore the field radio."; } if (!$("#debug-panel").hidden) updateDebug(delta); }
-  requestAnimationFrame(frame);
+  const delta = Math.min((now - lastTime) / 1000, 0.033);
+  lastTime = now;
+
+  try {
+    if (started) {
+      game.update(delta, inventoryOpen ? { x: 0, y: 0 } : input.getMoveVector());
+      camera.update(game.operator, delta);
+
+      // Keep simulation and HUD alive even if one drawing routine fails.
+      $("#world-time").textContent = game.getTimeLabel();
+      $("#world-phase").textContent = `${game.getDayPhase()} · ${game.weather}`;
+
+      try { renderer.render(game); } catch (error) { reportFrameError(error); }
+      updateInteractionUI();
+
+      if (game.worldTextRequest && !worldTextOpen) openWorldText(game.worldTextRequest);
+      if (game.dialogueRequest && !dialogueOpen) openDialogue(game.dialogueRequest);
+      if (game.assessmentRequest && !dialogueOpen) {
+        openDialogue({ actor: game.assessmentRequest.actor, text: game.assessmentRequest.text });
+        game.assessmentRequest = null;
+      }
+
+      if (game.incident.state === "resolved") {
+        $("#objective-card strong").textContent = "Situation stabilized";
+        $("#objective-card span:last-child").textContent = "Ada is safe and communications are restored.";
+      } else if (game.incident.bandageUsed) {
+        $("#objective-card strong").textContent = "Move Ada to safety";
+        $("#objective-card span:last-child").textContent = "Assist her to the break table and restore the field radio.";
+      }
+
+      if (!$("#debug-panel").hidden) updateDebug(delta);
+    }
+  } catch (error) {
+    reportFrameError(error);
+  } finally {
+    requestAnimationFrame(frame);
+  }
 }
 
 beginButton.addEventListener("click", startGame); actionButton.addEventListener("click", triggerContextAction); $("#backpack-button").addEventListener("click", () => inventoryOpen ? closeInventory() : openInventory());

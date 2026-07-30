@@ -85,7 +85,16 @@ export class Renderer {
       : null;
     entries.push({ y: game.operator.y + game.operator.radius, draw: () => drawOperator(ctx, game.operator, carriedItem) });
     entries.sort((a, b) => a.y - b.y);
-    for (const entry of entries) entry.draw();
+    for (const entry of entries) {
+      ctx.save();
+      try {
+        entry.draw();
+      } catch (error) {
+        console.error("Fieldwork draw entry failed", error);
+      } finally {
+        ctx.restore();
+      }
+    }
   }
 
   #drawGround(ctx, game) {
