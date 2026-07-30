@@ -245,11 +245,18 @@ export function drawOperator(ctx, operator, carriedItem = null) {
     packBounce: (moving ? Math.abs(Math.sin(phase)) * 0.9 : 0) - (operator.packPulse || 0) * 1.5,
     packScale: (operator.backpackLoadRatio || 0) * 2,
     carrying,
-    carriedDefinitionId: carriedItem?.definitionId || null
+    carriedDefinitionId: carriedItem?.definitionId || null,
+    searching: Boolean(operator.searchTargetId),
+    searchPose: operator.searchPose || 0
   };
 
   ctx.save();
   ctx.translate(operator.x, operator.y);
+  if (motion.searching) {
+    const leanX = facing === "left" ? -4 : facing === "right" ? 4 : 0;
+    ctx.translate(leanX, 3 + motion.searchPose * 1.5);
+    ctx.rotate((facing === "left" ? -1 : facing === "right" ? 1 : 0) * 0.055);
+  }
 
   drawShadow(ctx, moving, phase);
 
