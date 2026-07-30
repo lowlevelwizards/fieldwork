@@ -4,67 +4,71 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1f2a24" />
-  <title>Fieldwork 0.2A — Touch the World</title>
+  <title>Fieldwork 0.2B — Physical Inventory</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main id="app">
     <section id="title-screen" class="screen screen--active" aria-labelledby="game-title">
       <div class="title-card">
-        <p class="eyebrow">FIELD TEST 0.2A</p>
-        <h1 id="game-title">FIELDWORK</h1>
-        <p class="subtitle">Touch the World</p>
-        <p class="intro">Open the utility shed, search the crate, recover the radio battery, and test carrying it through the world.</p>
+        <p class="eyebrow">FIELD TEST 0.2B</p><h1 id="game-title">FIELDWORK</h1>
+        <p class="subtitle">Physical Inventory</p>
+        <p class="intro">Search the shed, pack useful supplies, and decide what deserves space in Mara's field pack.</p>
         <button id="begin-button" class="primary-button" type="button">Begin Field Test</button>
-        <p class="version">Build 0.2A.0</p>
+        <p class="version">Build 0.2B.0</p>
       </div>
     </section>
 
-    <section id="game-screen" class="screen" aria-label="Fieldwork movement test">
+    <section id="game-screen" class="screen" aria-label="Fieldwork physical inventory test">
       <canvas id="game-canvas"></canvas>
-
       <div class="hud hud--top">
-        <div class="hud-chip">
-          <span class="hud-label">Operator</span>
-          <strong>Mara Velez</strong>
-        </div>
+        <div class="hud-chip"><span class="hud-label">Operator</span><strong>Mara Velez</strong></div>
         <button id="debug-button" class="hud-button" type="button" aria-pressed="false">Debug</button>
       </div>
-
       <div id="objective-card" class="objective-card">
-        <span class="objective-kicker">FIELD TEST</span>
-        <strong>Recover the battery</strong>
-        <span>Open the shed, search the crate, then take and drop the radio battery.</span>
+        <span class="objective-kicker">FIELD TEST</span><strong>Choose what comes back</strong>
+        <span>Search the crate. The available supplies exceed your eight-pip pack.</span>
       </div>
+      <div id="joystick-zone" class="joystick-zone" aria-label="Movement joystick"><div id="joystick-base" class="joystick-base" aria-hidden="true"><div id="joystick-knob" class="joystick-knob"></div></div></div>
 
-      <div id="joystick-zone" class="joystick-zone" aria-label="Movement joystick">
-        <div id="joystick-base" class="joystick-base" aria-hidden="true">
-          <div id="joystick-knob" class="joystick-knob"></div>
+      <div id="field-controls" class="field-controls">
+        <div id="message-stack" class="message-stack" aria-live="polite"></div>
+        <div class="field-control-row">
+          <button id="backpack-button" class="backpack-button" type="button"><span>PACK</span><strong id="pack-usage-compact">0/8</strong></button>
+          <section id="action-panel" class="action-panel" hidden aria-live="polite">
+            <span id="action-name" class="action-name">Object</span>
+            <button id="action-button" class="action-button" type="button">Interact</button>
+            <div class="action-progress"><div id="action-progress-fill" class="action-progress-fill"></div></div>
+          </section>
         </div>
       </div>
 
-      <section id="action-panel" class="action-panel" hidden aria-live="polite">
-        <span id="action-name" class="action-name">Object</span>
-        <button id="action-button" class="action-button" type="button">Interact</button>
-        <div class="action-progress"><div id="action-progress-fill" class="action-progress-fill"></div></div>
-      </section>
-
-      <div id="message-toast" class="message-toast" hidden aria-live="polite"></div>
-
       <button id="reset-position-button" class="utility-button" type="button" hidden>Reset Position</button>
-
       <aside id="debug-panel" class="debug-panel" hidden>
-        <div><span>FPS</span><strong id="debug-fps">0</strong></div>
-        <div><span>Position</span><strong id="debug-position">0, 0</strong></div>
-        <div><span>Speed</span><strong id="debug-speed">0</strong></div>
-        <div><span>Facing</span><strong id="debug-facing">up</strong></div>
-        <div><span>Target</span><strong id="debug-target">—</strong></div>
-        <div><span>Carry</span><strong id="debug-carry">—</strong></div>
-        <div><span>Orientation</span><strong id="debug-orientation">—</strong></div>
+        <div><span>FPS</span><strong id="debug-fps">0</strong></div><div><span>Position</span><strong id="debug-position">0, 0</strong></div>
+        <div><span>Facing</span><strong id="debug-facing">up</strong></div><div><span>Target</span><strong id="debug-target">—</strong></div>
+        <div><span>Hands</span><strong id="debug-carry">—</strong></div><div><span>Pack</span><strong id="debug-pack">0 / 8</strong></div>
+        <div><span>World Items</span><strong id="debug-world-items">0</strong></div><div><span>Door</span><strong id="debug-door">closed</strong></div>
+        <div><span>Crate</span><strong id="debug-crate">unsearched</strong></div><div><span>Audit</span><strong id="debug-audit">OK</strong></div>
       </aside>
+
+      <div id="inventory-overlay" class="inventory-overlay" hidden>
+        <section class="inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventory-title">
+          <header><div><p class="eyebrow">EQUIPPED CONTAINER</p><h2 id="inventory-title">Mara's Field Pack</h2></div><button id="inventory-close" class="icon-button" type="button" aria-label="Close backpack">×</button></header>
+          <div class="capacity-block"><div class="capacity-copy"><span>Capacity</span><strong id="pack-usage">0 / 8 pips</strong></div><div id="capacity-pips" class="capacity-pips"></div></div>
+          <div id="inventory-list" class="inventory-list"></div>
+        </section>
+      </div>
+
+      <div id="inspect-overlay" class="inspect-overlay" hidden>
+        <section class="inspect-card" role="dialog" aria-modal="true" aria-labelledby="inspect-name">
+          <p id="inspect-category" class="eyebrow">UTILITY</p><h2 id="inspect-name">Item</h2>
+          <p id="inspect-size" class="inspect-size">Size: 1 pip</p><p id="inspect-description"></p><p id="inspect-location" class="inspect-location"></p>
+          <button id="inspect-close" class="primary-button" type="button">Back</button>
+        </section>
+      </div>
     </section>
   </main>
-
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

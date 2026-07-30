@@ -1,51 +1,16 @@
 # Changelog
 
+## 0.2B.0 — Physical Inventory
+
+- Added an eight-pip Field Pack with mobile inventory panel.
+- Added Radio Battery, Bandage, Compass, Water Bottle, and Rope Bundle item definitions.
+- Added authoritative transfers between container, world, hands, and backpack.
+- Added item inspection, hold, drop, capacity feedback, and load-responsive pack silhouette.
+- Converted the searched crate to own and reveal real item instances.
+- Added reversible shed door animation with blocked-door validation.
+- Moved notifications above the lower-right interaction controls.
+- Added safe drop placement and item-location audit information in Debug.
+
 ## 0.2A.0 — Touch the World
 
-- Added a shared world-entity foundation for doors, searchable containers, and physical item instances.
-- Added contextual interaction targeting, object highlights, a mobile action button, and keyboard E fallback.
-- Added a stateful utility-shed door with animated opening and dynamic collision.
-- Added an interruptible searchable crate with progress feedback and an opened state.
-- Added a radio battery that is revealed into the world, targeted independently, taken, carried, dropped, and recovered without duplication.
-- Added one-item carried presentation that replaces the ready weapon while Mara carries the battery.
-- Integrated entities into ground-y depth sorting and consistent shadow rules.
-- Added short interaction messages plus target and carried-item debug readouts.
-
-## 0.1D.0 — Proportion and Readability
-
-- Moved and flattened the ground shadow beneath the boots.
-- Extended the helmet beyond the face for a clearer equipment silhouette.
-- Rebuilt the rifle from stock, receiver, barrel, magazine, and butt masses.
-- Replaced large circular hands with smaller gripping capsules.
-- Reduced the rear and side backpack dimensions so the body remains visible.
-- Added distinct torso, belt, trousers, legs, and boot sections in every facing.
-- Retuned the walk cycle so the feet step more while the body bobs less.
-
-## 0.1C.0 — Character Identity
-
-- Moved the north-facing weapon and hands behind the operator body and backpack.
-- Re-anchored and flattened the drop shadow beneath the boots so body bob no longer makes Mara appear offset or airborne.
-- Increased the helmet silhouette and added a clearer rear/side helmet structure.
-- Enlarged the backpack and added stronger flap, side-pouch, strap, and bedroll masses.
-- Added a simplified chest rig with three readable pouches.
-- Widened the boots and slightly strengthened torso proportions.
-- Added a restrained Northline-blue identity accent to the helmet, rig, and pack.
-- Refined the primitive-only palette for clearer separation between uniform, webbing, equipment, and weapon materials.
-
-## 0.1B.0 — Equipped Operator
-
-- Replaced continuous character rotation with four discrete facings: up, down, left, and right.
-- Added a dedicated Canvas operator presentation module.
-- Rebuilt Mara from layered body parts with boots, torso, headwear, hands, rifle, webbing, backpack, flap, and bedroll.
-- Added facing-specific equipment layering and a visible rear/side backpack silhouette.
-- Added subtle walking bob, weapon sway, and backpack bounce without moving gameplay coordinates.
-- Added simple ground-y sorting between the operator and trees/rocks.
-- Added current facing to the debug panel.
-- Moved Reset Position behind the Debug toggle.
-- Made the objective card collapse after several seconds and allowed tapping it to expand/collapse.
-- Hid the joystick base until touched.
-
-## 0.1A.0 — Movement Test
-
-- Initial phone-first movement test.
-- Added fixed map, touch joystick, keyboard controls, camera follow, collision, HUD, and debug tools.
+- Added stateful door, searchable crate, physical battery, contextual interaction, carrying, dropping, and depth sorting.

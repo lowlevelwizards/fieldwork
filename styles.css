@@ -360,3 +360,41 @@ h1 {
   .action-panel { right: 24px; bottom: calc(22px + var(--safe-bottom)); width: min(30vw, 190px); }
   .message-toast { bottom: calc(86px + var(--safe-bottom)); }
 }
+
+/* 0.2B physical inventory */
+.field-controls { position:absolute; right:18px; bottom:calc(20px + var(--safe-bottom)); width:min(48vw, 230px); display:flex; flex-direction:column; align-items:stretch; gap:8px; z-index:20; }
+.message-stack { display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-height:0; pointer-events:none; }
+.message-stack .message-toast { position:static; transform:none; max-width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:12px; background:rgba(18,26,21,.92); text-align:right; font-size:.78rem; transition:opacity 120ms linear; }
+.field-control-row { display:flex; align-items:flex-end; justify-content:flex-end; gap:8px; }
+.backpack-button { flex:0 0 72px; min-height:58px; border:1px solid var(--line); border-radius:16px; color:var(--ink); background:var(--panel); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; }
+.backpack-button span { color:var(--accent); font-size:.66rem; letter-spacing:.12em; font-weight:800; }
+.backpack-button strong { font-size:.94rem; }
+.action-panel { position:static !important; width:auto !important; min-width:124px; flex:1 1 auto; transform:none !important; right:auto !important; bottom:auto !important; }
+.utility-button { right:auto; left:18px; bottom:calc(180px + var(--safe-bottom)); }
+.inventory-overlay,.inspect-overlay { position:absolute; inset:0; z-index:50; display:grid; place-items:end center; padding:12px; background:rgba(10,15,12,.55); backdrop-filter:blur(5px); }
+.inventory-overlay[hidden],.inspect-overlay[hidden] { display:none; }
+.inventory-panel { width:min(100%, 480px); max-height:min(82vh, 680px); overflow:auto; padding:18px; border:1px solid var(--line); border-radius:24px; background:#1b2620; box-shadow:0 18px 60px rgba(0,0,0,.35); }
+.inventory-panel header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.inventory-panel h2,.inspect-card h2 { margin:4px 0 0; font-size:1.45rem; }
+.icon-button { width:42px; height:42px; border:1px solid var(--line); border-radius:14px; background:var(--panel-soft); color:var(--ink); font-size:1.7rem; line-height:1; }
+.capacity-block { margin:18px 0; padding:13px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.035); }
+.capacity-copy { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; color:var(--muted); }
+.capacity-copy strong { color:var(--ink); }
+.capacity-pips { display:grid; grid-template-columns:repeat(8,1fr); gap:5px; }
+.capacity-pip { height:13px; border-radius:4px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.04); }
+.capacity-pip--used { border-color:#b77735; background:var(--accent); }
+.inventory-list { display:flex; flex-direction:column; gap:10px; }
+.inventory-empty { padding:24px 10px; text-align:center; color:var(--muted); }
+.inventory-row { padding:12px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.035); }
+.item-summary { display:flex; align-items:center; gap:10px; }
+.item-summary div { display:flex; flex-direction:column; gap:2px; }
+.item-summary span:not(.item-swatch) { font-size:.76rem; color:var(--muted); }
+.item-swatch { width:28px; height:28px; border-radius:8px; background:var(--item-color); box-shadow:inset 0 0 0 2px rgba(255,255,255,.12); }
+.item-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:11px; }
+.item-actions button { min-height:38px; border:1px solid var(--line); border-radius:11px; background:var(--panel-soft); color:var(--ink); }
+.inspect-overlay { place-items:center; }
+.inspect-card { width:min(90vw, 390px); padding:22px; border:1px solid var(--line); border-radius:22px; background:#1b2620; }
+.inspect-card p { color:#d2d6ca; line-height:1.5; }
+.inspect-size,.inspect-location { color:var(--muted) !important; font-size:.84rem; }
+.inspect-card .primary-button { margin-top:8px; }
+@media (orientation:landscape) { .field-controls { right:24px; bottom:calc(18px + var(--safe-bottom)); width:min(31vw,230px); } .inventory-overlay { place-items:center; } }

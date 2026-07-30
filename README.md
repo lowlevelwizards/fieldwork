@@ -1,66 +1,19 @@
-# Fieldwork 0.2A — Touch the World
+# Fieldwork 0.2B — Physical Inventory
 
-A phone-first browser prototype for the earliest playable seed of Fieldwork.
+A dependency-free, phone-first browser prototype for Fieldwork.
 
-## 0.2A focus
+## Play
 
-This build adds the first complete physical interaction loop:
+Upload the repository contents to a GitHub repository and enable GitHub Pages from the root of the `main` branch. No build step is required.
 
-- shared stateful world entities
-- contextual mobile interaction button and keyboard `E` fallback
-- target highlighting and ground-y depth sorting
-- openable utility-shed door
-- searchable crate with interruptible progress
-- physically revealed radio battery
-- one-item carried state with take and drop behavior
-- carried battery presentation on the operator
-- short interaction messages and expanded debug readouts
+## 0.2B field test
 
-## Included foundation
+- Move with the floating joystick or WASD/arrow keys.
+- Open and close the utility shed door.
+- Search the crate to reveal three physical item instances.
+- Pack nearby items with the contextual action button or `E`.
+- Open Mara's eight-pip field pack with the Pack button or `B`.
+- Inspect, hold, and drop packed items.
+- Five available items total nine pips, forcing at least one carrying decision.
 
-- title screen and fixed roadside clearing
-- one controllable four-facing operator
-- floating touch joystick
-- WASD / arrow-key fallback
-- smooth camera follow
-- collision with trees, rocks, shed walls, door, and crate
-- portrait and landscape support
-- visible return-zone placeholder
-
-## Run locally
-
-Because the project uses JavaScript modules, serve the folder with a small local server rather than opening `index.html` directly:
-
-```bash
-python3 -m http.server 8080
-```
-
-Then open `http://localhost:8080`.
-
-## GitHub Pages
-
-Upload the project contents to the repository root, then deploy the `main` branch from `/ (root)` under **Settings → Pages**.
-
-## Controls
-
-### Phone / tablet
-
-- Touch and drag in the lower-left area to move.
-- Tap the contextual button in the lower-right to interact.
-- While carrying the battery, the same button drops it.
-
-### Keyboard
-
-- WASD or arrow keys: move
-- E: interact, take, or drop
-
-## Test sequence
-
-1. Walk east to the utility shed.
-2. Approach the bottom doorway and open the door.
-3. Enter and search the storage crate.
-4. Stay close until the search finishes.
-5. Take the revealed radio battery.
-6. Walk with it, drop it, and pick it up again.
-
-Persistence, backpack capacity, extraction, and container inventory are intentionally deferred.
+The item-location system enforces one authoritative location for each item: container, world, hands, or backpack.
