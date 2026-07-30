@@ -128,7 +128,7 @@ function drawFrontRig(ctx, palette) {
 }
 
 function drawUp(ctx, palette, motion) {
-  const { step, sway, packBounce } = motion;
+  const { step, sway, packBounce, packScale } = motion;
 
   drawRearLegs(ctx, step, palette);
 
@@ -145,7 +145,7 @@ function drawUp(ctx, palette, motion) {
   drawWaist(ctx, palette);
 
   // Reduced pack: shoulders, waist, pants, and boots remain readable around it.
-  roundedRect(ctx, -21, -9 + packBounce, 42, 29, 9, palette.backpack);
+  roundedRect(ctx, -21 - packScale, -9 + packBounce, 42 + packScale * 2, 29 + packScale, 9, palette.backpack);
   roundedRect(ctx, -18, -15 + packBounce, 36, 12, 6, palette.backpackFlap);
   roundedRect(ctx, -24, -1 + packBounce, 6, 16, 3, palette.rigPouch);
   roundedRect(ctx, 18, -1 + packBounce, 6, 16, 3, palette.rigPouch);
@@ -184,12 +184,12 @@ function drawDown(ctx, palette, motion) {
 
 function drawSide(ctx, palette, motion, direction) {
   const sign = direction === "right" ? 1 : -1;
-  const { step, sway, packBounce } = motion;
+  const { step, sway, packBounce, packScale } = motion;
 
   drawSideLegs(ctx, step, palette, sign);
 
   const packX = sign === 1 ? -26 : 5;
-  roundedRect(ctx, packX, -10 + packBounce, 21, 30, 8, palette.backpack);
+  roundedRect(ctx, packX - (sign === 1 ? packScale : 0), -10 + packBounce, 21 + packScale, 30 + packScale * 0.5, 8, palette.backpack);
   roundedRect(ctx, packX + 1, -15 + packBounce, 19, 11, 6, palette.backpackFlap);
   roundedRect(ctx, packX + 3, 17 + packBounce, 15, 8, 4, palette.bedroll);
   roundedRect(ctx, packX + (sign === 1 ? -3 : 17), -1 + packBounce, 6, 15, 3, palette.rigPouch);
@@ -239,7 +239,8 @@ export function drawOperator(ctx, operator) {
   const motion = {
     step: moving ? Math.sin(phase) * 1.7 : 0,
     sway: moving ? Math.sin(phase * 0.5) * 1.0 : 0,
-    packBounce: moving ? Math.abs(Math.sin(phase)) * 0.9 : 0,
+    packBounce: (moving ? Math.abs(Math.sin(phase)) * 0.9 : 0) - (operator.packPulse || 0) * 1.5,
+    packScale: Math.round((operator.backpackLoadRatio || 0) * 2),
     carrying
   };
 
