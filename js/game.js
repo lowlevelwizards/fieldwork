@@ -23,18 +23,27 @@ export function resolveFacing(move, currentFacing) {
 export class GameState {
   constructor() {
     this.map = mapData;
-    this.entities = createWorldEntities(mapData);
+    this.siteLayoutIndex = Math.floor(Math.random() * 3);
+    this.siteLayoutId = ["A", "B", "C"][this.siteLayoutIndex];
+    this.entities = createWorldEntities(mapData, this.siteLayoutIndex);
     this.backpack = { id: "mara_field_pack", ownerOperatorId: "mara_velez", capacityPips: 8, itemInstanceIds: [] };
-    this.operator = { ...operatorDefinition, x: mapData.spawn.x, y: mapData.spawn.y, vx: 0, vy: 0, facing: operatorDefinition.startingFacing, walkingPhase: 0, carriedItemInstanceId: null, lockedByInteraction: false, packPulse: 0 };
+    this.operator = { ...operatorDefinition, x: mapData.spawn.x, y: mapData.spawn.y, vx: 0, vy: 0, facing: operatorDefinition.startingFacing, walkingPhase: 0, carriedItemInstanceId: null, lockedByInteraction: false, packPulse: 0, searchPose: 0, searchTargetId: null };
     this.inventory = new InventorySystem(this);
     this.interaction = new InteractionSystem(this);
     this.messages = [];
+    this.worldTextRequest = null;
+    this.objectiveSecured = false;
+    this.eventLog = [];
   }
 
   resetPosition() {
     Object.assign(this.operator, { x: this.map.spawn.x, y: this.map.spawn.y, vx: 0, vy: 0, facing: this.operator.startingFacing });
     if (this.interaction.searchingEntityId) this.interaction.cancelSearch();
   }
+
+  emitEvent(name, entity = null) { this.eventLog.push({ name, entityId: entity?.id ?? null, time: performance.now() }); this.eventLog = this.eventLog.slice(-20); }
+
+  openWorldText(entity, mode) { this.worldTextRequest = { entity, mode }; }
 
   pushMessage(text, duration = 2.1) {
     this.messages = this.messages.filter((message) => message.text !== text).slice(-1);
@@ -57,6 +66,12 @@ export class GameState {
     this.#moveAxis("x", op.vx * delta);
     this.#moveAxis("y", op.vy * delta);
     this.#updateEntityAnimations(delta);
+    const now = performance.now();
+    for (const entity of this.entities) {
+      if (entity.type === "item" && entity.locationType === "world" && !entity.revealed && entity.revealAt && now >= entity.revealAt) { entity.revealed = true; this.emitEvent("itemRevealed", entity); }
+    }
+    const battery = this.entities.find((entity) => entity.id === "battery_001");
+    if (!this.objectiveSecured && battery && (battery.locationType === "backpack" || battery.locationType === "hands")) { this.objectiveSecured = true; this.pushMessage("Radio battery secured", 3); }
     this.interaction.update(delta);
     for (const message of this.messages) message.time -= delta;
     this.messages = this.messages.filter((message) => message.time > 0);
@@ -64,13 +79,14 @@ export class GameState {
 
   #updateEntityAnimations(delta) {
     for (const entity of this.entities) {
-      if (entity.type !== "door") continue;
+      if (entity.type !== "door" && entity.type !== "container") continue;
+      const duration = entity.type === "door" ? 0.24 : 0.3;
       if (entity.state === "opening") {
-        entity.animation = Math.min(1, entity.animation + delta / 0.24);
+        entity.animation = Math.min(1, (entity.animation || 0) + delta / duration);
         if (entity.animation >= 1) entity.state = "open";
       } else if (entity.state === "closing") {
-        entity.animation = Math.max(0, entity.animation - delta / 0.24);
-        if (entity.animation <= 0) { entity.state = "closed"; entity.collision = true; }
+        entity.animation = Math.max(0, (entity.animation || 0) - delta / duration);
+        if (entity.animation <= 0) { entity.state = "closed"; if (entity.type === "door") entity.collision = true; }
       }
     }
   }

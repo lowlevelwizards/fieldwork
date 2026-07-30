@@ -32,6 +32,7 @@ export class Renderer {
     this.#drawRoad(ctx, game.map.road);
     this.#drawBrush(ctx, game.map.brush);
     this.#drawExtraction(ctx, game.map.extraction);
+    this.#drawSiteGround(ctx, game.map.site);
     this.#drawShed(ctx, game.map.shed);
     this.#drawDepthSortedActors(ctx, game);
     this.#drawMapBorder(ctx);
@@ -47,7 +48,7 @@ export class Renderer {
     }));
 
     for (const entity of game.entities) {
-      if (entity.type === "item" && entity.locationType !== "world") continue;
+      if (entity.type === "item" && (entity.locationType !== "world" || !entity.revealed)) continue;
       entries.push({
         y: entity.groundY,
         draw: () => drawWorldEntity(ctx, entity, { targeted: entity.id === targetedId })
@@ -124,6 +125,18 @@ export class Renderer {
     ctx.textBaseline = "middle";
     ctx.fillText("RETURN", 0, 0);
     ctx.restore();
+  }
+
+
+  #drawSiteGround(ctx, site) {
+    ctx.fillStyle = "rgba(119, 105, 77, 0.2)";
+    ctx.beginPath(); ctx.roundRect(660, 340, 1420, 1000, 80); ctx.fill();
+    ctx.fillStyle = "rgba(86, 79, 62, 0.18)";
+    ctx.beginPath(); ctx.roundRect(site.workArea.x - 40, site.workArea.y - 30, site.workArea.width + 80, site.workArea.height + 90, 28); ctx.fill();
+    ctx.strokeStyle = "rgba(48, 57, 48, 0.25)"; ctx.lineWidth = 7; ctx.setLineDash([18, 18]);
+    ctx.beginPath(); ctx.moveTo(site.trailhead.x + 45, site.trailhead.y + 90); ctx.quadraticCurveTo(780, 520, 930, 650); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(38, 46, 39, 0.72)"; ctx.font = "700 18px system-ui"; ctx.textAlign = "left";
+    ctx.fillText("OLD MAINTENANCE PULL-OFF", 1140, 350);
   }
 
   #drawShed(ctx, shed) {
