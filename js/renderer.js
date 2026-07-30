@@ -53,7 +53,8 @@ export class Renderer {
       });
     }
 
-    entries.push({ y: game.operator.y + game.operator.radius, draw: () => drawOperator(ctx, game.operator, game.entities) });
+    game.operator.backpackLoadRatio = game.inventory.getUsedPips() / game.backpack.capacityPips;
+    entries.push({ y: game.operator.y + game.operator.radius, draw: () => drawOperator(ctx, game.operator) });
     entries.sort((a, b) => a.y - b.y);
     for (const entry of entries) entry.draw();
   }

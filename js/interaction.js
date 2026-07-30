@@ -1,4 +1,5 @@
 import { findEntity, getAvailableAction } from "./world-entities.js";
+import { transferItem } from "./item-locations.js";
 
 function distanceToEntity(operator, entity) {
   const cx = entity.x + entity.width / 2;
@@ -24,14 +25,12 @@ export class InteractionSystem {
   update(delta) {
     if (this.searchingEntityId) {
       const entity = findEntity(this.game.entities, this.searchingEntityId);
-      if (!entity || distanceToEntity(this.game.operator, entity) > entity.interactionRadius + 12) {
-        this.cancelSearch("Search interrupted");
-      } else {
+      if (!entity || distanceToEntity(this.game.operator, entity) > entity.interactionRadius + 12) this.cancelSearch("Search interrupted");
+      else {
         entity.searchProgress = Math.min(1, entity.searchProgress + delta / 1.25);
         if (entity.searchProgress >= 1) this.completeSearch(entity);
       }
     }
-
     this.refreshTarget();
   }
 
@@ -41,11 +40,9 @@ export class InteractionSystem {
       this.activeAction = { id: "searching", label: "Searching", disabled: true };
       return;
     }
-
     const op = this.game.operator;
     const forward = facingVector(op.facing);
     const candidates = [];
-
     for (const entity of this.game.entities) {
       const action = getAvailableAction(entity, this.game);
       if (!action) continue;
@@ -59,7 +56,6 @@ export class InteractionSystem {
       const facingPenalty = dot < -0.35 ? 40 : dot < 0.15 ? 12 : 0;
       candidates.push({ entity, action, score: distance + facingPenalty - (entity.priority || 0) });
     }
-
     candidates.sort((a, b) => a.score - b.score);
     const winner = candidates[0] ?? null;
     this.targetId = winner?.entity.id ?? null;
@@ -77,7 +73,16 @@ export class InteractionSystem {
       this.game.pushMessage("Door opened");
       return true;
     }
-
+    if (this.activeAction.id === "close") {
+      const doorway = { x: entity.x, y: entity.y, width: entity.width, height: entity.height };
+      if (this.game.isRectBlocked(doorway, entity.id, true)) {
+        this.game.pushMessage("Door blocked");
+        return false;
+      }
+      entity.state = "closing";
+      this.game.pushMessage("Door closed");
+      return true;
+    }
     if (this.activeAction.id === "search") {
       this.searchingEntityId = entity.id;
       entity.state = "searching";
@@ -85,41 +90,23 @@ export class InteractionSystem {
       this.game.operator.lockedByInteraction = true;
       return true;
     }
-
+    if (this.activeAction.id === "pack") return this.game.inventory.pack(entity.id);
     if (this.activeAction.id === "take") {
-      entity.locationType = "carried";
-      entity.state = "carried";
-      this.game.operator.carriedItemInstanceId = entity.id;
-      this.game.pushMessage(`${entity.name} taken`);
-      return true;
+      const result = transferItem(this.game, entity.id, { type: "hands", ownerId: this.game.operator.id });
+      this.game.pushMessage(result.ok ? `${entity.name} taken` : result.reason);
+      return result.ok;
     }
-
     return false;
   }
 
   dropCarriedItem() {
-    const op = this.game.operator;
-    if (!op.carriedItemInstanceId) return false;
-    const entity = findEntity(this.game.entities, op.carriedItemInstanceId);
-    if (!entity) return false;
-
-    const offset = facingVector(op.facing);
-    entity.x = op.x + offset.x * 42 - entity.width / 2;
-    entity.y = op.y + offset.y * 42 - entity.height / 2;
-    entity.groundY = entity.y + entity.height;
-    entity.locationType = "world";
-    entity.state = "world";
-    op.carriedItemInstanceId = null;
-    this.game.pushMessage(`${entity.name} dropped`);
-    return true;
+    const id = this.game.operator.carriedItemInstanceId;
+    return id ? this.game.inventory.drop(id) : false;
   }
 
   cancelSearch(message = null) {
     const entity = findEntity(this.game.entities, this.searchingEntityId);
-    if (entity) {
-      entity.state = "unsearched";
-      entity.searchProgress = 0;
-    }
+    if (entity) { entity.state = "unsearched"; entity.searchProgress = 0; }
     this.searchingEntityId = null;
     this.game.operator.lockedByInteraction = false;
     if (message) this.game.pushMessage(message);
@@ -130,13 +117,15 @@ export class InteractionSystem {
     crate.searchProgress = 1;
     this.searchingEntityId = null;
     this.game.operator.lockedByInteraction = false;
-    const battery = findEntity(this.game.entities, "battery_001");
-    battery.locationType = "world";
-    battery.state = "world";
-    this.game.pushMessage("Radio Battery found");
+    const offsets = [{ x: 46, y: 55 }, { x: 17, y: 58 }, { x: -14, y: 58 }];
+    crate.itemInstanceIds.forEach((id, index) => {
+      const item = findEntity(this.game.entities, id);
+      if (!item) return;
+      transferItem(this.game, id, { type: "world", x: crate.x + offsets[index].x, y: crate.y + offsets[index].y });
+    });
+    crate.itemInstanceIds = [];
+    this.game.pushMessage("Three useful items found");
   }
 
-  getTarget() {
-    return findEntity(this.game.entities, this.targetId);
-  }
+  getTarget() { return findEntity(this.game.entities, this.targetId); }
 }
