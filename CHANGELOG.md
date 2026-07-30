@@ -1,15 +1,13 @@
 # Changelog
 
-## 0.2B.0 — Physical Inventory
+## 0.2C.0 — Physical Readability
 
-- Added an eight-pip Field Pack with mobile inventory panel.
-- Added Radio Battery, Bandage, Compass, Water Bottle, and Rope Bundle item definitions.
-- Added authoritative transfers between container, world, hands, and backpack.
-- Added item inspection, hold, drop, capacity feedback, and load-responsive pack silhouette.
-- Converted the searched crate to own and reveal real item instances.
-- Added reversible shed door animation with blocked-door validation.
-- Moved notifications above the lower-right interaction controls.
-- Added safe drop placement and item-location audit information in Debug.
+- Added distinct shared renderers for the Radio Battery, Bandage, Compass, Water Bottle, and Rope Bundle.
+- Reused those item visuals in the world, in Mara's hands, and as inventory thumbnails.
+- Added item-specific held poses and grip points so Mara's hands follow each object's shape.
+- Moved held objects behind Mara when facing north and corrected facing-specific draw order.
+- Restored backpack visibility from the front while keeping the full pack largest from the rear and medium in profile.
+- Made backpack fullness scaling continuous rather than jumping between coarse states.
 
 ## 0.2A.0 — Touch the World
 

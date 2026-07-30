@@ -1,4 +1,4 @@
-# Fieldwork 0.2B — Physical Inventory
+# Fieldwork 0.2C — Physical Readability
 
 A dependency-free, phone-first browser prototype for Fieldwork.
 
@@ -6,7 +6,7 @@ A dependency-free, phone-first browser prototype for Fieldwork.
 
 Upload the repository contents to a GitHub repository and enable GitHub Pages from the root of the `main` branch. No build step is required.
 
-## 0.2B field test
+## 0.2C field test
 
 - Move with the floating joystick or WASD/arrow keys.
 - Open and close the utility shed door.
