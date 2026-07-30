@@ -1,5 +1,7 @@
 import { mapData, MAP_WIDTH, MAP_HEIGHT } from "../data/map.js";
 import { operatorDefinition } from "../data/operators.js";
+import { createWorldEntities } from "./world-entities.js";
+import { InteractionSystem } from "./interaction.js";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -22,6 +24,7 @@ export function resolveFacing(move, currentFacing) {
 export class GameState {
   constructor() {
     this.map = mapData;
+    this.entities = createWorldEntities(mapData);
     this.operator = {
       ...operatorDefinition,
       x: mapData.spawn.x,
@@ -29,8 +32,13 @@ export class GameState {
       vx: 0,
       vy: 0,
       facing: operatorDefinition.startingFacing,
-      walkingPhase: 0
+      walkingPhase: 0,
+      carriedItemInstanceId: null,
+      lockedByInteraction: false
     };
+    this.interaction = new InteractionSystem(this);
+    this.message = null;
+    this.messageTime = 0;
   }
 
   resetPosition() {
@@ -39,24 +47,47 @@ export class GameState {
     this.operator.vx = 0;
     this.operator.vy = 0;
     this.operator.facing = this.operator.startingFacing;
+    if (this.interaction.searchingEntityId) this.interaction.cancelSearch();
+  }
+
+  pushMessage(text, duration = 2.1) {
+    this.message = text;
+    this.messageTime = duration;
   }
 
   update(delta, move) {
     const op = this.operator;
-    const targetVx = move.x * op.moveSpeed;
-    const targetVy = move.y * op.moveSpeed;
-    const inputMagnitude = Math.hypot(move.x, move.y);
+    const effectiveMove = op.lockedByInteraction ? { x: 0, y: 0 } : move;
+    const targetVx = effectiveMove.x * op.moveSpeed;
+    const targetVy = effectiveMove.y * op.moveSpeed;
+    const inputMagnitude = Math.hypot(effectiveMove.x, effectiveMove.y);
     const rate = inputMagnitude > 0.01 ? op.acceleration : op.deceleration;
     const maxChange = rate * delta;
 
     op.vx += clamp(targetVx - op.vx, -maxChange, maxChange);
     op.vy += clamp(targetVy - op.vy, -maxChange, maxChange);
-    op.facing = resolveFacing(move, op.facing);
+    op.facing = resolveFacing(effectiveMove, op.facing);
 
     if (Math.hypot(op.vx, op.vy) > 4) op.walkingPhase += delta * 9;
 
     this.#moveAxis("x", op.vx * delta);
     this.#moveAxis("y", op.vy * delta);
+    this.#updateEntityAnimations(delta);
+    this.interaction.update(delta);
+
+    if (this.messageTime > 0) {
+      this.messageTime -= delta;
+      if (this.messageTime <= 0) this.message = null;
+    }
+  }
+
+  #updateEntityAnimations(delta) {
+    for (const entity of this.entities) {
+      if (entity.type === "door" && entity.state === "opening") {
+        entity.animation = Math.min(1, entity.animation + delta / 0.24);
+        if (entity.animation >= 1) entity.state = "open";
+      }
+    }
   }
 
   #moveAxis(axis, amount) {
@@ -95,7 +126,12 @@ export class GameState {
         height: t
       }
     ];
+    if (walls.some((wall) => circleRectCollision(x, y, radius, wall))) return true;
 
-    return walls.some((wall) => circleRectCollision(x, y, radius, wall));
+    for (const entity of this.entities) {
+      if (!entity.collision) continue;
+      if (circleRectCollision(x, y, radius, entity)) return true;
+    }
+    return false;
   }
 }

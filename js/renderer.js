@@ -1,5 +1,6 @@
 import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js";
 import { drawOperator } from "./presentation/operator-renderer.js";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js";
 
 export class Renderer {
   constructor(canvas, camera) {
@@ -38,11 +39,21 @@ export class Renderer {
   }
 
   #drawDepthSortedActors(ctx, game) {
+    const targetedId = game.interaction.targetId;
     const entries = game.map.obstacles.map((obstacle) => ({
       y: obstacle.y + obstacle.radius * 0.5,
       draw: () => obstacle.type === "tree" ? this.#drawTree(ctx, obstacle) : this.#drawRock(ctx, obstacle)
     }));
-    entries.push({ y: game.operator.y + game.operator.radius, draw: () => drawOperator(ctx, game.operator) });
+
+    for (const entity of game.entities) {
+      if (entity.type === "item" && entity.locationType !== "world") continue;
+      entries.push({
+        y: entity.groundY,
+        draw: () => drawWorldEntity(ctx, entity, { targeted: entity.id === targetedId })
+      });
+    }
+
+    entries.push({ y: game.operator.y + game.operator.radius, draw: () => drawOperator(ctx, game.operator, game.entities) });
     entries.sort((a, b) => a.y - b.y);
     for (const entry of entries) entry.draw();
   }
@@ -121,12 +132,7 @@ export class Renderer {
     ctx.fillRect(shed.x, shed.y, t, shed.height);
     ctx.fillRect(shed.x + shed.width - t, shed.y, t, shed.height);
     ctx.fillRect(shed.x, shed.y + shed.height - t, shed.doorGap.start, t);
-    ctx.fillRect(
-      shed.x + shed.doorGap.start + shed.doorGap.width,
-      shed.y + shed.height - t,
-      shed.width - shed.doorGap.start - shed.doorGap.width,
-      t
-    );
+    ctx.fillRect(shed.x + shed.doorGap.start + shed.doorGap.width, shed.y + shed.height - t, shed.width - shed.doorGap.start - shed.doorGap.width, t);
     ctx.fillStyle = "#817459";
     ctx.fillRect(shed.x + 52, shed.y + 62, shed.width - 104, shed.height - 118);
     ctx.fillStyle = "#30362f";

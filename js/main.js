@@ -10,6 +10,11 @@ const resetPositionButton = document.querySelector("#reset-position-button");
 const debugButton = document.querySelector("#debug-button");
 const debugPanel = document.querySelector("#debug-panel");
 const objectiveCard = document.querySelector("#objective-card");
+const actionPanel = document.querySelector("#action-panel");
+const actionName = document.querySelector("#action-name");
+const actionButton = document.querySelector("#action-button");
+const actionProgress = document.querySelector("#action-progress-fill");
+const messageToast = document.querySelector("#message-toast");
 const canvas = document.querySelector("#game-canvas");
 
 const camera = new Camera();
@@ -42,6 +47,47 @@ function startGame() {
   objectiveTimer = window.setTimeout(() => objectiveCard.classList.add("objective-card--collapsed"), 5200);
 }
 
+function triggerContextAction() {
+  if (game.operator.carriedItemInstanceId) game.interaction.dropCarriedItem();
+  else game.interaction.trigger();
+}
+
+function updateInteractionUI() {
+  const target = game.interaction.getTarget();
+  const searching = Boolean(game.interaction.searchingEntityId);
+  const carrying = Boolean(game.operator.carriedItemInstanceId);
+  const action = game.interaction.activeAction;
+
+  if (carrying) {
+    actionPanel.hidden = false;
+    actionName.textContent = "Radio Battery";
+    actionButton.textContent = "Drop";
+    actionButton.disabled = false;
+  } else if (target && action) {
+    actionPanel.hidden = false;
+    actionName.textContent = target.name;
+    actionButton.textContent = action.label;
+    actionButton.disabled = Boolean(action.disabled);
+  } else {
+    actionPanel.hidden = true;
+  }
+
+  actionPanel.classList.toggle("action-panel--searching", searching);
+  if (searching) {
+    const entity = game.entities.find((item) => item.id === game.interaction.searchingEntityId);
+    actionProgress.style.width = `${Math.round((entity?.searchProgress || 0) * 100)}%`;
+  } else {
+    actionProgress.style.width = "0%";
+  }
+
+  if (game.message) {
+    messageToast.textContent = game.message;
+    messageToast.hidden = false;
+  } else {
+    messageToast.hidden = true;
+  }
+}
+
 function updateDebug(delta) {
   fpsAccumulator += delta;
   fpsFrames += 1;
@@ -54,6 +100,8 @@ function updateDebug(delta) {
   document.querySelector("#debug-position").textContent = `${Math.round(game.operator.x)}, ${Math.round(game.operator.y)}`;
   document.querySelector("#debug-speed").textContent = Math.round(Math.hypot(game.operator.vx, game.operator.vy));
   document.querySelector("#debug-facing").textContent = game.operator.facing;
+  document.querySelector("#debug-target").textContent = game.interaction.getTarget()?.id ?? "—";
+  document.querySelector("#debug-carry").textContent = game.operator.carriedItemInstanceId ?? "—";
   document.querySelector("#debug-orientation").textContent = matchMedia("(orientation: portrait)").matches ? "Portrait" : "Landscape";
 }
 
@@ -65,12 +113,21 @@ function frame(now) {
     game.update(delta, input.getMoveVector());
     camera.update(game.operator, delta);
     renderer.render(game);
+    updateInteractionUI();
     if (!debugPanel.hidden) updateDebug(delta);
   }
   requestAnimationFrame(frame);
 }
 
 beginButton.addEventListener("click", startGame);
+actionButton.addEventListener("click", triggerContextAction);
+window.addEventListener("keydown", (event) => {
+  if (event.key.toLowerCase() === "e" && started) {
+    event.preventDefault();
+    triggerContextAction();
+  }
+});
+
 resetPositionButton.addEventListener("click", () => {
   game.resetPosition();
   camera.snapTo(game.operator);
