@@ -15,6 +15,16 @@ export class ContinuousGameState extends GameState {
 
   openDialogue(actor) {
     if (actor.id !== "worker_ada") {
+      if (actor.operationId) {
+        actor.relationship = "Met";
+        const faction = actor.factionId === "northline" ? "Northline" : actor.factionId === "commune" ? "Commune" : "Freelancer";
+        const detail = actor.currentTask ? `${actor.currentTask}.` : "Working the route.";
+        this.dialogueRequest = {
+          actor,
+          text: `${detail} ${faction} teams are adjusting to what the other crews leave behind.`
+        };
+        return;
+      }
       super.openDialogue(actor);
       return;
     }

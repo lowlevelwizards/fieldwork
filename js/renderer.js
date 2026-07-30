@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=072-faction-palette-pass-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=072-faction-palette-pass-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=072-faction-palette-pass-20260730";
-import { findEntity } from "./world-entities.js?v=072-faction-palette-pass-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=071-visible-work-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=071-visible-work-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=071-visible-work-20260730";
+import { findEntity } from "./world-entities.js?v=071-visible-work-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -15,7 +15,7 @@ export class Renderer{
   ctx.clearRect(0,0,w,h);
   ctx.save();
   try{
-    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);
+    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);
   }finally{
     ctx.restore();
   }
@@ -68,7 +68,9 @@ export class Renderer{
             ctx.rotate(-.08);
             ctx.translate(-actor.x,-actor.y);
           }
+          this.#applyWorkPose(ctx,actor);
           drawOperator(ctx,renderActor,null);
+          this.#drawWorkAccessory(ctx,actor);
         }catch(error){
           console.error("Fieldwork actor render failed",{actorId:actor.id,kitId:actor.kitId,error});
           this.#drawActorFallback(ctx,actor);
@@ -96,6 +98,67 @@ export class Renderer{
     }
   }
  }
+
+ #applyWorkPose(ctx,actor){
+  const phase=actor.workPhase??0;
+  if(actor.workPose==="kneel"){ctx.translate(0,11);ctx.scale(1,.82);}
+  else if(actor.workPose==="inspect"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.sin(phase*2.2)*.035);ctx.translate(-actor.x,-actor.y);}
+  else if(actor.workPose==="sort"){ctx.translate(0,Math.sin(phase*5)*1.8);}
+  else if(actor.workPose==="brace"){ctx.translate(actor.facing==="left"?-4:4,3);ctx.rotate((actor.facing==="left"?-1:1)*.055);}
+  else if(actor.workPose==="binoculars"){ctx.translate(0,-2);}
+  else if(actor.workPose==="set_down"){ctx.translate(0,Math.min(7,actor.waitTime*2));}
+ }
+
+ #drawWorkAccessory(ctx,actor){
+  const prop=actor.workProp;if(!prop)return;
+  const x=actor.x,y=actor.y,side=actor.facing==="left"?-1:1;
+  ctx.save();
+  try{
+   if(prop==="tool_crate"||prop==="medical_crate"||prop==="salvage"){
+    const carrying=actor.workPose==="carry";
+    const px=carrying?x+side*25:x+side*34,py=carrying?y+4:y+28;
+    ctx.fillStyle=prop==="medical_crate"?"#8b5b43":prop==="salvage"?"#454744":"#8b744d";
+    ctx.strokeStyle="#29312c";ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(px-16,py-11,32,22,4);ctx.fill();ctx.stroke();
+    if(prop==="medical_crate"){ctx.fillStyle="#d9c7a3";ctx.fillRect(px-2,py-7,4,14);ctx.fillRect(px-7,py-2,14,4);}
+   }else if(prop==="toolbox"){
+    ctx.fillStyle="#6f5a3e";ctx.strokeStyle="#28312b";ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(x+side*31-15,y+23,30,15,4);ctx.fill();ctx.stroke();ctx.strokeRect(x+side*31-7,y+17,14,7);
+   }else if(prop==="rope"){
+    ctx.strokeStyle="#b19862";ctx.lineWidth=5;ctx.beginPath();ctx.arc(x+side*30,y+18,13,0,Math.PI*2);ctx.stroke();
+   }else if(prop==="medical_bag"){
+    ctx.fillStyle="#694a3d";ctx.beginPath();ctx.roundRect(x+side*28-13,y+19,26,19,5);ctx.fill();ctx.fillStyle="#d6c2a1";ctx.fillRect(x+side*28-2,y+22,4,12);ctx.fillRect(x+side*28-6,y+26,12,4);
+   }else if(prop==="blanket"||prop==="supply_stack"){
+    ctx.fillStyle=prop==="blanket"?"#83624c":"#77684e";ctx.beginPath();ctx.roundRect(x+side*30-17,y+22,34,14,4);ctx.fill();
+   }else if(prop==="radio"){
+    ctx.fillStyle="#303b35";ctx.strokeStyle="#e08f42";ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(x+side*30-14,y+18,28,20,4);ctx.fill();ctx.stroke();ctx.fillStyle="#e08f42";ctx.fillRect(x+side*30-8,y+31,16,3);
+   }else if(prop==="binoculars"){
+    ctx.fillStyle="#262c29";ctx.beginPath();ctx.arc(x-6,y-25,7,0,Math.PI*2);ctx.arc(x+6,y-25,7,0,Math.PI*2);ctx.fill();ctx.fillRect(x-6,y-29,12,8);
+   }
+  }finally{ctx.restore();}
+ }
+
+ #drawOperationEvidence(ctx,game){
+  const ops=game.operations;if(!ops?.started)return;
+  const state=ops.worldState??{};
+  ctx.save();
+  try{
+   if(state.northlineStaged){
+    ctx.fillStyle="#d5a94f";for(const [x,y] of [[3470,875],[3525,875],[3580,875]]){ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle="#6f5a3e";ctx.beginPath();ctx.roundRect(3440,910,42,22,5);ctx.fill();
+   }
+   const debris=findEntity(game.entities,"culvert_debris_01");
+   if(debris?.cleared){
+    ctx.strokeStyle="#b59b64";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(3660,860);ctx.lineTo(3815,930);ctx.stroke();
+    ctx.fillStyle="#5b4a33";ctx.beginPath();ctx.roundRect(3680,1040,130,20,8);ctx.fill();
+   }
+   if(state.communeDelivered){
+    for(const [x,y,c] of [[2465,1240,"#8b5b43"],[2505,1243,"#65714f"],[2540,1237,"#6d4d42"]]){ctx.fillStyle=c;ctx.beginPath();ctx.roundRect(x,y,30,22,4);ctx.fill();}
+   }
+   if(state.freelancerRecovered){
+    ctx.strokeStyle="rgba(40,47,43,.55)";ctx.lineWidth=3;ctx.setLineDash([5,7]);ctx.strokeRect(3955,735,65,44);ctx.setLineDash([]);
+   }
+  }finally{ctx.restore();}
+ }
+
 
  #drawActorFallback(ctx,actor){
   ctx.save();

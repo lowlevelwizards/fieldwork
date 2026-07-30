@@ -1,5 +1,5 @@
-import { findEntity } from "./world-entities.js?v=072-faction-palette-pass-20260730";
-import { findPlace, pointInBounds } from "./places.js?v=072-faction-palette-pass-20260730";
+import { findEntity } from "./world-entities.js?v=071-visible-work-20260730";
+import { findPlace, pointInBounds } from "./places.js?v=071-visible-work-20260730";
 
 export class ContinuousExcursionController {
   constructor(game) {
