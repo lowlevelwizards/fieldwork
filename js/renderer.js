@@ -1,6 +1,7 @@
 import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js";
 import { drawOperator } from "./presentation/operator-renderer.js";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js";
+import { findEntity } from "./world-entities.js";
 
 export class Renderer {
   constructor(canvas, camera) {
@@ -54,7 +55,10 @@ export class Renderer {
     }
 
     game.operator.backpackLoadRatio = game.inventory.getUsedPips() / game.backpack.capacityPips;
-    entries.push({ y: game.operator.y + game.operator.radius, draw: () => drawOperator(ctx, game.operator) });
+    const carriedItem = game.operator.carriedItemInstanceId
+      ? findEntity(game.entities, game.operator.carriedItemInstanceId)
+      : null;
+    entries.push({ y: game.operator.y + game.operator.radius, draw: () => drawOperator(ctx, game.operator, carriedItem) });
     entries.sort((a, b) => a.y - b.y);
     for (const entry of entries) entry.draw();
   }

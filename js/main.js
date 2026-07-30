@@ -5,6 +5,7 @@ import { Renderer } from "./renderer.js";
 import { getItemDefinition } from "../data/items.js";
 import { findEntity } from "./world-entities.js";
 import { validateItemLocations } from "./item-locations.js";
+import { renderItemThumbnail } from "./presentation/item-renderer.js";
 
 const $ = (selector) => document.querySelector(selector);
 const titleScreen = $("#title-screen"), gameScreen = $("#game-screen"), beginButton = $("#begin-button"), canvas = $("#game-canvas");
@@ -42,7 +43,12 @@ function buildInventory() {
   if (!items.length) { const empty = document.createElement("p"); empty.className = "inventory-empty"; empty.textContent = "The pack is empty."; inventoryList.append(empty); return; }
   for (const item of items) {
     const def = getItemDefinition(item.definitionId), row = document.createElement("article"); row.className = "inventory-row";
-    row.innerHTML = `<div class="item-summary"><span class="item-swatch" style="--item-color:${def.color}"></span><div><strong>${def.name}</strong><span>${def.category} · ${def.sizePips} ${def.sizePips === 1 ? "pip" : "pips"}</span></div></div>`;
+    const summary = document.createElement("div"); summary.className = "item-summary";
+    const icon = document.createElement("canvas"); icon.className = "item-icon"; icon.setAttribute("aria-hidden", "true");
+    const copy = document.createElement("div");
+    const name = document.createElement("strong"); name.textContent = def.name;
+    const meta = document.createElement("span"); meta.textContent = `${def.category} · ${def.sizePips} ${def.sizePips === 1 ? "pip" : "pips"}`;
+    copy.append(name, meta); summary.append(icon, copy); row.append(summary); renderItemThumbnail(icon, item.definitionId);
     const actions = document.createElement("div"); actions.className = "item-actions";
     for (const [label, handler] of [["Inspect", () => inspectItem(item)], ["Hold", () => { if (game.inventory.hold(item.id)) closeInventory(); }], ["Drop", () => { game.inventory.drop(item.id); buildInventory(); }]]) {
       const button = document.createElement("button"); button.type = "button"; button.textContent = label; button.addEventListener("click", handler); actions.append(button);
