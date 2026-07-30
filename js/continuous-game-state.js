@@ -5,6 +5,7 @@ export class ContinuousGameState extends GameState {
   constructor() {
     super();
     this.excursion = new ContinuousExcursionController(this);
+    this.encounters = new FactionEncounterSystem(this);
     const phases = [
       { name: "New Moon", illumination: 0.0 },
       { name: "Crescent Moon", illumination: 0.25 },
@@ -56,6 +57,7 @@ export class ContinuousGameState extends GameState {
     this.operator.moveSpeed = originalSpeed * this.getEnvironmentSpeedMultiplier();
     try {
       super.update(delta, move);
+      this.encounters.update(delta);
     } finally {
       this.operator.moveSpeed = originalSpeed;
     }
@@ -72,11 +74,12 @@ export class ContinuousGameState extends GameState {
       if (actor.operationId) {
         actor.relationship = "Met";
         const faction = actor.factionId === "northline" ? "Northline" : actor.factionId === "commune" ? "Commune" : "Freelancer";
+        const encounter = this.encounters?.getActorEncounter(actor.id);
         const detail = actor.currentTask ? `${actor.currentTask}.` : "Working the route.";
-        this.dialogueRequest = {
-          actor,
-          text: `${detail} ${faction} teams are adjusting to what the other crews leave behind.`
-        };
+        const tension = encounter
+          ? ` We are ${encounter.state} because of ${encounter.reason}.`
+          : ` ${faction} teams are watching how the other crews use the route.`;
+        this.dialogueRequest = { actor, text: `${detail}${tension}` };
         return;
       }
       super.openDialogue(actor);

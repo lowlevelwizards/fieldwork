@@ -1,5 +1,5 @@
-import { findEntity } from "./world-entities.js?v=072-motion-atmosphere-20260730";
-import { findPlace, pointInBounds } from "./places.js?v=072-motion-atmosphere-20260730";
+import { findEntity } from "./world-entities.js?v=072-faction-confrontation-20260730";
+import { findPlace, pointInBounds } from "./places.js?v=072-faction-confrontation-20260730";
 
 export class ContinuousExcursionController {
   constructor(game) {

@@ -1,4 +1,4 @@
-import { getItemDefinition } from "../data/items.js?v=072-motion-atmosphere-20260730";
+import { getItemDefinition } from "../data/items.js?v=072-faction-confrontation-20260730";
 
 const ITEM_SIZES = {
   radio_battery: [28, 18],
@@ -181,7 +181,12 @@ export function getAvailableAction(entity, game) {
       if (held?.definitionId === "water_bottle" && !game.incident.waterUsed) return { id: "give_water", label: "Give Water", priority: ACTION_PRIORITY.USE_MISSION_ITEM };
       if (game.incident.bandageUsed && !game.incident.workerSheltered && !game.assistedActorId) return { id: "assist", label: "Assist", priority: ACTION_PRIORITY.CARE };
       if (game.assistedActorId === entity.id) return { id: "release_assist", label: "Let Go", priority: ACTION_PRIORITY.CARE };
-      return { id: "talk", label: "Talk", priority: ACTION_PRIORITY.TALK };
+      const encounter = game.encounters?.getActorEncounter?.(entity.id);
+    return {
+      id: "talk",
+      label: encounter ? (encounter.state === "challenging" ? "Respond" : encounter.state === "blocking" ? "Confront" : "Talk") : "Talk",
+      priority: encounter ? ACTION_PRIORITY.OBJECTIVE : ACTION_PRIORITY.TALK
+    };
     }
     return { id: "talk", label: "Talk", priority: ACTION_PRIORITY.TALK };
   }

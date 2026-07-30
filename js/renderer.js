@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=072-motion-atmosphere-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=072-motion-atmosphere-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=072-motion-atmosphere-20260730";
-import { findEntity } from "./world-entities.js?v=072-motion-atmosphere-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=072-faction-confrontation-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=072-faction-confrontation-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=072-faction-confrontation-20260730";
+import { findEntity } from "./world-entities.js?v=072-faction-confrontation-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -15,7 +15,7 @@ export class Renderer{
   ctx.clearRect(0,0,w,h);
   ctx.save();
   try{
-    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);
+    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);
   }finally{
     ctx.restore();
   }
@@ -88,6 +88,7 @@ export class Renderer{
           this.#applyWorkPose(ctx,actor);
           drawOperator(ctx,renderActor,null);
           this.#drawWorkAccessory(ctx,actor);
+          this.#drawEncounterIndicator(ctx,actor);
         }catch(error){
           console.error("Fieldwork actor render failed",{actorId:actor.id,kitId:actor.kitId,error});
           this.#drawActorFallback(ctx,actor);
@@ -174,6 +175,40 @@ export class Renderer{
    }
    if(state.freelancerRecovered){
     ctx.strokeStyle="rgba(40,47,43,.55)";ctx.lineWidth=3;ctx.setLineDash([5,7]);ctx.strokeRect(3955,735,65,44);ctx.setLineDash([]);
+   }
+  }finally{ctx.restore();}
+ }
+
+
+ #drawEncounterIndicator(ctx,actor){
+  const state=actor.encounterState;
+  if(!state||state==="unaware"||state==="disengaging")return;
+  ctx.save();
+  try{
+   const colors={aware:"#d6c27a",watchful:"#e1ae55",challenging:"#e28a45",blocking:"#d86545",threatening:"#c84d43"};
+   ctx.fillStyle=colors[state]??"#d6c27a";
+   ctx.strokeStyle="#1d2822";ctx.lineWidth=2;
+   ctx.beginPath();ctx.arc(actor.x,actor.y-64,6,0,Math.PI*2);ctx.fill();ctx.stroke();
+   if(state==="challenging"||state==="blocking"||state==="threatening"){
+    ctx.font="700 10px system-ui";ctx.textAlign="center";ctx.textBaseline="bottom";
+    ctx.fillStyle="rgba(20,28,23,.88)";ctx.fillRect(actor.x-34,actor.y-88,68,16);
+    ctx.fillStyle="#eee7d8";ctx.fillText(state.toUpperCase(),actor.x,actor.y-75);
+   }
+  }finally{ctx.restore();}
+ }
+
+ #drawEncounterZones(ctx,game){
+  const encounters=game.encounters?.encounters;if(!encounters)return;
+  ctx.save();
+  try{
+   for(const encounter of encounters.values()){
+    if(!["challenging","blocking","threatening"].includes(encounter.state))continue;
+    const actors=[...encounter.participantIds].map(id=>game.actors.find(actor=>actor.id===id)).filter(Boolean);
+    if(!actors.length)continue;
+    const x=actors.reduce((s,a)=>s+a.x,0)/actors.length;
+    const y=actors.reduce((s,a)=>s+a.y,0)/actors.length;
+    ctx.strokeStyle=encounter.state==="threatening"?"rgba(197,70,58,.55)":"rgba(220,143,66,.38)";
+    ctx.lineWidth=3;ctx.setLineDash([9,10]);ctx.beginPath();ctx.arc(x,y,92,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
    }
   }finally{ctx.restore();}
  }

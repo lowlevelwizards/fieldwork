@@ -1,4 +1,4 @@
-import { findEntity } from "./world-entities.js?v=072-motion-atmosphere-20260730";
+import { findEntity } from "./world-entities.js?v=072-faction-confrontation-20260730";
 
 const FACTIONS={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const PLAYER_FACTION="commune";
@@ -65,6 +65,10 @@ export class OperationSystem{
  completeTask(op,index){if(!op||op.tasks[index]?.status==="completed")return;op.tasks[index].status="completed";if(op.tasks[index+1])op.tasks[index+1].status="in_progress";}
  updateActor(actor,delta){
   const def=MEMBER_LOOKUP.get(actor.id);if(!def)return;
+  if(actor.operationPausedByEncounter){
+   actor.vx=0;actor.vy=0;actor.groundY=actor.y+actor.radius;
+   return;
+  }
   const point=def.route[Math.min(actor.routeIndex,def.route.length-1)];if(!point)return;
 
   actor.currentTask=point.label;
