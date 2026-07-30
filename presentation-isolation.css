@@ -1,0 +1,60 @@
+/* Fieldwork 0.7B.7 — iOS presentation isolation test */
+
+/* Mobile Safari can retain a stale canvas compositor texture when many
+   translucent elements sample it through backdrop-filter. This pass removes
+   all live backdrop sampling without changing gameplay. */
+* {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+#game-screen {
+  isolation: isolate;
+  background: var(--ground);
+}
+
+#game-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  contain: strict;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.hud,
+.objective-card,
+.joystick-zone,
+.field-controls,
+.utility-button,
+.debug-panel {
+  z-index: 10;
+}
+
+.inventory-overlay,
+.inspect-overlay,
+.dialogue-overlay {
+  z-index: 50;
+}
+
+/* Use stable, mostly opaque panels instead of compositor blur. */
+.hud-chip,
+.hud-button,
+.world-status,
+.compass-chip,
+.objective-card,
+.utility-button,
+.debug-panel,
+.backpack-button,
+.action-panel,
+.message-toast {
+  background: rgba(19, 27, 23, 0.96) !important;
+}
+
+.inventory-overlay,
+.inspect-overlay,
+.dialogue-overlay {
+  background: rgba(10, 15, 12, 0.72) !important;
+}
