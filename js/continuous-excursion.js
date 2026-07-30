@@ -1,5 +1,5 @@
-import { findEntity } from "./world-entities.js?v=076-continuous-field-map-20260730";
-import { findPlace, pointInBounds } from "./places.js?v=076-continuous-field-map-20260730";
+import { findEntity } from "./world-entities.js?v=071-completion-reliability-20260730";
+import { findPlace, pointInBounds } from "./places.js?v=071-completion-reliability-20260730";
 
 export class ContinuousExcursionController {
   constructor(game) {
@@ -68,6 +68,10 @@ export class ContinuousExcursionController {
 
   clearObstruction() {
     const rope = this.game.getHeldItem();
+    if (!this.culvertInspected && rope?.definitionId === "rope_bundle") {
+      this.inspectCulvert();
+      this.game.worldTextRequest = null;
+    }
     if (!this.culvertInspected) {
       this.game.pushMessage("Inspect the culvert first");
       return false;
@@ -107,6 +111,28 @@ export class ContinuousExcursionController {
     this.state = "returning";
     this.routeChanged = true;
     this.game.pushMessage("Hazard marked. Follow the trail back to the pull-off.", 3);
+    return true;
+  }
+
+
+  depositServiceCase() {
+    const held = this.game.getHeldItem();
+    if (held?.definitionId !== "service_case") {
+      this.game.pushMessage("Hold the sealed case to deposit it");
+      return false;
+    }
+    held.locationType = "stored";
+    held.locationOwnerId = "recovery_area_01";
+    held.state = "stored";
+    held.revealed = true;
+    held.x = 405;
+    held.y = 1024;
+    held.groundY = held.y + held.height;
+    this.game.operator.carriedItemInstanceId = null;
+    this.recoveryItemReturned = true;
+    this.decisions.push("Returned sealed service case");
+    this.game.pushMessage("Sealed service case deposited", 2.8);
+    this.game.emitEvent("serviceCaseDeposited", held);
     return true;
   }
 
