@@ -1,19 +1,14 @@
-# Fieldwork 0.2C — Physical Readability
+# Fieldwork — Browser Prototype
 
-A dependency-free, phone-first browser prototype for Fieldwork.
+## Current build: 0.3A — Places & Discovery
 
-## Play
+A mobile-first Canvas prototype for Fieldwork. Mara can explore the Old Maintenance Pull-Off, open and search several kinds of storage, read signs, examine environmental clues, physically reveal supplies, and make eight-pip carrying decisions.
 
-Upload the repository contents to a GitHub repository and enable GitHub Pages from the root of the `main` branch. No build step is required.
+### Controls
 
-## 0.2C field test
+- Touch joystick or WASD: move
+- Context button or E: interact
+- Pack button or B: open backpack
+- Escape: close panels
 
-- Move with the floating joystick or WASD/arrow keys.
-- Open and close the utility shed door.
-- Search the crate to reveal three physical item instances.
-- Pack nearby items with the contextual action button or `E`.
-- Open Mara's eight-pip field pack with the Pack button or `B`.
-- Inspect, hold, and drop packed items.
-- Five available items total nine pips, forcing at least one carrying decision.
-
-The item-location system enforces one authoritative location for each item: container, world, hands, or backpack.
+The build uses plain HTML, CSS, ES modules, and Canvas 2D with no build step.
