@@ -1,4 +1,4 @@
-import { findEntity } from "./world-entities.js?v=072-faction-confrontation-20260730";
+import { findEntity } from "./world-entities.js?v=080-perception-contact-20260730";
 
 const FACTIONS={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const PLAYER_FACTION="commune";
@@ -7,40 +7,40 @@ const node=(x,y,label,pose="work",duration=4.2,face=null,prop=null)=>({x,y,label
 
 const TEAM_DEFS=[
  {id:"northline_maintenance_01",factionId:"northline",operationId:"restore_north_culvert",members:[
-  {id:"nl_engineer_01",name:"Iris Vale",role:"Engineer",kitId:"northline_standard_light",x:2700,y:1035,speed:62,route:[
-   node(3180,1015,"Traveling to culvert","walk"),node(3500,830,"Inspecting drainage","kneel",6,"right","toolbox"),
+  {id:"nl_engineer_01",name:"Iris Vale",role:"Engineer",kitId:"northline_standard_light",x:3760,y:90,speed:62,route:[
+   node(3650,420,"Entering from north border","walk"),node(3500,720,"Approaching culvert","scan",3.2,"down"),node(3500,830,"Inspecting drainage","kneel",6,"right","toolbox"),
    node(3820,850,"Waiting for rope","inspect",5,"down"),node(3500,830,"Checking water flow","kneel",6,"right","toolbox")
   ]},
-  {id:"nl_carrier_01",name:"Cal Rusk",role:"Carrier",kitId:"northline_standard_mid",x:2650,y:1090,speed:58,route:[
-   node(3100,1070,"Carrying tools","carry",4.5,null,"tool_crate"),node(3440,900,"Staging equipment","set_down",5,"right","tool_crate"),
+  {id:"nl_carrier_01",name:"Cal Rusk",role:"Carrier",kitId:"northline_standard_mid",x:3860,y:80,speed:58,route:[
+   node(3750,430,"Carrying tools south","carry",4.5,null,"tool_crate"),node(3520,760,"Joining the work site","walk"),node(3440,900,"Staging equipment","set_down",5,"right","tool_crate"),
    node(3740,900,"Supporting engineer","brace",5,"right","rope"),node(3440,900,"Sorting tools","sort",5,"down","toolbox")
   ]},
-  {id:"nl_security_01",name:"Evan Holt",role:"Security",kitId:"northline_standard_dark",x:2600,y:980,speed:66,route:[
-   node(3040,930,"Watching the route","scan",5),node(3450,710,"Observing approach","scan",6),
+  {id:"nl_security_01",name:"Evan Holt",role:"Security",kitId:"northline_standard_dark",x:3660,y:70,speed:66,route:[
+   node(3600,380,"Screening the north approach","scan",4,"down"),node(3480,650,"Establishing overwatch","scan",5,"down"),node(3450,710,"Observing approach","scan",6),
    node(3600,760,"Holding overwatch","scan",6),node(3360,720,"Checking the roadside","inspect",4.5)
   ]}
  ]},
  {id:"commune_courier_01",factionId:"commune",operationId:"deliver_medical_supplies",members:[
-  {id:"commune_courier_01a",name:"Mina Sol",role:"Courier",kitId:"commune_rust_green",x:4180,y:1320,speed:55,route:[
-   node(3700,1230,"Carrying medical supplies","carry",4.5,null,"medical_crate"),node(3150,1130,"Seeking a dry route","scan",5),
+  {id:"commune_courier_01a",name:"Mina Sol",role:"Courier",kitId:"commune_rust_green",x:520,y:920,speed:55,route:[
+   node(1050,980,"Leaving the starting area","carry",4.5,null,"medical_crate"),node(1900,1080,"Following the service route","carry",4.5,null,"medical_crate"),node(2850,1120,"Approaching the operation site","walk"),node(3150,1130,"Seeking a dry route","scan",5),
    node(2500,1180,"Delivering supplies","set_down",6,"left","medical_crate"),node(2850,1160,"Returning for another load","walk")
   ]},
-  {id:"commune_medic_01",name:"Jo Fen",role:"Field Medic",kitId:"commune_brown_denim",x:4240,y:1380,speed:60,route:[
-   node(3740,1280,"Escorting courier","walk"),node(3200,1170,"Checking the route","inspect",5,"left"),
+  {id:"commune_medic_01",name:"Jo Fen",role:"Field Medic",kitId:"commune_brown_denim",x:590,y:1010,speed:60,route:[
+   node(1100,1030,"Escorting the courier","walk"),node(1950,1120,"Watching the trail","scan",3.5,"right"),node(2900,1160,"Closing on the operation site","walk"),node(3200,1170,"Checking the route","inspect",5,"left"),
    node(2540,1220,"Checking shelter stock","kneel",6,"up","medical_bag"),node(2900,1210,"Following up with courier","inspect",5)
   ]},
-  {id:"commune_shelter_01",name:"Rin Hale",role:"Shelter Worker",kitId:"commune_green_brown",x:2460,y:1160,speed:48,route:[
-   node(2380,1160,"Preparing the shelter","sort",6,"right","blanket"),node(2510,1215,"Sorting dry supplies","sort",6,"down","supply_stack"),
+  {id:"commune_shelter_01",name:"Rin Hale",role:"Shelter Worker",kitId:"commune_green_brown",x:650,y:850,speed:48,route:[
+   node(1100,900,"Carrying shelter supplies","carry",4.5,null,"supply_stack"),node(2000,1050,"Following the crew","walk"),node(2380,1160,"Preparing the shelter","sort",6,"right","blanket"),node(2510,1215,"Sorting dry supplies","sort",6,"down","supply_stack"),
    node(2420,1120,"Checking the approach","scan",5)
   ]}
  ]},
  {id:"freelancer_recovery_01",factionId:"freelancers",operationId:"recover_field_radio",members:[
-  {id:"freelancer_scout_01",name:"Sable",role:"Scout",kitId:"freelancer_black_gray",x:4350,y:520,speed:72,route:[
-   node(4020,610,"Scouting culvert edge","binoculars",6,"left"),node(3860,730,"Searching for radio","kneel",6,"down"),
+  {id:"freelancer_scout_01",name:"Sable",role:"Scout",kitId:"freelancer_black_gray",x:3940,y:1910,speed:72,route:[
+   node(4020,1570,"Entering from south border","walk"),node(3970,1250,"Scouting north","binoculars",5,"up"),node(4020,900,"Scouting culvert edge","binoculars",6,"left"),node(3860,730,"Searching for radio","kneel",6,"down"),
    node(3300,600,"Watching other teams","binoculars",6,"left"),node(3820,700,"Rechecking the site","inspect",5,"down")
   ]},
-  {id:"freelancer_recovery_01a",name:"Pike",role:"Recovery",kitId:"freelancer_brown_black",x:4410,y:575,speed:65,route:[
-   node(4100,660,"Following scout","walk"),node(3980,760,"Recovering field radio","kneel",7,"down","radio"),
+  {id:"freelancer_recovery_01a",name:"Pike",role:"Recovery",kitId:"freelancer_brown_black",x:4050,y:1920,speed:65,route:[
+   node(4100,1580,"Entering from south border","walk"),node(4050,1270,"Following the scout","walk"),node(4100,930,"Closing on the recovery site","scan",4,"up"),node(3980,760,"Recovering field radio","kneel",7,"down","radio"),
    node(3350,650,"Staging equipment","carry",5,null,"salvage"),node(3920,760,"Inspecting salvage","sort",6,"down","salvage")
   ]}
  ]}

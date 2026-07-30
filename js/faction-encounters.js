@@ -52,6 +52,18 @@ export class FactionEncounterSystem{
 
   getRelation(a,b){return relation(a,b);}
 
+  teamsHaveContact(a,b){
+    const perception=this.game.perception;
+    if(!perception)return false;
+    return perception.teamHasContact(a.id,b.id,"suspected")||perception.teamHasContact(b.id,a.id,"suspected");
+  }
+
+  strongestContact(a,b){
+    const ab=this.game.perception?.getTeamContact(a.id,b.id);
+    const ba=this.game.perception?.getTeamContact(b.id,a.id);
+    return [ab,ba].filter(Boolean).sort((x,y)=>y.certainty-x.certainty)[0]??null;
+  }
+
   getActorEncounter(actorId){
     for(const encounter of this.encounters.values()){
       if(encounter.participantIds.has(actorId)&&!["unaware","disengaging"].includes(encounter.state))return encounter;
@@ -104,8 +116,22 @@ export class FactionEncounterSystem{
       }
 
       encounter.cooldown=0;
+      const contact=this.strongestContact(a,b);
+      const hasContact=this.teamsHaveContact(a,b);
       const contested=this.detectContestedReason(a,b,nearest);
       encounter.reason=contested;
+      encounter.contactLevel=contact?.level??"unaware";
+      encounter.contactCertainty=contact?.certainty??0;
+
+      if(!hasContact){
+        if(encounter.state!=="unaware"){
+          encounter.state="disengaging";
+          encounter.cooldown+=delta;
+          this.releaseActors(encounter);
+          if(encounter.cooldown>3){encounter.state="unaware";encounter.elapsed=0;encounter.cooldown=0;}
+        }
+        continue;
+      }
 
       if(d<360&&encounter.state==="unaware"){
         encounter.state="aware";encounter.elapsed=0;
@@ -166,9 +192,88 @@ export class FactionEncounterSystem{
     return `Hold there. We need to settle ${reason}.`;
   }
 
+  reactionFor(group,other,encounter){
+    const contact=this.game.perception?.getTeamContact(group.id,other.id);
+    const seenByTarget=this.game.perception?.teamHasContact(other.id,group.id,"located")??false;
+    const rel=relation(group.factionId,other.factionId);
+    const operation=this.game.operations?.getOperation(group.actors[0]?.operationId);
+    const taskPressure=operation?.status==="active"&&operation?.tasks?.some(task=>task.status==="in_progress");
+
+    if(group.factionId==="northline"){
+      if(encounter.state==="threatening")return "take_cover";
+      if(taskPressure&&rel>-40)return "block";
+      return seenByTarget?"overwatch":"track";
+    }
+    if(group.factionId==="commune"){
+      if(encounter.state==="threatening")return "retreat";
+      if(taskPressure)return "protect";
+      return seenByTarget?"challenge":"track";
+    }
+    if(group.factionId==="freelancers"){
+      if(!seenByTarget&&contact?.level==="identified")return "flank";
+      if(encounter.state==="threatening")return "disengage";
+      return "track";
+    }
+    return "track";
+  }
+
+  applyReaction(group,other,reaction,encounter){
+    const otherCenter=center(other);
+    for(let i=0;i<group.actors.length;i++){
+      const actor=group.actors[i];
+      actor.contactReaction=reaction;
+      actor.operationPausedByEncounter=true;
+      actor.vx=0;actor.vy=0;actor.motionState="encounter";
+      actor.workProp=null;
+      faceToward(actor,{x:otherCenter.x,y:otherCenter.y});
+
+      if(reaction==="track"){
+        actor.currentAction="Tracking contact";actor.currentTask="Tracking a detected contact";actor.workPose="scan";
+      }else if(reaction==="overwatch"){
+        actor.currentAction="Taking overwatch";actor.currentTask="Holding an overwatch position";actor.workPose="brace";
+      }else if(reaction==="take_cover"){
+        actor.currentAction="Taking cover";actor.currentTask="Moving toward nearby cover";actor.workPose="brace";
+        const cover=this.findCover(actor,otherCenter);
+        if(cover){actor.x+=(cover.x-actor.x)*.035;actor.y+=(cover.y-actor.y)*.035;}
+      }else if(reaction==="block"){
+        actor.currentAction="Blocking route";actor.currentTask="Blocking access to the work site";actor.workPose="brace";
+      }else if(reaction==="protect"){
+        actor.currentAction="Protecting supplies";actor.currentTask="Forming around vulnerable supplies";actor.workPose=i===0?"brace":"scan";
+      }else if(reaction==="challenge"){
+        actor.currentAction="Calling out";actor.currentTask="Warning the opposing crew";actor.workPose="brace";
+      }else if(reaction==="flank"){
+        actor.currentAction="Flanking contact";actor.currentTask="Moving for a side angle";actor.workPose="walk";
+        const dx=otherCenter.x-actor.x,dy=otherCenter.y-actor.y,d=Math.max(1,Math.hypot(dx,dy));
+        const side=i%2?1:-1;actor.x+=(-dy/d)*side*.7;actor.y+=(dx/d)*side*.7;
+      }else if(reaction==="retreat"||reaction==="disengage"){
+        actor.currentAction="Disengaging";actor.currentTask="Breaking contact";actor.workPose="walk";
+        const dx=actor.x-otherCenter.x,dy=actor.y-otherCenter.y,d=Math.max(1,Math.hypot(dx,dy));
+        actor.x+=dx/d*1.1;actor.y+=dy/d*1.1;
+      }
+      actor.groundY=actor.y+actor.radius;
+    }
+  }
+
+  findCover(actor,threat){
+    const candidates=this.game.map.obstacles
+      .filter(obstacle=>Math.hypot(obstacle.x-actor.x,obstacle.y-actor.y)<330)
+      .map(obstacle=>{
+        const fromThreat=Math.hypot(obstacle.x-threat.x,obstacle.y-threat.y);
+        const fromActor=Math.hypot(obstacle.x-actor.x,obstacle.y-actor.y);
+        return{...obstacle,score:fromThreat-fromActor*.8+(obstacle.type==="rock"?45:25)};
+      })
+      .sort((a,b)=>b.score-a.score);
+    return candidates[0]??null;
+  }
+
   applyEncounterBehavior(encounter,a,b,nearest){
     const active=!["unaware","disengaging"].includes(encounter.state);
     if(!active)return;
+
+    const reactionA=this.reactionFor(a,b,encounter);
+    const reactionB=this.reactionFor(b,a,encounter);
+    this.applyReaction(a,b,reactionA,encounter);
+    this.applyReaction(b,a,reactionB,encounter);
 
     const challenger=this.game.actors.find(actor=>actor.id===encounter.challengerId)??nearest.actorA;
     const target=this.game.actors.find(actor=>actor.id===encounter.targetId)??nearest.actorB;
@@ -179,13 +284,9 @@ export class FactionEncounterSystem{
       actor.encounterReason=encounter.reason;
       actor.encounterId=encounter.id;
       actor.operationPausedByEncounter=["watchful","challenging","blocking","threatening"].includes(encounter.state);
-      if(actor.operationPausedByEncounter){
-        actor.vx=0;actor.vy=0;actor.motionState="encounter";
-        actor.currentAction=encounter.state==="watchful"?"Watching opposing crew":encounter.state==="challenging"?"Challenging opposing crew":encounter.state==="blocking"?"Blocking the route":"Holding a threat posture";
-        actor.currentTask=actor.currentAction;
-        actor.workPose=encounter.state==="threatening"?"brace":"scan";
-        actor.workProp=null;
-      }
+      actor.encounterState=encounter.state;
+      actor.encounterReason=encounter.reason;
+      actor.encounterId=encounter.id;
     }
 
     if(encounter.state==="blocking"){

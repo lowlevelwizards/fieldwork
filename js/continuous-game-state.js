@@ -1,11 +1,13 @@
-import { GameState } from "./game.js?v=077-presentation-isolation-20260730";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=077-presentation-isolation-20260730";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=077-presentation-isolation-20260730";
+import { GameState } from "./game.js?v=080-perception-contact-20260730";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=080-perception-contact-20260730";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=080-perception-contact-20260730";
+import { PerceptionSystem } from "./perception.js?v=080-perception-contact-20260730";
 
 export class ContinuousGameState extends GameState {
   constructor() {
     super();
     this.excursion = new ContinuousExcursionController(this);
+    this.perception = new PerceptionSystem(this);
     this.encounters = new FactionEncounterSystem(this);
     const phases = [
       { name: "New Moon", illumination: 0.0 },
@@ -58,6 +60,7 @@ export class ContinuousGameState extends GameState {
     this.operator.moveSpeed = originalSpeed * this.getEnvironmentSpeedMultiplier();
     try {
       super.update(delta, move);
+      this.perception.update(delta);
       this.encounters.update(delta);
     } finally {
       this.operator.moveSpeed = originalSpeed;
