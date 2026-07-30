@@ -133,7 +133,7 @@ function drawUp(ctx, palette, motion) {
   drawRearLegs(ctx, step, palette);
 
   // The rifle and gripping hands are entirely behind the body when facing north.
-  drawWeapon(ctx, {
+  if (!motion.carrying) drawWeapon(ctx, {
     x1: -10 + sway, y1: 1,
     x2: 1 + sway, y2: -47,
     palette,
@@ -173,7 +173,7 @@ function drawDown(ctx, palette, motion) {
 
   drawHelmet(ctx, 0, -31, palette, { facing: "down" });
 
-  drawWeapon(ctx, {
+  if (!motion.carrying) drawWeapon(ctx, {
     x1: -17 + sway, y1: -2,
     x2: 22 + sway, y2: 28,
     palette,
@@ -202,7 +202,7 @@ function drawSide(ctx, palette, motion, direction) {
 
   drawHelmet(ctx, sign * 4, -31, palette, { facing: direction, sideSign: sign });
 
-  drawWeapon(ctx, {
+  if (!motion.carrying) drawWeapon(ctx, {
     x1: sign * (-7 + sway), y1: 0,
     x2: sign * (47 + sway), y2: -7,
     palette,
@@ -211,16 +211,36 @@ function drawSide(ctx, palette, motion, direction) {
   });
 }
 
+function drawCarriedBattery(ctx, facing, palette) {
+  if (facing === "up") {
+    roundedRect(ctx, -13, -7, 26, 16, 4, "#3d4741");
+    roundedRect(ctx, -8, -4, 16, 10, 3, "#6e6e5e");
+  } else if (facing === "down") {
+    roundedRect(ctx, -15, -3, 30, 18, 5, "#3d4741");
+    roundedRect(ctx, -10, 1, 20, 10, 3, "#6e6e5e");
+    drawHandCapsule(ctx, -14, 5, 0, palette);
+    drawHandCapsule(ctx, 14, 5, 0, palette);
+  } else {
+    const sign = facing === "right" ? 1 : -1;
+    roundedRect(ctx, sign > 0 ? 7 : -31, -3, 24, 17, 4, "#3d4741");
+    roundedRect(ctx, sign > 0 ? 11 : -27, 1, 16, 9, 3, "#6e6e5e");
+    drawHandCapsule(ctx, sign * 8, 4, 0, palette);
+    drawHandCapsule(ctx, sign * 22, 5, 0, palette);
+  }
+}
+
 export function drawOperator(ctx, operator) {
   const kit = getOperatorKit(operator.kitId);
   const palette = kit.palette;
   const facing = VALID_FACINGS.has(operator.facing) ? operator.facing : "up";
   const moving = Math.hypot(operator.vx, operator.vy) > 5;
   const phase = operator.walkingPhase;
+  const carrying = Boolean(operator.carriedItemInstanceId);
   const motion = {
     step: moving ? Math.sin(phase) * 1.7 : 0,
     sway: moving ? Math.sin(phase * 0.5) * 1.0 : 0,
-    packBounce: moving ? Math.abs(Math.sin(phase)) * 0.9 : 0
+    packBounce: moving ? Math.abs(Math.sin(phase)) * 0.9 : 0,
+    carrying
   };
 
   ctx.save();
@@ -234,6 +254,8 @@ export function drawOperator(ctx, operator) {
   if (facing === "up") drawUp(ctx, palette, motion);
   else if (facing === "down") drawDown(ctx, palette, motion);
   else drawSide(ctx, palette, motion, facing);
+
+  if (carrying) drawCarriedBattery(ctx, facing, palette);
 
   ctx.restore();
 }
