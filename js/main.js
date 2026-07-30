@@ -1,12 +1,11 @@
 import { Camera } from "./camera.js?v=076-continuous-field-map-20260730";
-import { GameState } from "./game.js?v=076-continuous-field-map-20260730";
+import { ContinuousGameState } from "./continuous-game-state.js?v=077-presentation-isolation-20260730";
 import { InputController } from "./input.js?v=076-continuous-field-map-20260730";
 import { Renderer } from "./renderer.js?v=076-continuous-field-map-20260730";
 import { getItemDefinition } from "../data/items.js?v=076-continuous-field-map-20260730";
 import { findEntity } from "./world-entities.js?v=076-continuous-field-map-20260730";
 import { validateItemLocations } from "./item-locations.js?v=076-continuous-field-map-20260730";
 import { renderItemThumbnail } from "./presentation/item-renderer.js?v=076-continuous-field-map-20260730";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=076-continuous-field-map-20260730";
 
 const BUILD_ID="0.7B.7";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),actionPanel=$("#action-panel"),actionName=$("#action-name"),actionButton=$("#action-button"),actionProgress=$("#action-progress-fill"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
