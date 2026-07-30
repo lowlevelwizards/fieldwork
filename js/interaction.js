@@ -1,5 +1,5 @@
-import { findEntity, getAvailableAction } from "./world-entities.js?v=071-completion-reliability-20260730";
-import { transferItem } from "./item-locations.js?v=071-completion-reliability-20260730";
+import { findEntity, getAvailableAction } from "./world-entities.js?v=072-faction-palette-pass-20260730";
+import { transferItem } from "./item-locations.js?v=072-faction-palette-pass-20260730";
 
 function distanceToEntity(operator, entity) {
   const cx = entity.x + entity.width / 2;

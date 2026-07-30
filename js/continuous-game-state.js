@@ -12,4 +12,23 @@ export class ContinuousGameState extends GameState {
   ensureOperatorSafe() {
     return false;
   }
+
+  openDialogue(actor) {
+    if (actor.id !== "worker_ada") {
+      super.openDialogue(actor);
+      return;
+    }
+
+    actor.relationship = "Met";
+    let text;
+    if (!actor.assessed) text = "Please—my leg. I slipped beside the truck.";
+    else if (!this.incident.bandageUsed) text = "The bleeding needs a clean bandage.";
+    else if (!this.incident.waterUsed) text = "The bleeding is controlled. Some water would help.";
+    else if (!this.incident.workerSheltered) text = "Thank you. I am recovering, but I still need help getting to the break table.";
+    else if (!this.incident.radioRestored) text = "I am all right here. Restore the radio so dispatch knows where we are.";
+    else if (this.incident.state === "resolved") text = "Dispatch got through. I can rest now—thank you.";
+    else text = "The radio is working. Help should be on the way.";
+
+    this.dialogueRequest = { actor, text };
+  }
 }

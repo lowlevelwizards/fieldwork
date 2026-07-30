@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=071-completion-reliability-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=071-completion-reliability-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=071-completion-reliability-20260730";
-import { findEntity } from "./world-entities.js?v=071-completion-reliability-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=072-faction-palette-pass-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=072-faction-palette-pass-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=072-faction-palette-pass-20260730";
+import { findEntity } from "./world-entities.js?v=072-faction-palette-pass-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}

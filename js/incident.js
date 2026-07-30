@@ -1,6 +1,6 @@
-import { findEntity } from "./world-entities.js?v=071-completion-reliability-20260730";
+import { findEntity } from "./world-entities.js?v=072-faction-palette-pass-20260730";
 
-const ADA_SEAT = { x: 1265, y: 1268 };
+const ADA_SEAT = { x: 1265, y: 1238 };
 
 export class IncidentController {
   constructor(game) {
@@ -40,7 +40,11 @@ export class IncidentController {
       worker.vx = this.game.operator.vx * .75;
       worker.vy = this.game.operator.vy * .75;
 
-      if (Math.hypot(worker.x - ADA_SEAT.x, worker.y - ADA_SEAT.y) < 140) {
+      const inFrontApproach =
+        worker.x >= 1040 && worker.x <= 1510 &&
+        worker.y >= 1170 && worker.y <= 1395;
+      const nearSeat = Math.hypot(worker.x - ADA_SEAT.x, worker.y - ADA_SEAT.y) < 225;
+      if (inFrontApproach || nearSeat) {
         this.game.assistedActorId = null;
         worker.x = ADA_SEAT.x;
         worker.y = ADA_SEAT.y;

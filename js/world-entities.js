@@ -1,4 +1,4 @@
-import { getItemDefinition } from "../data/items.js?v=071-completion-reliability-20260730";
+import { getItemDefinition } from "../data/items.js?v=072-faction-palette-pass-20260730";
 
 const ITEM_SIZES = {
   radio_battery: [28, 18],
