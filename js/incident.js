@@ -1,4 +1,4 @@
-import { findEntity } from "./world-entities.js?v=071-visible-work-20260730";
+import { findEntity } from "./world-entities.js?v=072-motion-atmosphere-20260730";
 
 const ADA_SEAT = { x: 1265, y: 1238 };
 

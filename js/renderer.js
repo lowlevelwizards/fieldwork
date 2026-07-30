@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=071-visible-work-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=071-visible-work-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=071-visible-work-20260730";
-import { findEntity } from "./world-entities.js?v=071-visible-work-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=072-motion-atmosphere-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=072-motion-atmosphere-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=072-motion-atmosphere-20260730";
+import { findEntity } from "./world-entities.js?v=072-motion-atmosphere-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -19,11 +19,28 @@ export class Renderer{
   }finally{
     ctx.restore();
   }
-  if(game.weather==="Rain")this.#drawRain(ctx,w,h);
+  if(game.weather==="Rain"||game.weather==="Heavy Rain")this.#drawRain(ctx,w,h,game.weather==="Heavy Rain"?1.65:1);
+  this.#drawEnvironmentOverlay(ctx,w,h,game);
  }
  #drawTrail(ctx,trail){ctx.save();ctx.strokeStyle="rgba(112,97,70,.42)";ctx.lineWidth=86;ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();ctx.moveTo(trail[0].x,trail[0].y);for(const p of trail.slice(1))ctx.lineTo(p.x,p.y);ctx.stroke();ctx.strokeStyle="rgba(188,169,126,.22)";ctx.lineWidth=58;ctx.stroke();ctx.restore();}
  #drawCulvert(ctx,game){const c=game.map.culvert,water=findEntity(game.entities,"culvert_water_01");ctx.save();ctx.fillStyle=game.weather==="Rain"?"rgba(67,102,108,.72)":"rgba(76,113,116,.62)";const grow=water?.depth==="rising"?38:0;ctx.beginPath();ctx.roundRect(c.water.x-grow,c.water.y-grow/2,c.water.width+grow*2,c.water.height+grow,45);ctx.fill();ctx.strokeStyle="rgba(210,225,213,.22)";ctx.lineWidth=3;for(let y=c.water.y+24;y<c.water.y+c.water.height;y+=35){ctx.beginPath();ctx.moveTo(c.water.x+25,y);ctx.quadraticCurveTo(c.water.x+180,y-10,c.water.x+320,y);ctx.quadraticCurveTo(c.water.x+460,y+10,c.water.x+c.water.width-25,y);ctx.stroke();}ctx.fillStyle="#66685d";ctx.fillRect(c.x,c.y,180,80);ctx.fillRect(c.x,c.y+c.height-80,180,80);ctx.fillStyle="#353d38";ctx.beginPath();ctx.arc(c.x+180,c.y+c.height/2,92,-Math.PI/2,Math.PI/2);ctx.lineTo(c.x+180,c.y+c.height/2-92);ctx.fill();ctx.fillStyle="rgba(35,43,38,.75)";ctx.font="700 22px system-ui";ctx.fillText("NORTH CULVERT",c.x-80,c.y-28);ctx.restore();}
- #drawRain(ctx,w,h){ctx.save();ctx.strokeStyle="rgba(215,225,220,.34)";ctx.lineWidth=1.4;const t=performance.now()*.22;for(let i=0;i<95;i++){const x=(i*73+t)%w,y=(i*127+t*1.7)%h;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-8,y+18);ctx.stroke();}ctx.restore();}
+ #drawRain(ctx,w,h,intensity=1){ctx.save();try{ctx.strokeStyle=`rgba(215,225,220,${.28+.08*Math.min(1,intensity-1)})`;ctx.lineWidth=1.4;const t=performance.now()*.22,count=Math.round(95*intensity);for(let i=0;i<count;i++){const x=(i*73+t)%w,y=(i*127+t*1.7)%h;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-8,y+18);ctx.stroke();}}finally{ctx.restore();}}
+
+ #drawEnvironmentOverlay(ctx,w,h,game){
+  const light=game.getLightLevel?.()??1;
+  ctx.save();
+  try{
+   ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
+   const hour=game.getHour?.()??12;
+   if(hour>=18&&hour<20){ctx.fillStyle=`rgba(145,78,45,${(20-hour)*.07})`;ctx.fillRect(0,0,w,h);}
+   if(game.weather==="Cloudy") {ctx.fillStyle="rgba(79,94,94,.10)";ctx.fillRect(0,0,w,h);}
+   else if(game.weather==="Fog") {ctx.fillStyle="rgba(184,193,183,.12)";ctx.fillRect(0,0,w,h);}
+   else if(game.weather==="Rain") {ctx.fillStyle="rgba(43,64,72,.16)";ctx.fillRect(0,0,w,h);}
+   else if(game.weather==="Heavy Rain") {ctx.fillStyle="rgba(27,45,55,.27)";ctx.fillRect(0,0,w,h);}
+   const darkness=Math.max(0,1-light);
+   if(darkness>0.02){ctx.fillStyle=`rgba(9,20,32,${Math.min(.64,darkness*.62)})`;ctx.fillRect(0,0,w,h);}
+  }finally{ctx.restore();}
+ }
  #drawWildlife(ctx,game){ctx.save();for(const bird of game.wildlife){ctx.globalAlpha=game.weather==="Fog"?.22:.45;ctx.fillStyle="#d7d0a6";ctx.beginPath();ctx.ellipse(bird.x,bird.y,3.4,1.8,Math.sin(bird.phase)*.5,0,Math.PI*2);ctx.fill();}ctx.restore();}
  #drawDepthSortedActors(ctx,game){
   const targetedId=game.interaction.targetId;
@@ -101,12 +118,14 @@ export class Renderer{
 
  #applyWorkPose(ctx,actor){
   const phase=actor.workPhase??0;
-  if(actor.workPose==="kneel"){ctx.translate(0,11);ctx.scale(1,.82);}
-  else if(actor.workPose==="inspect"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.sin(phase*2.2)*.035);ctx.translate(-actor.x,-actor.y);}
+  ctx.translate(actor.x,actor.y);
+  if(actor.workPose==="kneel"){ctx.translate(0,8);ctx.rotate(Math.sin(phase*1.8)*.018);}
+  else if(actor.workPose==="inspect"){ctx.rotate(Math.sin(phase*2.2)*.035);ctx.translate(0,2);}
   else if(actor.workPose==="sort"){ctx.translate(0,Math.sin(phase*5)*1.8);}
   else if(actor.workPose==="brace"){ctx.translate(actor.facing==="left"?-4:4,3);ctx.rotate((actor.facing==="left"?-1:1)*.055);}
   else if(actor.workPose==="binoculars"){ctx.translate(0,-2);}
   else if(actor.workPose==="set_down"){ctx.translate(0,Math.min(7,actor.waitTime*2));}
+  ctx.translate(-actor.x,-actor.y);
  }
 
  #drawWorkAccessory(ctx,actor){

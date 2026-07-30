@@ -1,4 +1,4 @@
-import { getItemDefinition } from "../data/items.js?v=071-visible-work-20260730";
+import { getItemDefinition } from "../data/items.js?v=072-motion-atmosphere-20260730";
 
 const ITEM_SIZES = {
   radio_battery: [28, 18],
@@ -61,19 +61,25 @@ function makeProp({
 
 export const siteLayouts = [
   { id: "A", battery: "locker_01", compass: "crate_01", bandage2: "duffel_01" },
-  { id: "B", battery: "crate_01", compass: "locker_01", bandage2: "tote_01" },
-  { id: "C", battery: "truck_box_01", compass: "crate_01", bandage2: "locker_01" }
+  { id: "B", battery: "locker_01", compass: "crate_01", bandage2: "tote_01" },
+  { id: "C", battery: "locker_01", compass: "crate_01", bandage2: "tote_01" }
 ];
 
 function ensureRequiredItems(entities) {
+  const containerIds = new Set(
+    entities.filter(entity => entity.type === "container").map(entity => entity.id)
+  );
+
   for (const required of REQUIRED_ITEMS) {
-    const exists = entities.some(entity =>
-      entity.type === "item" &&
-      entity.definitionId === required.definitionId &&
-      !["consumed", "stored"].includes(entity.locationType)
-    );
-    if (!exists) {
-      console.warn(`Missing required item ${required.definitionId}; placing visible fallback`);
+    const accessible = entities.some(entity => {
+      if (entity.type !== "item" || entity.definitionId !== required.definitionId) return false;
+      if (["consumed", "stored"].includes(entity.locationType)) return false;
+      if (entity.locationType === "world") return true;
+      return entity.locationType === "container" && containerIds.has(entity.locationOwnerId);
+    });
+
+    if (!accessible) {
+      console.warn(`Missing accessible required item ${required.definitionId}; placing visible fallback`);
       entities.push(makeItem(
         required.fallbackId,
         required.definitionId,

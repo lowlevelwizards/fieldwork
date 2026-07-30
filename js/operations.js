@@ -1,4 +1,4 @@
-import { findEntity } from "./world-entities.js?v=071-visible-work-20260730";
+import { findEntity } from "./world-entities.js?v=072-motion-atmosphere-20260730";
 
 const FACTIONS={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const PLAYER_FACTION="commune";
@@ -49,11 +49,11 @@ const TEAM_DEFS=[
 const MEMBER_LOOKUP=new Map(TEAM_DEFS.flatMap(team=>team.members.map(member=>[member.id,member])));
 
 function makeOperation(id,factionId,title,summary,tasks){return{id,factionId,title,summary,status:"available",claimedBy:null,playerEligible:factionId===PLAYER_FACTION,tasks:tasks.map((t,i)=>({id:`${id}_${i}`,label:t,status:i?"available":"in_progress"})),outcome:null};}
-function actorFrom(def,team){return{...def,type:"actor",teamId:team.id,factionId:team.factionId,operationId:team.operationId,width:44,height:70,groundY:def.y+34,radius:18,vx:0,vy:0,moveSpeed:def.speed,facing:"right",walkingPhase:0,backpackLoadRatio:.45,carriedItemInstanceId:null,routeIndex:0,waitTime:0,workPhase:0,currentTask:def.route[0].label,currentAction:"Walking",workPose:"walk",workProp:null,interactionRadius:84,priority:18,relationship:"Unknown",greeting:[`${FACTIONS[team.factionId]}. We're working here.`,"Keep the route clear and we'll do the same."],seated:false};}
+function actorFrom(def,team){return{...def,type:"actor",teamId:team.id,factionId:team.factionId,operationId:team.operationId,width:44,height:70,groundY:def.y+34,radius:18,vx:0,vy:0,moveSpeed:def.speed,facing:"right",walkingPhase:0,backpackLoadRatio:.45,carriedItemInstanceId:null,routeIndex:0,waitTime:0,workPhase:0,motionState:"walking",currentTask:def.route[0].label,currentAction:"Walking",workPose:"walk",workProp:null,interactionRadius:84,priority:18,relationship:"Unknown",greeting:[`${FACTIONS[team.factionId]}. We're working here.`,"Keep the route clear and we'll do the same."],seated:false};}
 function face(dx,dy,current){if(Math.hypot(dx,dy)<.1)return current;if(Math.abs(dx)>Math.abs(dy))return dx<0?"left":"right";return dy<0?"up":"down";}
 
 export class OperationSystem{
- constructor(game){this.game=game;this.playerFaction=PLAYER_FACTION;this.started=false;this.elapsed=0;this.rainStarted=false;this.selectedOperationId=null;this.teams=[];this.worldState={northlineStaged:false,communeDelivered:false,freelancerRecovered:false};this.operations=[
+ constructor(game){this.game=game;this.playerFaction=PLAYER_FACTION;this.started=false;this.elapsed=0;this.rainStarted=false;this.weatherPhase="initial";this.weatherMessagePhase=null;this.selectedOperationId=null;this.teams=[];this.worldState={northlineStaged:false,communeDelivered:false,freelancerRecovered:false};this.operations=[
   makeOperation("restore_north_culvert","northline","Restore North Culvert","Inspect, clear, and reopen the drainage route.",["Travel to culvert","Inspect blockage","Acquire rope","Clear obstruction","Confirm flow","Return"]),
   makeOperation("deliver_medical_supplies","commune","Deliver Medical Supplies","Move a vulnerable crate to the roadside shelter.",["Retrieve crate","Travel safely","Keep supplies dry","Deliver","Check shelter","Return"]),
   makeOperation("recover_field_radio","freelancers","Recover Field Radio","Locate and extract a valuable abandoned radio.",["Locate radio","Assess condition","Recover battery","Carry to exit","Depart"])
@@ -66,17 +66,38 @@ export class OperationSystem{
  updateActor(actor,delta){
   const def=MEMBER_LOOKUP.get(actor.id);if(!def)return;
   const point=def.route[Math.min(actor.routeIndex,def.route.length-1)];if(!point)return;
-  actor.currentTask=point.label;actor.workPhase+=delta;
-  const dx=point.x-actor.x,dy=point.y-actor.y,d=Math.hypot(dx,dy);actor.vx=0;actor.vy=0;
-  if(d>6){
-   const speed=actor.moveSpeed*(this.rainStarted?.82:1);actor.vx=dx/d*speed;actor.vy=dy/d*speed;actor.x+=actor.vx*delta;actor.y+=actor.vy*delta;actor.walkingPhase+=delta*8;actor.facing=face(dx,dy,actor.facing);actor.currentAction="Walking";actor.workPose=point.pose==="carry"?"carry":"walk";actor.workProp=point.pose==="carry"?point.prop:null;actor.waitTime=0;
-  }else{
-   actor.currentAction=point.pose==="scan"||point.pose==="binoculars"?"Observing":point.pose==="kneel"?"Working low":point.pose==="carry"?"Carrying":point.pose==="set_down"?"Unloading":point.pose==="sort"?"Sorting":"Working";
+
+  actor.currentTask=point.label;
+  actor.workPhase+=delta;
+
+  if(actor.motionState==="working"){
+   // A working actor is authoritative at the work node. No hidden route motion.
+   actor.x=point.x;actor.y=point.y;actor.vx=0;actor.vy=0;
    actor.workPose=point.pose;actor.workProp=point.prop;
+   actor.currentAction=point.pose==="scan"||point.pose==="binoculars"?"Observing":point.pose==="kneel"?"Working low":point.pose==="carry"?"Carrying":point.pose==="set_down"?"Unloading":point.pose==="sort"?"Sorting":"Working";
    if(point.face)actor.facing=point.face;
    if(point.pose==="scan"||point.pose==="binoculars"){const cycle=Math.floor(actor.waitTime/1.4)%4;actor.facing=["left","up","right","down"][cycle];}
    actor.waitTime+=delta;
-   if(actor.waitTime>(point.duration??4.2)){actor.routeIndex=(actor.routeIndex+1)%def.route.length;actor.waitTime=0;actor.workPhase=0;}
+   if(actor.waitTime>=(point.duration??4.2)){
+    actor.routeIndex=(actor.routeIndex+1)%def.route.length;
+    actor.waitTime=0;actor.workPhase=0;actor.motionState="walking";
+    actor.workPose="walk";actor.workProp=null;
+   }
+  }else{
+   const dx=point.x-actor.x,dy=point.y-actor.y,d=Math.hypot(dx,dy);
+   if(d<=6){
+    actor.x=point.x;actor.y=point.y;actor.vx=0;actor.vy=0;
+    actor.motionState="working";actor.waitTime=0;actor.workPhase=0;
+    actor.workPose=point.pose;actor.workProp=point.prop;
+   }else{
+    const weatherFactor=this.game.getWeatherSpeedMultiplier?.()??(this.rainStarted?.92:1);
+    const speed=actor.moveSpeed*weatherFactor;
+    actor.vx=dx/d*speed;actor.vy=dy/d*speed;
+    actor.x+=actor.vx*delta;actor.y+=actor.vy*delta;
+    actor.walkingPhase+=delta*8;actor.facing=face(dx,dy,actor.facing);
+    actor.currentAction="Walking";actor.workPose=point.pose==="carry"?"carry":"walk";
+    actor.workProp=point.pose==="carry"?point.prop:null;
+   }
   }
   actor.groundY=actor.y+actor.radius;
  }
@@ -95,7 +116,42 @@ export class OperationSystem{
   if(rec.routeIndex>=1){this.completeTask(op,0);this.completeTask(op,1);}
   if(rec.routeIndex>=2){this.completeTask(op,2);this.completeTask(op,3);op.status="completed";op.outcome="Field radio recovered";this.worldState.freelancerRecovered=true;}
  }
- update(delta){if(!this.started){if(this.game.excursion.state==="outbound")this.start();return;}this.elapsed+=delta;for(const actor of this.game.actors)if(actor.operationId)this.updateActor(actor,delta);if(!this.rainStarted&&this.elapsed>42){this.rainStarted=true;this.game.weather="Rain";const water=findEntity(this.game.entities,"culvert_water_01");if(water&&this.game.excursion.obstructionState!=="cleared"){water.depth="rising";water.x-=70;water.y-=35;water.width+=140;water.height+=70;}this.game.pushMessage("Rain begins. Low ground is flooding.",3.4);this.game.emitEvent("operationRainStarted");}this.updateNorthline();this.updateCommune();this.updateFreelancers();}
+ update(delta){
+  if(!this.started){if(this.game.excursion.state==="outbound")this.start();return;}
+  this.elapsed+=delta;
+  for(const actor of this.game.actors)if(actor.operationId)this.updateActor(actor,delta);
+
+  const water=findEntity(this.game.entities,"culvert_water_01");
+  if(this.elapsed<32){
+   this.weatherPhase="initial";
+  }else if(this.elapsed<45){
+   this.weatherPhase="clouding";this.game.weather="Cloudy";
+   if(this.weatherMessagePhase!=="clouding"){this.weatherMessagePhase="clouding";this.game.pushMessage("Clouds are moving in.",2.8);}
+  }else if(this.elapsed<92){
+   this.weatherPhase="rain";this.rainStarted=true;this.game.weather="Rain";
+   if(this.weatherMessagePhase!=="rain"){
+    this.weatherMessagePhase="rain";
+    if(water&&this.game.excursion.obstructionState!=="cleared"){water.depth="rising";water.x-=70;water.y-=35;water.width+=140;water.height+=70;}
+    this.game.pushMessage("Rain begins. Low ground is flooding.",3.4);this.game.emitEvent("operationRainStarted");
+   }
+  }else if(this.elapsed<122){
+   this.weatherPhase="heavy_rain";this.rainStarted=true;this.game.weather="Heavy Rain";
+   if(this.weatherMessagePhase!=="heavy_rain"){this.weatherMessagePhase="heavy_rain";this.game.pushMessage("The rain intensifies.",2.8);}
+  }else if(this.elapsed<146){
+   this.weatherPhase="easing";this.game.weather="Rain";
+   if(this.weatherMessagePhase!=="easing"){this.weatherMessagePhase="easing";this.game.pushMessage("The rain is easing.",2.8);}
+  }else{
+   this.weatherPhase="cloudy_after";this.rainStarted=false;this.game.weather="Cloudy";
+   if(this.weatherMessagePhase!=="cloudy_after"){this.weatherMessagePhase="cloudy_after";this.game.pushMessage("The rain has stopped.",2.8);}
+   if(water&&this.game.excursion.obstructionState==="cleared"){
+    water.depth="draining";
+    water.width=Math.max(this.game.map.culvert.water.width,water.width-delta*18);
+    water.height=Math.max(this.game.map.culvert.water.height,water.height-delta*10);
+   }
+  }
+
+  this.updateNorthline();this.updateCommune();this.updateFreelancers();
+ }
  summary(){return this.operations.map(o=>({id:o.id,title:o.title,faction:FACTIONS[o.factionId],factionId:o.factionId,status:o.status,current:o.tasks.find(t=>["in_progress","blocked"].includes(t.status))?.label??o.outcome??"Complete",claimed:o.claimedBy==="player",playerEligible:o.playerEligible,summary:o.summary}));}
  reportLines(){return this.operations.map(o=>`${FACTIONS[o.factionId]} — ${o.title}: ${o.outcome??(o.status==="blocked"?"Blocked":"Unresolved")}`);}
 }

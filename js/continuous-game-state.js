@@ -5,6 +5,60 @@ export class ContinuousGameState extends GameState {
   constructor() {
     super();
     this.excursion = new ContinuousExcursionController(this);
+    const phases = [
+      { name: "New Moon", illumination: 0.0 },
+      { name: "Crescent Moon", illumination: 0.25 },
+      { name: "Quarter Moon", illumination: 0.5 },
+      { name: "Gibbous Moon", illumination: 0.75 },
+      { name: "Full Moon", illumination: 1.0 }
+    ];
+    this.moonPhase = phases[this.siteLayoutIndex % phases.length];
+    this.moonPhaseName = this.moonPhase.name;
+  }
+
+  getHour() {
+    return (this.clockMinutes / 60) % 24;
+  }
+
+  isNight() {
+    const hour = this.getHour();
+    return hour < 6 || hour >= 20;
+  }
+
+  getLightLevel() {
+    const hour = this.getHour();
+    let daylight;
+    if (hour < 5) daylight = 0.08;
+    else if (hour < 7) daylight = 0.08 + ((hour - 5) / 2) * 0.67;
+    else if (hour < 18) daylight = 1;
+    else if (hour < 20) daylight = 1 - ((hour - 18) / 2) * 0.88;
+    else daylight = 0.08;
+    if (this.isNight()) daylight += this.moonPhase.illumination * 0.20;
+    const weather = this.weather === "Heavy Rain" ? 0.72 : this.weather === "Rain" ? 0.82 : this.weather === "Cloudy" ? 0.91 : this.weather === "Fog" ? 0.86 : 1;
+    return Math.max(0.06, Math.min(1, daylight * weather));
+  }
+
+  getWeatherSpeedMultiplier() {
+    if (this.weather === "Heavy Rain") return 0.84;
+    if (this.weather === "Rain") return 0.92;
+    if (this.weather === "Cloudy" || this.weather === "Fog") return 0.98;
+    return 1;
+  }
+
+  getEnvironmentSpeedMultiplier() {
+    const light = this.getLightLevel();
+    const darkness = light >= 0.72 ? 1 : light >= 0.42 ? 0.94 : light >= 0.22 ? 0.88 : 0.82;
+    return Math.max(0.70, this.getWeatherSpeedMultiplier() * darkness);
+  }
+
+  update(delta, move) {
+    const originalSpeed = this.operator.moveSpeed;
+    this.operator.moveSpeed = originalSpeed * this.getEnvironmentSpeedMultiplier();
+    try {
+      super.update(delta, move);
+    } finally {
+      this.operator.moveSpeed = originalSpeed;
+    }
   }
 
   // Automatic relocation is intentionally disabled for the continuous map.
