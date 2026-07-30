@@ -6,183 +6,24 @@ import { getItemDefinition } from "../data/items.js";
 import { findEntity } from "./world-entities.js";
 import { validateItemLocations } from "./item-locations.js";
 import { renderItemThumbnail } from "./presentation/item-renderer.js";
-
-const $ = (selector) => document.querySelector(selector);
-const titleScreen = $("#title-screen"), gameScreen = $("#game-screen"), beginButton = $("#begin-button"), canvas = $("#game-canvas");
-const actionPanel = $("#action-panel"), actionName = $("#action-name"), actionButton = $("#action-button"), actionProgress = $("#action-progress-fill");
-const inventoryOverlay = $("#inventory-overlay"), inspectOverlay = $("#inspect-overlay"), inventoryList = $("#inventory-list");
-const camera = new Camera(), game = new GameState(), renderer = new Renderer(canvas, camera);
-const input = new InputController({ joystickZone: $("#joystick-zone"), joystickBase: $("#joystick-base"), joystickKnob: $("#joystick-knob") });
-let started = false, inventoryOpen = false, worldTextOpen = false, dialogueOpen = false, lastTime = performance.now(), fpsAccumulator = 0, fpsFrames = 0, fpsValue = 0, objectiveTimer = null;
-
-function resize() { renderer.resize(); camera.snapTo(game.operator); }
-function startGame() { titleScreen.classList.remove("screen--active"); gameScreen.classList.add("screen--active"); started = true; resize(); lastTime = performance.now(); objectiveTimer = setTimeout(() => $("#objective-card").classList.add("objective-card--collapsed"), 5200); }
-function triggerContextAction() {
-  if (inventoryOpen || worldTextOpen || dialogueOpen) return;
-  const action = game.interaction.activeAction;
-  if (action && !action.disabled && !["pack", "take"].includes(action.id)) game.interaction.trigger();
-  else if (game.operator.carriedItemInstanceId) game.interaction.dropCarriedItem();
-  else game.interaction.trigger();
-}
-
-function updateInteractionUI() {
-  const target = game.interaction.getTarget(), searching = Boolean(game.interaction.searchingEntityId), carryingId = game.operator.carriedItemInstanceId, action = game.interaction.activeAction;
-  if (carryingId && target && action && !["pack", "take", "occupied"].includes(action.id)) {
-    actionPanel.hidden = false; actionName.textContent = target.name; actionButton.textContent = action.label; actionButton.disabled = Boolean(action.disabled);
-  } else if (carryingId) {
-    const item = findEntity(game.entities, carryingId); actionPanel.hidden = false; actionName.textContent = item?.name ?? "Carried Item"; actionButton.textContent = "Drop"; actionButton.disabled = false;
-  } else if (target && action) {
-    actionPanel.hidden = false; actionName.textContent = target.name; actionButton.textContent = action.label; actionButton.disabled = Boolean(action.disabled);
-  } else actionPanel.hidden = true;
-  actionPanel.classList.toggle("action-panel--searching", searching);
-  if (searching) { const entity = findEntity(game.entities, game.interaction.searchingEntityId); actionProgress.style.width = `${Math.round((entity?.searchProgress || 0) * 100)}%`; }
-  else actionProgress.style.width = "0%";
-
-  const stack = $("#message-stack"); stack.replaceChildren(...game.messages.map((message) => { const node = document.createElement("div"); node.className = "message-toast"; node.textContent = message.text; node.style.opacity = String(Math.min(1, message.time / 0.25)); return node; }));
-  const used = game.inventory.getUsedPips(); $("#pack-usage-compact").textContent = `${used}/8`;
-}
-
-function buildInventory() {
-  const used = game.inventory.getUsedPips(); $("#pack-usage").textContent = `${used} / ${game.backpack.capacityPips} pips`;
-  const pips = $("#capacity-pips"); pips.replaceChildren();
-  for (let i = 0; i < game.backpack.capacityPips; i += 1) { const pip = document.createElement("span"); pip.className = i < used ? "capacity-pip capacity-pip--used" : "capacity-pip"; pips.append(pip); }
-  inventoryList.replaceChildren();
-  const items = game.inventory.getItems();
-  if (!items.length) { const empty = document.createElement("p"); empty.className = "inventory-empty"; empty.textContent = "The pack is empty."; inventoryList.append(empty); return; }
-  for (const item of items) {
-    const def = getItemDefinition(item.definitionId), row = document.createElement("article"); row.className = "inventory-row";
-    const summary = document.createElement("div"); summary.className = "item-summary";
-    const icon = document.createElement("canvas"); icon.className = "item-icon"; icon.setAttribute("aria-hidden", "true");
-    const copy = document.createElement("div");
-    const name = document.createElement("strong"); name.textContent = def.name;
-    const meta = document.createElement("span"); meta.textContent = `${def.category} · ${def.sizePips} ${def.sizePips === 1 ? "pip" : "pips"}`;
-    copy.append(name, meta); summary.append(icon, copy); row.append(summary); renderItemThumbnail(icon, item.definitionId);
-    const actions = document.createElement("div"); actions.className = "item-actions";
-    for (const [label, handler] of [["Inspect", () => inspectItem(item)], ["Hold", () => { if (game.inventory.hold(item.id)) closeInventory(); }], ["Drop", () => { game.inventory.drop(item.id); buildInventory(); }]]) {
-      const button = document.createElement("button"); button.type = "button"; button.textContent = label; button.addEventListener("click", handler); actions.append(button);
-    }
-    row.append(actions); inventoryList.append(row);
-  }
-}
-
-function openInventory() { if (!started || game.interaction.searchingEntityId) return; inventoryOpen = true; game.operator.lockedByInteraction = true; inventoryOverlay.hidden = false; buildInventory(); }
-function closeInventory() { inventoryOpen = false; inventoryOverlay.hidden = true; game.operator.lockedByInteraction = false; }
-function inspectItem(item) {
-  const def = getItemDefinition(item.definitionId); $("#inspect-category").textContent = def.category; $("#inspect-name").textContent = def.name;
-  $("#inspect-size").textContent = `Size: ${def.sizePips} ${def.sizePips === 1 ? "pip" : "pips"}`; $("#inspect-description").textContent = def.description;
-  $("#inspect-location").textContent = item.locationType === "backpack" ? "Currently in Mara's field pack." : item.locationType === "hands" ? "Currently in Mara's hands." : "Currently in the world.";
-  inspectOverlay.hidden = false;
-}
-
-function openWorldText(request) {
-  if (!request) return;
-  worldTextOpen = true;
-  game.operator.lockedByInteraction = true;
-  const { entity, mode } = request;
-  $("#inspect-category").textContent = mode === "read" ? "FIELD DOCUMENT" : "OBSERVATION";
-  $("#inspect-name").textContent = entity.name;
-  $("#inspect-size").textContent = mode === "read" ? "Read in place" : "Fixed world object";
-  $("#inspect-description").textContent = entity.text;
-  $("#inspect-location").textContent = "At the Old Maintenance Pull-Off.";
-  inspectOverlay.hidden = false;
-  game.worldTextRequest = null;
-}
-
-function closeInspect() {
-  inspectOverlay.hidden = true;
-  worldTextOpen = false;
-  if (!inventoryOpen) game.operator.lockedByInteraction = false;
-}
-
-function openDialogue(request) {
-  if (!request) return;
-  dialogueOpen = true;
-  game.operator.lockedByInteraction = true;
-  $("#dialogue-role").textContent = request.actor.role;
-  $("#dialogue-name").textContent = request.actor.name;
-  $("#dialogue-text").textContent = request.text;
-  $("#dialogue-overlay").hidden = false;
-  game.dialogueRequest = null;
-}
-
-function closeDialogue() {
-  dialogueOpen = false;
-  $("#dialogue-overlay").hidden = true;
-  if (!inventoryOpen && !worldTextOpen) game.operator.lockedByInteraction = false;
-}
-
-function updateDebug(delta) {
-  fpsAccumulator += delta; fpsFrames += 1; if (fpsAccumulator >= 0.5) { fpsValue = Math.round(fpsFrames / fpsAccumulator); fpsAccumulator = 0; fpsFrames = 0; }
-  $("#debug-fps").textContent = fpsValue; $("#debug-position").textContent = `${Math.round(game.operator.x)}, ${Math.round(game.operator.y)}`; $("#debug-facing").textContent = game.operator.facing;
-  $("#debug-target").textContent = game.interaction.getTarget()?.id ?? "—"; $("#debug-carry").textContent = game.operator.carriedItemInstanceId ?? "—"; $("#debug-pack").textContent = `${game.inventory.getUsedPips()} / 8`;
-  $("#debug-world-items").textContent = game.entities.filter((e) => e.type === "item" && e.locationType === "world").length;
-  $("#debug-door").textContent = findEntity(game.entities, "shed_door_01")?.state ?? "—"; $("#debug-crate").textContent = game.entities.filter((e) => e.type === "container" && e.searched).length + "/" + game.entities.filter((e) => e.type === "container").length;
-  $("#debug-layout").textContent = game.siteLayoutId; $("#debug-hidden").textContent = game.entities.filter((e) => e.type === "item" && !e.revealed && e.locationType !== "backpack" && e.locationType !== "hands").length;
-  $("#debug-time").textContent = game.getTimeLabel(); $("#debug-weather").textContent = game.weather;
-  $("#debug-ada").textContent = game.actors[0]?.currentTask ?? "—"; $("#debug-incident").textContent = game.incident.state; $("#debug-condition").textContent = game.actors[0]?.condition ?? "—"; $("#debug-tomas").textContent = game.actors[1]?.currentTask ?? "—";
-  const errors = validateItemLocations(game); $("#debug-audit").textContent = errors.length ? `${errors.length} issue(s)` : "OK";
-}
-
-let reportedFrameError = false;
-
-function reportFrameError(error) {
-  console.error("Fieldwork frame error", error);
-  if (reportedFrameError) return;
-  reportedFrameError = true;
-  game.pushMessage("A presentation error was contained. Movement remains active.", 5);
-}
-
-function frame(now) {
-  const delta = Math.min((now - lastTime) / 1000, 0.033);
-  lastTime = now;
-
-  try {
-    if (started) {
-      game.update(delta, inventoryOpen ? { x: 0, y: 0 } : input.getMoveVector());
-      camera.update(game.operator, delta);
-
-      // Keep simulation and HUD alive even if one drawing routine fails.
-      $("#world-time").textContent = game.getTimeLabel();
-      $("#world-phase").textContent = `${game.getDayPhase()} · ${game.weather}`;
-
-      try { renderer.render(game); } catch (error) { reportFrameError(error); }
-      updateInteractionUI();
-
-      if (game.worldTextRequest && !worldTextOpen) openWorldText(game.worldTextRequest);
-      if (game.dialogueRequest && !dialogueOpen) openDialogue(game.dialogueRequest);
-      if (game.assessmentRequest && !dialogueOpen) {
-        openDialogue({ actor: game.assessmentRequest.actor, text: game.assessmentRequest.text });
-        game.assessmentRequest = null;
-      }
-
-      if (game.incident.state === "resolved") {
-        $("#objective-card strong").textContent = "Situation stabilized";
-        $("#objective-card span:last-child").textContent = "Ada is safe and communications are restored.";
-      } else if (game.incident.bandageUsed) {
-        $("#objective-card strong").textContent = "Move Ada to safety";
-        $("#objective-card span:last-child").textContent = "Assist her to the break table and restore the field radio.";
-      }
-
-      if (!$("#debug-panel").hidden) updateDebug(delta);
-    }
-  } catch (error) {
-    reportFrameError(error);
-  } finally {
-    requestAnimationFrame(frame);
-  }
-}
-
-beginButton.addEventListener("click", startGame); actionButton.addEventListener("click", triggerContextAction); $("#backpack-button").addEventListener("click", () => inventoryOpen ? closeInventory() : openInventory());
-$("#inventory-close").addEventListener("click", closeInventory); inventoryOverlay.addEventListener("click", (event) => { if (event.target === inventoryOverlay) closeInventory(); });
-$("#inspect-close").addEventListener("click", closeInspect); $("#dialogue-close").addEventListener("click", closeDialogue); inspectOverlay.addEventListener("click", (event) => { if (event.target === inspectOverlay) closeInspect(); });
-window.addEventListener("keydown", (event) => {
-  const key = event.key.toLowerCase();
-  if (key === "e" && started) { event.preventDefault(); triggerContextAction(); }
-  if (key === "b" && started) { event.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
-  if (key === "escape") { if (dialogueOpen) closeDialogue(); else if (!inspectOverlay.hidden) closeInspect(); else if (inventoryOpen) closeInventory(); }
-});
-$("#reset-position-button").addEventListener("click", () => { game.resetPosition(); camera.snapTo(game.operator); });
-$("#debug-button").addEventListener("click", () => { const active = $("#debug-button").getAttribute("aria-pressed") === "true"; $("#debug-button").setAttribute("aria-pressed", String(!active)); $("#debug-panel").hidden = active; $("#reset-position-button").hidden = active; });
-$("#objective-card").addEventListener("click", () => { $("#objective-card").classList.toggle("objective-card--collapsed"); if (objectiveTimer) clearTimeout(objectiveTimer); });
-window.addEventListener("resize", () => { if (started) resize(); }); window.addEventListener("orientationchange", () => setTimeout(() => { if (started) resize(); }, 150));
-requestAnimationFrame(frame);
+const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),actionPanel=$("#action-panel"),actionName=$("#action-name"),actionButton=$("#action-button"),actionProgress=$("#action-progress-fill"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),routeOverlay=$("#route-overlay"),reportOverlay=$("#report-overlay");
+const camera=new Camera(),game=new GameState(),renderer=new Renderer(canvas,camera),input=new InputController({joystickZone:$("#joystick-zone"),joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
+let started=false,inventoryOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
+function resize(){renderer.resize();camera.snapTo(game.operator);}function startGame(){titleScreen.classList.remove("screen--active");gameScreen.classList.add("screen--active");started=true;resize();lastTime=performance.now();objectiveTimer=setTimeout(()=>$("#objective-card").classList.add("objective-card--collapsed"),5200);}
+function modalOpen(){return inventoryOpen||worldTextOpen||dialogueOpen||!routeOverlay.hidden||!reportOverlay.hidden;}
+function triggerContextAction(){if(modalOpen())return;const a=game.interaction.activeAction;if(a&&!a.disabled&&!["pack","take"].includes(a.id))game.interaction.trigger();else if(game.operator.carriedItemInstanceId)game.interaction.dropCarriedItem();else game.interaction.trigger();}
+function updateInteractionUI(){const target=game.interaction.getTarget(),searching=Boolean(game.interaction.searchingEntityId),carryingId=game.operator.carriedItemInstanceId,action=game.interaction.activeAction;if(carryingId&&target&&action&&!['pack','take','occupied'].includes(action.id)){actionPanel.hidden=false;actionName.textContent=target.name;actionButton.textContent=action.label;actionButton.disabled=Boolean(action.disabled);}else if(carryingId){const item=findEntity(game.entities,carryingId);actionPanel.hidden=false;actionName.textContent=item?.name??"Carried Item";actionButton.textContent="Drop";actionButton.disabled=false;}else if(target&&action){actionPanel.hidden=false;actionName.textContent=target.name;actionButton.textContent=action.label;actionButton.disabled=Boolean(action.disabled);}else actionPanel.hidden=true;actionPanel.classList.toggle("action-panel--searching",searching);if(searching){const e=findEntity(game.entities,game.interaction.searchingEntityId);actionProgress.style.width=`${Math.round((e?.searchProgress||0)*100)}%`;}else actionProgress.style.width="0%";const stack=$("#message-stack");stack.replaceChildren(...game.messages.map(m=>{const n=document.createElement("div");n.className="message-toast";n.textContent=m.text;n.style.opacity=String(Math.min(1,m.time/.25));return n;}));$("#pack-usage-compact").textContent=`${game.inventory.getUsedPips()}/8`;}
+function buildInventory(){const used=game.inventory.getUsedPips();$("#pack-usage").textContent=`${used} / ${game.backpack.capacityPips} pips`;const pips=$("#capacity-pips");pips.replaceChildren();for(let i=0;i<game.backpack.capacityPips;i++){const p=document.createElement("span");p.className=i<used?"capacity-pip capacity-pip--used":"capacity-pip";pips.append(p);}inventoryList.replaceChildren();const items=game.inventory.getItems();if(!items.length){const e=document.createElement("p");e.className="inventory-empty";e.textContent="The pack is empty.";inventoryList.append(e);return;}for(const item of items){const def=getItemDefinition(item.definitionId),row=document.createElement("article");row.className="inventory-row";const summary=document.createElement("div");summary.className="item-summary";const icon=document.createElement("canvas");icon.className="item-icon";const copy=document.createElement("div"),name=document.createElement("strong"),meta=document.createElement("span");name.textContent=def.name;meta.textContent=`${def.category} · ${def.sizePips} ${def.sizePips===1?"pip":"pips"}${item.condition==="wet"?" · WET":""}`;copy.append(name,meta);summary.append(icon,copy);row.append(summary);renderItemThumbnail(icon,item.definitionId,item.condition);const actions=document.createElement("div");actions.className="item-actions";for(const [label,handler] of [["Inspect",()=>inspectItem(item)],["Hold",()=>{if(game.inventory.hold(item.id))closeInventory();}],["Drop",()=>{game.inventory.drop(item.id);buildInventory();}]]){const b=document.createElement("button");b.textContent=label;b.addEventListener("click",handler);actions.append(b);}row.append(actions);inventoryList.append(row);}}
+function openInventory(){if(!started||game.interaction.searchingEntityId)return;inventoryOpen=true;game.operator.lockedByInteraction=true;inventoryOverlay.hidden=false;buildInventory();}function closeInventory(){inventoryOpen=false;inventoryOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
+function inspectItem(item){const def=getItemDefinition(item.definitionId);$("#inspect-category").textContent=def.category;$("#inspect-name").textContent=def.name;$("#inspect-size").textContent=`Condition: ${item.condition==="wet"?"Wet":"Dry"}`;$("#inspect-description").textContent=item.condition==="wet"&&item.definitionId==="bandage"?"The outer wrapping is soaked. It is no longer suitable as a clean dressing.":def.description;$("#inspect-location").textContent=item.locationType==="backpack"?"Currently in Mara's field pack.":item.locationType==="hands"?"Currently in Mara's hands.":"Currently in the world.";inspectOverlay.hidden=false;}
+function openWorldText(request){if(!request)return;worldTextOpen=true;game.operator.lockedByInteraction=true;const{entity,mode}=request;$("#inspect-category").textContent=mode==="read"?"FIELD DOCUMENT":"OBSERVATION";$("#inspect-name").textContent=entity.name;$("#inspect-size").textContent=mode==="read"?"Read in place":"Field observation";$("#inspect-description").textContent=entity.text;$("#inspect-location").textContent=game.excursion.state==="outbound"||game.excursion.culvertInspected?"Along the north maintenance route.":"At the Old Maintenance Pull-Off.";inspectOverlay.hidden=false;game.worldTextRequest=null;}
+function closeInspect(){inspectOverlay.hidden=true;worldTextOpen=false;if(!modalOpen())game.operator.lockedByInteraction=false;}
+function openDialogue(request){if(!request)return;dialogueOpen=true;game.operator.lockedByInteraction=true;$("#dialogue-role").textContent=request.actor.role;$("#dialogue-name").textContent=request.actor.name;$("#dialogue-text").textContent=request.text;$("#dialogue-overlay").hidden=false;game.dialogueRequest=null;}function closeDialogue(){dialogueOpen=false;$("#dialogue-overlay").hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
+function openRoute(){game.routeReviewRequest=false;routeOverlay.hidden=false;game.operator.lockedByInteraction=true;}function closeRoute(){routeOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
+function openReport(report){if(!report)return;$("#report-title").textContent=report.title;const lines=$("#report-lines");lines.replaceChildren(...report.lines.map(text=>{const p=document.createElement("p");p.textContent=text;return p;}));reportOverlay.hidden=false;game.operator.lockedByInteraction=true;game.excursion.reportRequest=null;}function closeReport(){reportOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
+function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child");if(game.incident.state!=="resolved"){if(game.incident.bandageUsed){strong.textContent="Move Ada to safety";copy.textContent="Assist her to the break table and restore the field radio.";}return;}if(game.excursion.state==="available"){strong.textContent="Prepare for the North Culvert";copy.textContent="Review the route board when your pack is ready.";}else if(game.excursion.state==="outbound"){strong.textContent="Follow the maintenance trail";copy.textContent="Use landmarks and continue east to the North Culvert.";}else if(game.excursion.state==="at_destination"){strong.textContent="Decide what the site needs";copy.textContent="Clear the obstruction with rope, or mark it for a full crew.";}else if(game.excursion.state==="returning"){strong.textContent="Return to the pull-off";copy.textContent="Bring recovered cargo back to the RETURN marker.";}else{strong.textContent="Safe return";copy.textContent="The route and recovered supplies now reflect what you did.";}}
+function updateCompass(){const has=game.inventory.getItems().some(i=>i.definitionId==="compass")||game.getHeldItem()?.definitionId==="compass";$("#compass-chip").hidden=!has;if(has){const labels={up:"NORTH",right:"EAST",down:"SOUTH",left:"WEST"};$("#compass-heading").textContent=labels[game.operator.facing];}}
+function updateDebug(delta){fpsAccumulator+=delta;fpsFrames++;if(fpsAccumulator>=.5){fpsValue=Math.round(fpsFrames/fpsAccumulator);fpsAccumulator=0;fpsFrames=0;}$("#debug-fps").textContent=fpsValue;$("#debug-position").textContent=`${Math.round(game.operator.x)}, ${Math.round(game.operator.y)}`;$("#debug-facing").textContent=game.operator.facing;$("#debug-target").textContent=game.interaction.getTarget()?.id??"—";$("#debug-incident").textContent=game.incident.state;$("#debug-excursion").textContent=game.excursion.state;$("#debug-obstruction").textContent=game.excursion.obstructionState;$("#debug-water").textContent=game.isInWater()?`${game.waterExposure.toFixed(1)}s`:"dry";$("#debug-weather").textContent=game.weather;const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
+function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.update(delta,inventoryOpen?{x:0,y:0}:input.getMoveVector());camera.update(game.operator,delta);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.routeReviewRequest&&routeOverlay.hidden)openRoute();if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}`;updateObjective();updateCompass();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
+beginButton.addEventListener("click",startGame);actionButton.addEventListener("click",triggerContextAction);$("#backpack-button").addEventListener("click",()=>inventoryOpen?closeInventory():openInventory());$("#inventory-close").addEventListener("click",closeInventory);$("#inspect-close").addEventListener("click",closeInspect);$("#dialogue-close").addEventListener("click",closeDialogue);$("#route-close").addEventListener("click",closeRoute);$("#route-start").addEventListener("click",()=>{if(game.excursion.start()){closeRoute();game.operator.x=2310;game.operator.y=1060;camera.snapTo(game.operator);}});$("#report-close").addEventListener("click",closeReport);
+window.addEventListener("keydown",event=>{const key=event.key.toLowerCase();if(key==="e"&&started){event.preventDefault();triggerContextAction();}if(key==="b"&&started){event.preventDefault();inventoryOpen?closeInventory():openInventory();}if(key==="escape"){if(dialogueOpen)closeDialogue();else if(!routeOverlay.hidden)closeRoute();else if(!reportOverlay.hidden)closeReport();else if(!inspectOverlay.hidden)closeInspect();else if(inventoryOpen)closeInventory();}});$("#reset-position-button").addEventListener("click",()=>{game.resetPosition();camera.snapTo(game.operator);});$("#debug-button").addEventListener("click",()=>{const active=$("#debug-button").getAttribute("aria-pressed")==="true";$("#debug-button").setAttribute("aria-pressed",String(!active));$("#debug-panel").hidden=active;$("#reset-position-button").hidden=active;});$("#objective-card").addEventListener("click",()=>{$("#objective-card").classList.toggle("objective-card--collapsed");if(objectiveTimer)clearTimeout(objectiveTimer);});window.addEventListener("resize",()=>{if(started)resize();});requestAnimationFrame(frame);
