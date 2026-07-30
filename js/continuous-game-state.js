@@ -1,5 +1,6 @@
 import { GameState } from "./game.js?v=077-presentation-isolation-20260730";
 import { ContinuousExcursionController } from "./continuous-excursion.js?v=077-presentation-isolation-20260730";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=077-presentation-isolation-20260730";
 
 export class ContinuousGameState extends GameState {
   constructor() {
