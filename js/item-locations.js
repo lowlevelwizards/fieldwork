@@ -51,7 +51,7 @@ export function validateItemLocations(game) {
   const seen = new Map();
   for (const item of game.entities.filter((entity) => entity.type === "item")) {
     let owners = 0;
-    if (item.locationType === "world" || item.locationType === "hidden" || item.locationType === "container") owners += 1;
+    if (item.locationType === "world" || item.locationType === "hidden" || item.locationType === "container" || item.locationType === "consumed") owners += 1;
     if (game.operator.carriedItemInstanceId === item.id) owners += 1;
     if (game.backpack.itemInstanceIds.includes(item.id)) owners += 1;
     if (owners !== 1) errors.push(`${item.id}: ${owners} locations`);

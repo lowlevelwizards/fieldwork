@@ -71,7 +71,12 @@ export class Renderer {
 
     for (const actor of game.actors) {
       const renderActor = actor.seated ? { ...actor, y: actor.y + 10, vx: 0, vy: 0 } : actor;
-      entries.push({ y: actor.groundY, draw: () => drawOperator(ctx, renderActor, null) });
+      entries.push({ y: actor.groundY - 1, draw: () => {
+        if (actor.condition === "bleeding") { ctx.save(); ctx.fillStyle = "rgba(111, 45, 40, 0.52)"; ctx.beginPath(); ctx.ellipse(actor.x + 8, actor.y + 31, 13, 6, -0.2, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+        ctx.save();
+        if (actor.condition === "bleeding" || actor.condition === "injured") { ctx.translate(actor.x, actor.y); ctx.rotate(-0.08); ctx.translate(-actor.x, -actor.y); }
+        drawOperator(ctx, renderActor, null); ctx.restore();
+      }});
     }
 
     game.operator.backpackLoadRatio = game.inventory.getUsedPips() / game.backpack.capacityPips;

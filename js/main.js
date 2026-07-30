@@ -17,11 +17,19 @@ let started = false, inventoryOpen = false, worldTextOpen = false, dialogueOpen 
 
 function resize() { renderer.resize(); camera.snapTo(game.operator); }
 function startGame() { titleScreen.classList.remove("screen--active"); gameScreen.classList.add("screen--active"); started = true; resize(); lastTime = performance.now(); objectiveTimer = setTimeout(() => $("#objective-card").classList.add("objective-card--collapsed"), 5200); }
-function triggerContextAction() { if (inventoryOpen || worldTextOpen || dialogueOpen) return; if (game.operator.carriedItemInstanceId) game.interaction.dropCarriedItem(); else game.interaction.trigger(); }
+function triggerContextAction() {
+  if (inventoryOpen || worldTextOpen || dialogueOpen) return;
+  const action = game.interaction.activeAction;
+  if (action && !action.disabled && !["pack", "take"].includes(action.id)) game.interaction.trigger();
+  else if (game.operator.carriedItemInstanceId) game.interaction.dropCarriedItem();
+  else game.interaction.trigger();
+}
 
 function updateInteractionUI() {
   const target = game.interaction.getTarget(), searching = Boolean(game.interaction.searchingEntityId), carryingId = game.operator.carriedItemInstanceId, action = game.interaction.activeAction;
-  if (carryingId) {
+  if (carryingId && target && action && !["pack", "take", "occupied"].includes(action.id)) {
+    actionPanel.hidden = false; actionName.textContent = target.name; actionButton.textContent = action.label; actionButton.disabled = Boolean(action.disabled);
+  } else if (carryingId) {
     const item = findEntity(game.entities, carryingId); actionPanel.hidden = false; actionName.textContent = item?.name ?? "Carried Item"; actionButton.textContent = "Drop"; actionButton.disabled = false;
   } else if (target && action) {
     actionPanel.hidden = false; actionName.textContent = target.name; actionButton.textContent = action.label; actionButton.disabled = Boolean(action.disabled);
@@ -111,14 +119,15 @@ function updateDebug(delta) {
   $("#debug-door").textContent = findEntity(game.entities, "shed_door_01")?.state ?? "—"; $("#debug-crate").textContent = game.entities.filter((e) => e.type === "container" && e.searched).length + "/" + game.entities.filter((e) => e.type === "container").length;
   $("#debug-layout").textContent = game.siteLayoutId; $("#debug-hidden").textContent = game.entities.filter((e) => e.type === "item" && !e.revealed && e.locationType !== "backpack" && e.locationType !== "hands").length;
   $("#debug-time").textContent = game.getTimeLabel(); $("#debug-weather").textContent = game.weather;
-  $("#debug-ada").textContent = game.actors[0]?.currentTask ?? "—"; $("#debug-tomas").textContent = game.actors[1]?.currentTask ?? "—";
+  $("#debug-ada").textContent = game.actors[0]?.currentTask ?? "—"; $("#debug-incident").textContent = game.incident.state; $("#debug-condition").textContent = game.actors[0]?.condition ?? "—"; $("#debug-tomas").textContent = game.actors[1]?.currentTask ?? "—";
   const errors = validateItemLocations(game); $("#debug-audit").textContent = errors.length ? `${errors.length} issue(s)` : "OK";
 }
 
 function frame(now) {
   const delta = Math.min((now - lastTime) / 1000, 0.033); lastTime = now;
-  if (started) { game.update(delta, inventoryOpen ? { x: 0, y: 0 } : input.getMoveVector()); camera.update(game.operator, delta); renderer.render(game); updateInteractionUI(); if (game.worldTextRequest && !worldTextOpen) openWorldText(game.worldTextRequest); if (game.dialogueRequest && !dialogueOpen) openDialogue(game.dialogueRequest); $("#world-time").textContent = game.getTimeLabel(); $("#world-phase").textContent = `${game.getDayPhase()} · ${game.weather}`;
-    if (game.objectiveSecured) { $("#objective-card strong").textContent = "Radio battery secured"; $("#objective-card span:last-child").textContent = "Choose what else deserves space before returning."; } if (!$("#debug-panel").hidden) updateDebug(delta); }
+  if (started) { game.update(delta, inventoryOpen ? { x: 0, y: 0 } : input.getMoveVector()); camera.update(game.operator, delta); renderer.render(game); updateInteractionUI(); if (game.worldTextRequest && !worldTextOpen) openWorldText(game.worldTextRequest); if (game.dialogueRequest && !dialogueOpen) openDialogue(game.dialogueRequest); if (game.assessmentRequest && !dialogueOpen) { openDialogue({ actor: game.assessmentRequest.actor, text: game.assessmentRequest.text }); game.assessmentRequest = null; } $("#world-time").textContent = game.getTimeLabel(); $("#world-phase").textContent = `${game.getDayPhase()} · ${game.weather}`;
+    if (game.incident.state === "resolved") { $("#objective-card strong").textContent = "Situation stabilized"; $("#objective-card span:last-child").textContent = "Ada is safe and communications are restored."; }
+    else if (game.incident.bandageUsed) { $("#objective-card strong").textContent = "Move Ada to safety"; $("#objective-card span:last-child").textContent = "Assist her to the break table and restore the field radio."; } if (!$("#debug-panel").hidden) updateDebug(delta); }
   requestAnimationFrame(frame);
 }
 

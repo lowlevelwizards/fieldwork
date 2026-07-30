@@ -4,6 +4,7 @@ import { createWorldEntities } from "./world-entities.js";
 import { InteractionSystem } from "./interaction.js";
 import { InventorySystem } from "./inventory.js";
 import { createActors, updateActors } from "./actors.js";
+import { IncidentController } from "./incident.js";
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 function circleRectCollision(cx, cy, radius, rect) {
@@ -32,6 +33,8 @@ export class GameState {
     this.timeScale = 1;
     this.weather = ["Clear", "Cloudy", "Fog"][Math.floor(Math.random() * 3)];
     this.dialogueRequest = null;
+    this.assessmentRequest = null;
+    this.assistedActorId = null;
     this.wildlife = Array.from({ length: 9 }, (_, index) => ({ id: `wild_${index}`, x: 220 + Math.random() * 1700, y: 220 + Math.random() * 1180, phase: Math.random() * Math.PI * 2, speed: 7 + Math.random() * 10 }));
     this.backpack = { id: "mara_field_pack", ownerOperatorId: "mara_velez", capacityPips: 8, itemInstanceIds: [] };
     this.operator = { ...operatorDefinition, x: mapData.spawn.x, y: mapData.spawn.y, vx: 0, vy: 0, facing: operatorDefinition.startingFacing, walkingPhase: 0, carriedItemInstanceId: null, lockedByInteraction: false, packPulse: 0, searchPose: 0, searchTargetId: null };
@@ -41,6 +44,7 @@ export class GameState {
     this.worldTextRequest = null;
     this.objectiveSecured = false;
     this.eventLog = [];
+    this.incident = new IncidentController(this);
   }
 
   resetPosition() {
@@ -75,11 +79,13 @@ export class GameState {
   update(delta, move) {
     this.clockMinutes = (this.clockMinutes + delta * this.timeScale) % 1440;
     updateActors(this, delta);
+    this.incident.update(delta);
     for (const bird of this.wildlife) { bird.phase += delta * bird.speed * 0.1; bird.x += Math.cos(bird.phase) * delta * bird.speed; bird.y += Math.sin(bird.phase * 0.7) * delta * bird.speed * 0.35; }
     const op = this.operator;
     const effectiveMove = op.lockedByInteraction ? { x: 0, y: 0 } : move;
-    const targetVx = effectiveMove.x * op.moveSpeed;
-    const targetVy = effectiveMove.y * op.moveSpeed;
+    const assistedSpeed = this.assistedActorId ? 0.48 : 1;
+    const targetVx = effectiveMove.x * op.moveSpeed * assistedSpeed;
+    const targetVy = effectiveMove.y * op.moveSpeed * assistedSpeed;
     const rate = Math.hypot(effectiveMove.x, effectiveMove.y) > 0.01 ? op.acceleration : op.deceleration;
     const maxChange = rate * delta;
     op.vx += clamp(targetVx - op.vx, -maxChange, maxChange);

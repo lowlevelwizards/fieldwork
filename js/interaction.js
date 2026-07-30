@@ -72,6 +72,16 @@ export class InteractionSystem {
     if (!entity) return false;
     const action = this.activeAction.id;
 
+    if (action === "assess") {
+      entity.assessed = true;
+      this.game.assessmentRequest = { actor: entity, text: "Conscious. Bleeding from the lower leg. Needs a clean bandage. Can move with assistance once stabilized." };
+      this.game.emitEvent("assess", entity); return true;
+    }
+    if (action === "use_bandage") return this.game.incident.applyBandage();
+    if (action === "give_water") return this.game.incident.giveWater();
+    if (action === "assist") return this.game.incident.beginAssist();
+    if (action === "release_assist") { this.game.assistedActorId = null; this.game.pushMessage("Ada sits back down"); entity.seated = true; return true; }
+    if (action === "install_battery") return this.game.incident.installBattery();
     if (action === "talk") { this.game.openDialogue(entity); return true; }
     if (action === "open") {
       entity.state = "opening"; entity.collision = false; this.game.emitEvent("doorOpened", entity); this.game.pushMessage("Door opened"); return true;

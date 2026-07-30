@@ -79,7 +79,19 @@ export function findEntity(entities, id) { return entities.find((entity) => enti
 
 export function getAvailableAction(entity, game) {
   if (!entity) return null;
-  if (entity.type === "actor") return { id: "talk", label: "Talk" };
+  if (entity.type === "actor") {
+    if (entity.id === "worker_ada") {
+      const heldId = game.operator.carriedItemInstanceId;
+      const held = heldId ? findEntity(game.entities, heldId) : null;
+      if (!entity.assessed) return { id: "assess", label: "Assess" };
+      if (held?.definitionId === "bandage" && !game.incident.bandageUsed) return { id: "use_bandage", label: "Bandage" };
+      if (held?.definitionId === "water_bottle" && !game.incident.waterUsed) return { id: "give_water", label: "Give Water" };
+      if (game.incident.bandageUsed && !game.incident.workerSheltered && !game.assistedActorId) return { id: "assist", label: "Assist" };
+      if (game.assistedActorId === entity.id) return { id: "release_assist", label: "Let Go" };
+      return { id: "talk", label: "Talk" };
+    }
+    return { id: "talk", label: "Talk" };
+  }
   if (entity.type === "door") {
     if (entity.state === "closed") return { id: "open", label: "Open" };
     if (entity.state === "open") return { id: "close", label: "Close" };
@@ -88,6 +100,11 @@ export function getAvailableAction(entity, game) {
     if (entity.state === "closed") return { id: "open_container", label: "Open" };
     if (entity.state === "open" && !entity.searched) return { id: "search", label: "Search", hold: true };
     if (entity.state === "open" && entity.searched) return { id: "close_container", label: "Close" };
+  }
+  if (entity.type === "prop" && entity.id === "radio_cradle_01") {
+    const heldId = game.operator.carriedItemInstanceId;
+    const held = heldId ? findEntity(game.entities, heldId) : null;
+    if (!game.incident.radioRestored && held?.definitionId === "radio_battery") return { id: "install_battery", label: "Install Battery" };
   }
   if (entity.type === "prop" && entity.interaction) return { id: entity.interaction, label: entity.interaction === "read" ? "Read" : "Examine" };
   if (entity.type === "item" && entity.locationType === "world" && entity.revealed) {
