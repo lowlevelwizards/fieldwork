@@ -4,19 +4,19 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1f2a24" />
-  <title>Fieldwork 0.1D — Proportion and Readability</title>
+  <title>Fieldwork 0.2A — Touch the World</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main id="app">
     <section id="title-screen" class="screen screen--active" aria-labelledby="game-title">
       <div class="title-card">
-        <p class="eyebrow">FIELD TEST 0.1D</p>
+        <p class="eyebrow">FIELD TEST 0.2A</p>
         <h1 id="game-title">FIELDWORK</h1>
-        <p class="subtitle">Character Identity</p>
-        <p class="intro">Walk the roadside clearing. Test Mara’s stronger silhouette, grounded shadow, and faction-readable field gear.</p>
+        <p class="subtitle">Touch the World</p>
+        <p class="intro">Open the utility shed, search the crate, recover the radio battery, and test carrying it through the world.</p>
         <button id="begin-button" class="primary-button" type="button">Begin Field Test</button>
-        <p class="version">Build 0.1D.0</p>
+        <p class="version">Build 0.2A.0</p>
       </div>
     </section>
 
@@ -33,8 +33,8 @@
 
       <div id="objective-card" class="objective-card">
         <span class="objective-kicker">FIELD TEST</span>
-        <strong>Walk the clearing</strong>
-        <span>Try roads, brush, trees, and the shed perimeter.</span>
+        <strong>Recover the battery</strong>
+        <span>Open the shed, search the crate, then take and drop the radio battery.</span>
       </div>
 
       <div id="joystick-zone" class="joystick-zone" aria-label="Movement joystick">
@@ -43,6 +43,14 @@
         </div>
       </div>
 
+      <section id="action-panel" class="action-panel" hidden aria-live="polite">
+        <span id="action-name" class="action-name">Object</span>
+        <button id="action-button" class="action-button" type="button">Interact</button>
+        <div class="action-progress"><div id="action-progress-fill" class="action-progress-fill"></div></div>
+      </section>
+
+      <div id="message-toast" class="message-toast" hidden aria-live="polite"></div>
+
       <button id="reset-position-button" class="utility-button" type="button" hidden>Reset Position</button>
 
       <aside id="debug-panel" class="debug-panel" hidden>
@@ -50,6 +58,8 @@
         <div><span>Position</span><strong id="debug-position">0, 0</strong></div>
         <div><span>Speed</span><strong id="debug-speed">0</strong></div>
         <div><span>Facing</span><strong id="debug-facing">up</strong></div>
+        <div><span>Target</span><strong id="debug-target">—</strong></div>
+        <div><span>Carry</span><strong id="debug-carry">—</strong></div>
         <div><span>Orientation</span><strong id="debug-orientation">—</strong></div>
       </aside>
     </section>

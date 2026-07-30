@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2A.0 — Touch the World
+
+- Added a shared world-entity foundation for doors, searchable containers, and physical item instances.
+- Added contextual interaction targeting, object highlights, a mobile action button, and keyboard E fallback.
+- Added a stateful utility-shed door with animated opening and dynamic collision.
+- Added an interruptible searchable crate with progress feedback and an opened state.
+- Added a radio battery that is revealed into the world, targeted independently, taken, carried, dropped, and recovered without duplication.
+- Added one-item carried presentation that replaces the ready weapon while Mara carries the battery.
+- Integrated entities into ground-y depth sorting and consistent shadow rules.
+- Added short interaction messages plus target and carried-item debug readouts.
+
 ## 0.1D.0 — Proportion and Readability
 
 - Moved and flattened the ground shadow beneath the boots.
