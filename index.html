@@ -1,76 +1,13 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#1f2a24" />
-  <title>Fieldwork 0.5A — Care Under Pressure</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <main id="app">
-    <section id="title-screen" class="screen screen--active" aria-labelledby="game-title">
-      <div class="title-card">
-        <p class="eyebrow">FIELD TEST 0.5A</p><h1 id="game-title">FIELDWORK</h1>
-        <p class="subtitle">Care Under Pressure</p>
-        <p class="intro">Arrive at the pull-off, assess what happened, stabilize Ada, and restore communications.</p>
-        <button id="begin-button" class="primary-button" type="button">Begin Field Test</button>
-        <p class="version">Build 0.5A.0</p>
-      </div>
-    </section>
-
-    <section id="game-screen" class="screen" aria-label="Fieldwork physical inventory test">
-      <canvas id="game-canvas"></canvas>
-      <div class="hud hud--top">
-        <div class="hud-chip"><span class="hud-label">Operator</span><strong>Mara Velez</strong></div>
-        <div class="world-status"><strong id="world-time">07:45</strong><span id="world-phase">Morning · Clear</span></div><button id="debug-button" class="hud-button" type="button" aria-pressed="false">Debug</button>
-      </div>
-      <div id="objective-card" class="objective-card">
-        <span class="objective-kicker">FIELD TEST</span><strong>Someone nearby needs assistance</strong>
-        <span>Find Ada near the truck, assess her condition, and use the supplies at the site.</span>
-      </div>
-      <div id="joystick-zone" class="joystick-zone" aria-label="Movement joystick"><div id="joystick-base" class="joystick-base" aria-hidden="true"><div id="joystick-knob" class="joystick-knob"></div></div></div>
-
-      <div id="field-controls" class="field-controls">
-        <div id="message-stack" class="message-stack" aria-live="polite"></div>
-        <div class="field-control-row">
-          <button id="backpack-button" class="backpack-button" type="button"><span>PACK</span><strong id="pack-usage-compact">0/8</strong></button>
-          <section id="action-panel" class="action-panel" hidden aria-live="polite">
-            <span id="action-name" class="action-name">Object</span>
-            <button id="action-button" class="action-button" type="button">Interact</button>
-            <div class="action-progress"><div id="action-progress-fill" class="action-progress-fill"></div></div>
-          </section>
-        </div>
-      </div>
-
-      <button id="reset-position-button" class="utility-button" type="button" hidden>Reset Position</button>
-      <aside id="debug-panel" class="debug-panel" hidden>
-        <div><span>FPS</span><strong id="debug-fps">0</strong></div><div><span>Position</span><strong id="debug-position">0, 0</strong></div>
-        <div><span>Facing</span><strong id="debug-facing">up</strong></div><div><span>Target</span><strong id="debug-target">—</strong></div>
-        <div><span>Hands</span><strong id="debug-carry">—</strong></div><div><span>Pack</span><strong id="debug-pack">0 / 8</strong></div>
-        <div><span>World Items</span><strong id="debug-world-items">0</strong></div><div><span>Door</span><strong id="debug-door">closed</strong></div>
-        <div><span>Containers</span><strong id="debug-crate">0/0</strong></div><div><span>Incident</span><strong id="debug-incident">active</strong></div><div><span>Ada Condition</span><strong id="debug-condition">bleeding</strong></div><div><span>Time</span><strong id="debug-time">07:45</strong></div><div><span>Weather</span><strong id="debug-weather">Clear</strong></div><div><span>Ada Task</span><strong id="debug-ada">—</strong></div><div><span>Tomas Task</span><strong id="debug-tomas">—</strong></div><div><span>Layout</span><strong id="debug-layout">A</strong></div><div><span>Hidden Items</span><strong id="debug-hidden">0</strong></div><div><span>Audit</span><strong id="debug-audit">OK</strong></div>
-      </aside>
-
-      <div id="inventory-overlay" class="inventory-overlay" hidden>
-        <section class="inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventory-title">
-          <header><div><p class="eyebrow">EQUIPPED CONTAINER</p><h2 id="inventory-title">Mara's Field Pack</h2></div><button id="inventory-close" class="icon-button" type="button" aria-label="Close backpack">×</button></header>
-          <div class="capacity-block"><div class="capacity-copy"><span>Capacity</span><strong id="pack-usage">0 / 8 pips</strong></div><div id="capacity-pips" class="capacity-pips"></div></div>
-          <div id="inventory-list" class="inventory-list"></div>
-        </section>
-      </div>
-
-      <div id="dialogue-overlay" class="dialogue-overlay" hidden><section class="dialogue-card" role="dialog" aria-modal="true"><p id="dialogue-role" class="eyebrow">MAINTENANCE WORKER</p><h2 id="dialogue-name">Worker</h2><p id="dialogue-text"></p><button id="dialogue-close" class="primary-button" type="button">Continue</button></section></div>
-
-      <div id="inspect-overlay" class="inspect-overlay" hidden>
-        <section class="inspect-card" role="dialog" aria-modal="true" aria-labelledby="inspect-name">
-          <p id="inspect-category" class="eyebrow">UTILITY</p><h2 id="inspect-name">Item</h2>
-          <p id="inspect-size" class="inspect-size">Size: 1 pip</p><p id="inspect-description"></p><p id="inspect-location" class="inspect-location"></p>
-          <button id="inspect-close" class="primary-button" type="button">Back</button>
-        </section>
-      </div>
-    </section>
-  </main>
-  <script type="module" src="js/main.js"></script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/><meta name="theme-color" content="#1f2a24"/><title>Fieldwork 0.6A — The Return Trip</title><link rel="stylesheet" href="styles.css"/><link rel="stylesheet" href="styles-0.6a.css"/></head><body><main id="app">
+<section id="title-screen" class="screen screen--active"><div class="title-card"><p class="eyebrow">FIELD TEST 0.6A</p><h1>FIELDWORK</h1><p class="subtitle">The Return Trip</p><p class="intro">Stabilize the pull-off, inspect the North Culvert, and bring something useful home.</p><button id="begin-button" class="primary-button">Begin Field Test</button><p class="version">Build 0.6A.0</p></div></section>
+<section id="game-screen" class="screen"><canvas id="game-canvas"></canvas><div class="hud hud--top"><div class="hud-chip"><span class="hud-label">Operator</span><strong>Mara Velez</strong></div><div id="compass-chip" class="compass-chip" hidden><strong>N</strong><span id="compass-heading">NORTH</span></div><div class="world-status"><strong id="world-time">07:45</strong><span id="world-phase">Morning · Clear</span></div><button id="debug-button" class="hud-button" aria-pressed="false">Debug</button></div>
+<div id="objective-card" class="objective-card"><span class="objective-kicker">FIELD TEST</span><strong>Someone nearby needs assistance</strong><span>Find Ada near the truck, assess her condition, and use the supplies at the site.</span></div>
+<div id="joystick-zone" class="joystick-zone"><div id="joystick-base" class="joystick-base"><div id="joystick-knob" class="joystick-knob"></div></div></div>
+<div id="field-controls" class="field-controls"><div id="message-stack" class="message-stack"></div><div class="field-control-row"><button id="backpack-button" class="backpack-button"><span>PACK</span><strong id="pack-usage-compact">0/8</strong></button><section id="action-panel" class="action-panel" hidden><span id="action-name" class="action-name">Object</span><button id="action-button" class="action-button">Interact</button><div class="action-progress"><div id="action-progress-fill" class="action-progress-fill"></div></div></section></div></div>
+<button id="reset-position-button" class="utility-button" hidden>Reset Position</button><aside id="debug-panel" class="debug-panel" hidden><div><span>FPS</span><strong id="debug-fps">0</strong></div><div><span>Position</span><strong id="debug-position">0,0</strong></div><div><span>Facing</span><strong id="debug-facing">up</strong></div><div><span>Target</span><strong id="debug-target">—</strong></div><div><span>Incident</span><strong id="debug-incident">active</strong></div><div><span>Excursion</span><strong id="debug-excursion">available</strong></div><div><span>Obstruction</span><strong id="debug-obstruction">unknown</strong></div><div><span>Water</span><strong id="debug-water">dry</strong></div><div><span>Weather</span><strong id="debug-weather">Clear</strong></div><div><span>Audit</span><strong id="debug-audit">OK</strong></div></aside>
+<div id="inventory-overlay" class="inventory-overlay" hidden><section class="inventory-panel"><header><div><p class="eyebrow">EQUIPPED CONTAINER</p><h2>Mara's Field Pack</h2></div><button id="inventory-close" class="icon-button">×</button></header><div class="capacity-block"><div class="capacity-copy"><span>Capacity</span><strong id="pack-usage">0 / 8 pips</strong></div><div id="capacity-pips" class="capacity-pips"></div></div><div id="inventory-list" class="inventory-list"></div></section></div>
+<div id="dialogue-overlay" class="dialogue-overlay" hidden><section class="dialogue-card"><p id="dialogue-role" class="eyebrow">WORKER</p><h2 id="dialogue-name">Worker</h2><p id="dialogue-text"></p><button id="dialogue-close" class="primary-button">Continue</button></section></div>
+<div id="inspect-overlay" class="inspect-overlay" hidden><section class="inspect-card"><p id="inspect-category" class="eyebrow">OBSERVATION</p><h2 id="inspect-name">Object</h2><p id="inspect-size"></p><p id="inspect-description"></p><p id="inspect-location" class="inspect-location"></p><button id="inspect-close" class="primary-button">Back</button></section></div>
+<div id="route-overlay" class="inspect-overlay" hidden><section class="inspect-card"><p class="eyebrow">FIELD ROUTE</p><h2>North Culvert</h2><p>Drainage obstruction reported. The route is nearby but exposed.</p><p class="inspect-location">Suggested: rope, water, compass, basic medical supply.</p><button id="route-start" class="primary-button">Leave for Culvert</button><button id="route-close" class="secondary-button">Back</button></section></div>
+<div id="report-overlay" class="inspect-overlay" hidden><section class="inspect-card"><p class="eyebrow">FIELD REPORT</p><h2 id="report-title">North Culvert</h2><div id="report-lines" class="report-lines"></div><button id="report-close" class="primary-button">Close Report</button></section></div>
+</section></main><script type="module" src="js/main.js"></script></body></html>
