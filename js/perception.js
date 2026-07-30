@@ -2,6 +2,7 @@ const DEG=Math.PI/180;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const facingAngle=facing=>facing==="right"?0:facing==="down"?Math.PI/2:facing==="left"?Math.PI:-Math.PI/2;
+const observerAngle=observer=>Number.isFinite(observer.lookAngle)?observer.lookAngle:facingAngle(observer.facing);
 const normalizeAngle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 
 function movementSpeed(actor){return Math.hypot(actor.vx??0,actor.vy??0);}
@@ -47,7 +48,7 @@ export class PerceptionSystem{
   if(d>profile.range)return false;
   if(d<70)return true;
   const angle=Math.atan2(dy,dx);
-  return Math.abs(normalizeAngle(angle-facingAngle(observer.facing)))<=profile.angle*.5*DEG;
+  return Math.abs(normalizeAngle(angle-observerAngle(observer)))<=profile.angle*.5*DEG;
  }
  getDetection(observerId,targetId){
   return this.detections.get(`${observerId}>${targetId}`)??null;
@@ -62,6 +63,23 @@ export class PerceptionSystem{
   return (ranks[contact.level]??0)>=(ranks[minimum]??1)&&contact.certainty>0;
  }
  update(delta){
+  for(const actor of this.game.actors){
+   if(!actor.factionId||!actor.operationId)continue;
+   let targetAngle=actor.lookAngle;
+   if(Math.hypot(actor.vx??0,actor.vy??0)>.1)targetAngle=Math.atan2(actor.vy,actor.vx);
+   else if(actor.encounterId){
+    const contact=this.getActorContactState(actor);
+    if(contact?.lastPosition)targetAngle=Math.atan2(contact.lastPosition.y-actor.y,contact.lastPosition.x-actor.x);
+   }else if(actor.workPose==="scan"){
+    targetAngle=(actor.lookAngle??facingAngle(actor.facing))+Math.sin((actor.workPhase??0)*.7)*.012;
+   }
+   if(!Number.isFinite(actor.lookAngle))actor.lookAngle=facingAngle(actor.facing);
+   if(Number.isFinite(targetAngle)){
+    const diff=Math.atan2(Math.sin(targetAngle-actor.lookAngle),Math.cos(targetAngle-actor.lookAngle));
+    actor.lookAngle+=diff*(1-Math.exp(-delta*6));
+   }
+  }
+
   const observers=[this.game.operator,...this.game.actors.filter(actor=>actor.factionId&&actor.operationId)];
   const targets=[this.game.operator,...this.game.actors.filter(actor=>actor.factionId&&actor.operationId)];
   const seenKeys=new Set();
@@ -183,9 +201,25 @@ export class PerceptionSystem{
   const profile=this.getObserverProfile(this.game.operator);
   return{
    x:this.game.operator.x,y:this.game.operator.y,
-   facing:this.game.operator.facing,
+   lookAngle:observerAngle(this.game.operator),
    angle:profile.angle,range:profile.range,tier:profile.tier
   };
+ }
+
+ getRelayPresentation(actorId){
+  const outgoing=this.relayQueue.filter(relay=>relay.sourceId===actorId);
+  if(!outgoing.length)return null;
+  const relay=outgoing.sort((a,b)=>a.remaining-b.remaining)[0];
+  const progress=clamp(1-relay.remaining/Math.max(.01,relay.total??relay.delay),0,1);
+  return {progress,dots:progress<.34?1:progress<.67?2:3};
+ }
+
+ getKnowledgePresentation(actor){
+  const teamId=actor.teamId??actor.factionId;
+  const map=this.teamKnowledge.get(teamId);
+  if(!map?.size)return null;
+  const contact=[...map.values()].sort((a,b)=>b.certainty-a.certainty)[0];
+  return contact?{level:contact.level,certainty:contact.certainty}:null;
  }
  getActorContactState(actor){
   const teamId=actor.teamId??actor.factionId;

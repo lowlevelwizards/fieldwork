@@ -1,4 +1,4 @@
-import { getItemDefinition } from "../data/items.js?v=080-perception-contact-20260730";
+import { getItemDefinition } from "../data/items.js?v=081-perception-presentation-20260730";
 
 const ITEM_SIZES = {
   radio_battery: [28, 18],

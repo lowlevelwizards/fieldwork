@@ -1,5 +1,5 @@
-import { findEntity } from "./world-entities.js?v=080-perception-contact-20260730";
-import { findPlace, pointInBounds } from "./places.js?v=080-perception-contact-20260730";
+import { findEntity } from "./world-entities.js?v=081-perception-presentation-20260730";
+import { findPlace, pointInBounds } from "./places.js?v=081-perception-presentation-20260730";
 
 export class ContinuousExcursionController {
   constructor(game) {

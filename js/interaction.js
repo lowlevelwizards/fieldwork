@@ -1,5 +1,5 @@
-import { findEntity, getAvailableAction } from "./world-entities.js?v=080-perception-contact-20260730";
-import { transferItem } from "./item-locations.js?v=080-perception-contact-20260730";
+import { findEntity, getAvailableAction } from "./world-entities.js?v=081-perception-presentation-20260730";
+import { transferItem } from "./item-locations.js?v=081-perception-presentation-20260730";
 
 function distanceToEntity(operator, entity) {
   const cx = entity.x + entity.width / 2;

@@ -47,7 +47,53 @@ export class FactionEncounterSystem{
   constructor(game){
     this.game=game;
     this.encounters=new Map();
+    this.dispositions=new Map();
     this.activeCount=0;
+  }
+
+
+  getDisposition(key){
+    if(!this.dispositions.has(key))this.dispositions.set(key,{level:"clear",score:0,quietTime:0,lastReason:null});
+    return this.dispositions.get(key);
+  }
+
+  raiseDisposition(key,reason,severity=1){
+    const disposition=this.getDisposition(key);
+    disposition.score=Math.min(100,disposition.score+severity);
+    disposition.lastReason=reason;
+    disposition.quietTime=0;
+    disposition.level=disposition.score>=70?"hostile":disposition.score>=38?"contested":disposition.score>=12?"wary":"observed";
+    return disposition;
+  }
+
+  easeDisposition(disposition){
+    disposition.score=Math.max(0,disposition.score-8);
+    disposition.level=disposition.score>=70?"hostile":disposition.score>=38?"contested":disposition.score>=12?"wary":disposition.score>0?"observed":"clear";
+    disposition.quietTime=0;
+  }
+
+  applyWaryBehavior(a,b,disposition){
+    const ca=center(a),cb=center(b);
+    for(const group of [a,b]){
+      const other=group===a?cb:ca;
+      for(let i=0;i<group.actors.length;i++){
+        const actor=group.actors[i];
+        if(i===0||actor.role==="Security"){
+          actor.operationPausedByEncounter=true;
+          actor.motionState="encounter";
+          actor.vx=0;actor.vy=0;
+          actor.currentAction="Maintaining watch";
+          actor.currentTask="Keeping watch on the nearby opposing crew";
+          actor.workPose=actor.role==="Security"?"brace":"scan";
+          faceToward(actor,other);
+        }else{
+          actor.operationPausedByEncounter=false;
+          actor.currentAction="Working cautiously";
+        }
+        actor.encounterState="watchful";
+        actor.encounterReason=disposition.lastReason??"recent contact";
+      }
+    }
   }
 
   getRelation(a,b){return relation(a,b);}
@@ -95,7 +141,8 @@ export class FactionEncounterSystem{
           participantIds:new Set(),
           challengerId:null,targetId:null,
           reason:null,line:null,
-          yieldedFaction:null
+          yieldedFaction:null,
+          repeatCount:0
         };
         this.encounters.set(key,encounter);
       }
@@ -104,6 +151,10 @@ export class FactionEncounterSystem{
       encounter.participantIds=new Set([...a.actors,...b.actors].map(actor=>actor.id));
       const rel=relation(a.factionId,b.factionId);
       const d=nearest.distance;
+      const disposition=this.getDisposition(key);
+      if(d<420&&disposition.level!=="clear")disposition.quietTime=0;
+      else disposition.quietTime+=delta;
+      if(disposition.level!=="clear"&&d>560&&disposition.quietTime>18)this.easeDisposition(disposition);
 
       if(d>430){
         if(encounter.state!=="unaware"){
@@ -124,6 +175,10 @@ export class FactionEncounterSystem{
       encounter.contactCertainty=contact?.certainty??0;
 
       if(!hasContact){
+        if(disposition.level!=="clear"&&d<430){
+          this.applyWaryBehavior(a,b,disposition);
+          continue;
+        }
         if(encounter.state!=="unaware"){
           encounter.state="disengaging";
           encounter.cooldown+=delta;
@@ -133,17 +188,23 @@ export class FactionEncounterSystem{
         continue;
       }
 
+      const repeatAcceleration=disposition.level==="contested"||disposition.level==="hostile"?2.2:disposition.level==="wary"?1.55:1;
+      encounter.elapsed+=delta*(repeatAcceleration-1);
+
       if(d<360&&encounter.state==="unaware"){
         encounter.state="aware";encounter.elapsed=0;
       }else if(d<285&&encounter.state==="aware"&&encounter.elapsed>1.4){
         encounter.state="watchful";encounter.elapsed=0;
       }else if(d<215&&encounter.state==="watchful"&&encounter.elapsed>2.0){
         encounter.state="challenging";encounter.elapsed=0;
+        encounter.repeatCount++;
+        this.raiseDisposition(key,encounter.reason,encounter.repeatCount>1?14:9);
         this.beginChallenge(encounter,a,b,nearest,rel);
       }else if(d<160&&encounter.state==="challenging"&&encounter.elapsed>3.5){
         encounter.state="blocking";encounter.elapsed=0;
       }else if(d<115&&encounter.state==="blocking"&&encounter.elapsed>4.5&&rel<=-40){
         encounter.state="threatening";encounter.elapsed=0;
+        this.raiseDisposition(key,encounter.reason,22);
       }
 
       this.applyEncounterBehavior(encounter,a,b,nearest);
@@ -300,6 +361,7 @@ export class FactionEncounterSystem{
     if(encounter.elapsed>8&&["challenging","blocking","threatening"].includes(encounter.state)){
       const yieldFaction=this.chooseYield(encounter,a,b);
       encounter.yieldedFaction=yieldFaction;
+      this.raiseDisposition(encounter.key,encounter.reason,12);
       encounter.state="disengaging";
       this.game.pushMessage(`${yieldFaction==="commune"?"Commune":yieldFaction==="northline"?"Northline":"Freelancers"} yields the immediate route.`,3.2);
       this.releaseActors(encounter,yieldFaction);

@@ -1,12 +1,14 @@
-import { GameState } from "./game.js?v=080-perception-contact-20260730";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=080-perception-contact-20260730";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=080-perception-contact-20260730";
-import { PerceptionSystem } from "./perception.js?v=080-perception-contact-20260730";
+import { GameState } from "./game.js?v=081-perception-presentation-20260730";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=081-perception-presentation-20260730";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=081-perception-presentation-20260730";
+import { PerceptionSystem } from "./perception.js?v=081-perception-presentation-20260730";
 
 export class ContinuousGameState extends GameState {
   constructor() {
     super();
     this.excursion = new ContinuousExcursionController(this);
+    this.operator.lookAngle = 0;
+    this.operator.targetLookAngle = 0;
     this.perception = new PerceptionSystem(this);
     this.encounters = new FactionEncounterSystem(this);
     const phases = [
@@ -58,6 +60,17 @@ export class ContinuousGameState extends GameState {
   update(delta, move) {
     const originalSpeed = this.operator.moveSpeed;
     this.operator.moveSpeed = originalSpeed * this.getEnvironmentSpeedMultiplier();
+
+    const inputLength = Math.hypot(move?.x ?? 0, move?.y ?? 0);
+    if (inputLength > 0.08) {
+      this.operator.targetLookAngle = Math.atan2(move.y, move.x);
+    }
+    const current = this.operator.lookAngle ?? this.operator.targetLookAngle ?? 0;
+    const target = this.operator.targetLookAngle ?? current;
+    const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+    const smoothing = 1 - Math.exp(-delta * 10);
+    this.operator.lookAngle = current + difference * smoothing;
+
     try {
       super.update(delta, move);
       this.perception.update(delta);

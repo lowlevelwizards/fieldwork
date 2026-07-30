@@ -1,12 +1,13 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=080-perception-contact-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=080-perception-contact-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=080-perception-contact-20260730";
-import { findEntity } from "./world-entities.js?v=080-perception-contact-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=081-perception-presentation-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=081-perception-presentation-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=081-perception-presentation-20260730";
+import { findEntity } from "./world-entities.js?v=081-perception-presentation-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
  resize(){const rect=this.canvas.getBoundingClientRect();this.dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.max(1,Math.round(rect.width*this.dpr));this.canvas.height=Math.max(1,Math.round(rect.height*this.dpr));this.context.setTransform(this.dpr,0,0,this.dpr,0,0);this.camera.resize(rect.width,rect.height);}
  render(game){
+  this._currentGame=game;
   const ctx=this.context,w=this.canvas.clientWidth,h=this.canvas.clientHeight;
   ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
   ctx.globalAlpha=1;
@@ -15,29 +16,29 @@ export class Renderer{
   ctx.clearRect(0,0,w,h);
   ctx.save();
   try{
-    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawPlayerVisionCone(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);
+    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);
   }finally{
     ctx.restore();
   }
+  this.#drawPlayerVisionConeScreen(ctx,game);
   if(game.weather==="Rain"||game.weather==="Heavy Rain")this.#drawRain(ctx,w,h,game.weather==="Heavy Rain"?1.65:1);
   this.#drawEnvironmentOverlay(ctx,w,h,game);
  }
- #drawPlayerVisionCone(ctx,game){
+ #drawPlayerVisionConeScreen(ctx,game){
   const cone=game.perception?.getPlayerCone?.();if(!cone)return;
-  const angle=cone.facing==="right"?0:cone.facing==="down"?Math.PI/2:cone.facing==="left"?Math.PI:-Math.PI/2;
-  const half=cone.angle*Math.PI/360;
-  const gradient=ctx.createRadialGradient(cone.x,cone.y,20,cone.x,cone.y,cone.range);
-  gradient.addColorStop(0,"rgba(255,255,240,.14)");
-  gradient.addColorStop(.65,"rgba(255,255,240,.075)");
-  gradient.addColorStop(1,"rgba(255,255,240,0)");
+  const x=cone.x-this.camera.x,y=cone.y-this.camera.y;
+  const angle=cone.lookAngle??0,half=cone.angle*Math.PI/360;
   ctx.save();
   try{
+   ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
+   const gradient=ctx.createRadialGradient(x,y,18,x,y,cone.range);
+   gradient.addColorStop(0,"rgba(255,255,245,.055)");
+   gradient.addColorStop(.5,"rgba(255,255,245,.03)");
+   gradient.addColorStop(1,"rgba(255,255,245,0)");
    ctx.fillStyle=gradient;
-   ctx.strokeStyle="rgba(255,255,240,.12)";
-   ctx.lineWidth=2;
-   ctx.beginPath();ctx.moveTo(cone.x,cone.y);
-   ctx.arc(cone.x,cone.y,cone.range,angle-half,angle+half);
-   ctx.closePath();ctx.fill();ctx.stroke();
+   ctx.beginPath();ctx.moveTo(x,y);
+   ctx.arc(x,y,cone.range,angle-half,angle+half);
+   ctx.closePath();ctx.fill();
   }finally{ctx.restore();}
  }
 
@@ -201,18 +202,36 @@ export class Renderer{
 
 
  #drawEncounterIndicator(ctx,actor){
+  const perception=actor===undefined?null:null;
   const state=actor.encounterState;
-  if(!state||state==="unaware"||state==="disengaging")return;
+  const knowledge=this._currentGame?.perception?.getKnowledgePresentation?.(actor);
+  const relay=this._currentGame?.perception?.getRelayPresentation?.(actor.id);
+  if((!state||state==="unaware"||state==="disengaging")&&!knowledge&&!relay)return;
+
   ctx.save();
   try{
-   const colors={aware:"#d6c27a",watchful:"#e1ae55",challenging:"#e28a45",blocking:"#d86545",threatening:"#c84d43"};
-   ctx.fillStyle=colors[state]??"#d6c27a";
-   ctx.strokeStyle="#1d2822";ctx.lineWidth=2;
-   ctx.beginPath();ctx.arc(actor.x,actor.y-64,6,0,Math.PI*2);ctx.fill();ctx.stroke();
+   const level=knowledge?.level;
+   const color=level==="identified"?"#d95745":level==="located"?"#e39a42":"#d8c55a";
+   const y=actor.y-66;
+
+   if(relay){
+    ctx.fillStyle="#e0c763";
+    const spacing=8;
+    for(let i=0;i<relay.dots;i++){ctx.beginPath();ctx.arc(actor.x+(i-(relay.dots-1)/2)*spacing,y,3,0,Math.PI*2);ctx.fill();}
+    return;
+   }
+
+   if(level==="suspected"&&knowledge?.certainty<35){
+    ctx.font="800 18px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillStyle="#e0c763";ctx.fillText("!",actor.x,y);
+    return;
+   }
+
+   ctx.fillStyle=color;ctx.strokeStyle="#1d2822";ctx.lineWidth=2;
+   ctx.beginPath();ctx.arc(actor.x,y,5,0,Math.PI*2);ctx.fill();ctx.stroke();
    if(state==="challenging"||state==="blocking"||state==="threatening"){
-    ctx.font="700 10px system-ui";ctx.textAlign="center";ctx.textBaseline="bottom";
-    ctx.fillStyle="rgba(20,28,23,.88)";ctx.fillRect(actor.x-34,actor.y-88,68,16);
-    ctx.fillStyle="#eee7d8";ctx.fillText(state.toUpperCase(),actor.x,actor.y-75);
+    ctx.strokeStyle=color;ctx.globalAlpha=.55;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(actor.x,y,9+Math.sin((actor.workPhase??0)*4)*1.5,0,Math.PI*2);ctx.stroke();
    }
   }finally{ctx.restore();}
  }
