@@ -1,14 +1,16 @@
-# Fieldwork — Browser Prototype
+# Fieldwork
 
-## Current build: 0.3A — Places & Discovery
+## Field Test 0.4A — The Living Field
 
-A mobile-first Canvas prototype for Fieldwork. Mara can explore the Old Maintenance Pull-Off, open and search several kinds of storage, read signs, examine environmental clues, physically reveal supplies, and make eight-pip carrying decisions.
+This browser-native prototype now combines embodied movement, physical inventory, authored places, and a small living-world layer.
+
+The Old Maintenance Pull-Off contains two maintenance workers following simple independent routines. They walk between landmarks, pause to work, sit for breaks, notice Mara nearby, and offer short contextual greetings. A continuously advancing clock, day phase, weather preset, and ambient wildlife give the location motion beyond the player's direct interactions.
 
 ### Controls
 
 - Touch joystick or WASD: move
 - Context button or E: interact
 - Pack button or B: open backpack
-- Escape: close panels
+- Debug: inspect world, inventory, time, weather, and worker state
 
-The build uses plain HTML, CSS, ES modules, and Canvas 2D with no build step.
+No build step is required. Serve the repository through GitHub Pages or another static web server.
