@@ -1,12 +1,28 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=075-camera-lock-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=075-camera-lock-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=075-camera-lock-20260730";
-import { findEntity } from "./world-entities.js?v=075-camera-lock-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=077-presentation-isolation-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=077-presentation-isolation-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=077-presentation-isolation-20260730";
+import { findEntity } from "./world-entities.js?v=077-presentation-isolation-20260730";
 
 export class Renderer{
- constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
+ constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;this.frameNumber=0;}
  resize(){const rect=this.canvas.getBoundingClientRect();this.dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.max(1,Math.round(rect.width*this.dpr));this.canvas.height=Math.max(1,Math.round(rect.height*this.dpr));this.context.setTransform(this.dpr,0,0,this.dpr,0,0);this.camera.resize(rect.width,rect.height);}
- render(game){const ctx=this.context,w=this.canvas.clientWidth,h=this.canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.save();ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);ctx.restore();if(game.weather==="Rain")this.#drawRain(ctx,w,h);}
+ render(game){const ctx=this.context,w=this.canvas.clientWidth,h=this.canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.save();ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);ctx.restore();
+  if(game.weather==="Rain")this.#drawRain(ctx,w,h);
+  this.frameNumber++;
+  this.#drawFrameProof(ctx,w,h,game);
+ }
+ #drawFrameProof(ctx,w,h,game){
+  ctx.save();
+  ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
+  ctx.fillStyle="rgba(18,26,21,.82)";
+  ctx.fillRect(8,h-42,214,32);
+  ctx.fillStyle="#e9eadf";
+  ctx.font="700 11px ui-monospace, monospace";
+  ctx.textAlign="left";
+  ctx.textBaseline="middle";
+  ctx.fillText(`CANVAS ${this.frameNumber} · CAM ${Math.round(this.camera.x)},${Math.round(this.camera.y)}`,16,h-26);
+  ctx.restore();
+ }
  #drawTrail(ctx,trail){ctx.save();ctx.strokeStyle="rgba(112,97,70,.42)";ctx.lineWidth=86;ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();ctx.moveTo(trail[0].x,trail[0].y);for(const p of trail.slice(1))ctx.lineTo(p.x,p.y);ctx.stroke();ctx.strokeStyle="rgba(188,169,126,.22)";ctx.lineWidth=58;ctx.stroke();ctx.restore();}
  #drawCulvert(ctx,game){const c=game.map.culvert,water=findEntity(game.entities,"culvert_water_01");ctx.save();ctx.fillStyle=game.weather==="Rain"?"rgba(67,102,108,.72)":"rgba(76,113,116,.62)";const grow=water?.depth==="rising"?38:0;ctx.beginPath();ctx.roundRect(c.water.x-grow,c.water.y-grow/2,c.water.width+grow*2,c.water.height+grow,45);ctx.fill();ctx.strokeStyle="rgba(210,225,213,.22)";ctx.lineWidth=3;for(let y=c.water.y+24;y<c.water.y+c.water.height;y+=35){ctx.beginPath();ctx.moveTo(c.water.x+25,y);ctx.quadraticCurveTo(c.water.x+180,y-10,c.water.x+320,y);ctx.quadraticCurveTo(c.water.x+460,y+10,c.water.x+c.water.width-25,y);ctx.stroke();}ctx.fillStyle="#66685d";ctx.fillRect(c.x,c.y,180,80);ctx.fillRect(c.x,c.y+c.height-80,180,80);ctx.fillStyle="#353d38";ctx.beginPath();ctx.arc(c.x+180,c.y+c.height/2,92,-Math.PI/2,Math.PI/2);ctx.lineTo(c.x+180,c.y+c.height/2-92);ctx.fill();ctx.fillStyle="rgba(35,43,38,.75)";ctx.font="700 22px system-ui";ctx.fillText("NORTH CULVERT",c.x-80,c.y-28);ctx.restore();}
  #drawRain(ctx,w,h){ctx.save();ctx.strokeStyle="rgba(215,225,220,.34)";ctx.lineWidth=1.4;const t=performance.now()*.22;for(let i=0;i<95;i++){const x=(i*73+t)%w,y=(i*127+t*1.7)%h;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-8,y+18);ctx.stroke();}ctx.restore();}

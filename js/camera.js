@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=075-camera-lock-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=077-presentation-isolation-20260730";
 
 export class Camera {
   constructor() {

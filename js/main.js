@@ -8,7 +8,7 @@ import { validateItemLocations } from "./item-locations.js?v=076-continuous-fiel
 import { renderItemThumbnail } from "./presentation/item-renderer.js?v=076-continuous-field-map-20260730";
 import { ContinuousExcursionController } from "./continuous-excursion.js?v=076-continuous-field-map-20260730";
 
-const BUILD_ID="0.7B.6";
+const BUILD_ID="0.7B.7";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),actionPanel=$("#action-panel"),actionName=$("#action-name"),actionButton=$("#action-button"),actionProgress=$("#action-progress-fill"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -17,23 +17,21 @@ $("#debug-build").textContent=declaredBuild===BUILD_ID?BUILD_ID:`HTML ${declared
 if(declaredBuild!==BUILD_ID){console.error("Fieldwork build mismatch",{html:declaredBuild,javascript:BUILD_ID});setTimeout(()=>alert(`Fieldwork cache mismatch detected.\nHTML: ${declaredBuild}\nJavaScript: ${BUILD_ID}\nReload the page once.`),50);}
 console.info(`Fieldwork ${BUILD_ID} loaded`,{href:location.href,time:new Date().toISOString()});
 
-const camera=new Camera(),game=new GameState(),renderer=new Renderer(canvas,camera),input=new InputController({joystickZone:$("#joystick-zone"),joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
-// One continuous world: no route modal, teleport, or mission-start transition.
-game.excursion=new ContinuousExcursionController(game);
-// 0.7B.6: automatic depenetration is disabled. Position changes happen only through explicit Debug recovery.
-game.ensureOperatorSafe=()=>false;
+const camera=new Camera(),game=new ContinuousGameState(),renderer=new Renderer(canvas,camera),input=new InputController({joystickZone:$("#joystick-zone"),joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
 let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
-function resize({snap=true}={}){renderer.resize();if(snap)camera.snapTo(game.operator);}
-function recenterAfterLayout(reason="layout"){
-  requestAnimationFrame(()=>{
-    resize({snap:true});
-    requestAnimationFrame(()=>{
-      resize({snap:true});
-      console.info("Camera recentered",{build:BUILD_ID,reason,operator:{x:game.operator.x,y:game.operator.y},camera:{x:camera.x,y:camera.y,width:camera.width,height:camera.height}});
-    });
-  });
+function resizeAndCenter(reason="viewport"){
+  renderer.resize();
+  camera.lockTo(game.operator);
+  console.info("Viewport synchronized",{build:BUILD_ID,reason,operator:{x:game.operator.x,y:game.operator.y},camera:{x:camera.x,y:camera.y,width:camera.width,height:camera.height}});
 }
-function startGame(){titleScreen.classList.remove("screen--active");gameScreen.classList.add("screen--active");started=true;recenterAfterLayout("game start");lastTime=performance.now();objectiveTimer=setTimeout(()=>$("#objective-card").classList.add("objective-card--collapsed"),5200);}
+function startGame(){
+  titleScreen.classList.remove("screen--active");
+  gameScreen.classList.add("screen--active");
+  started=true;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>resizeAndCenter("game start")));
+  lastTime=performance.now();
+  objectiveTimer=setTimeout(()=>$("#objective-card").classList.add("objective-card--collapsed"),5200);
+}
 function modalOpen(){return inventoryOpen||operationsOpen||worldTextOpen||dialogueOpen||!reportOverlay.hidden;}
 function triggerContextAction(){if(modalOpen())return;const a=game.interaction.activeAction;if(a&&!a.disabled&&!["pack","take"].includes(a.id))game.interaction.trigger();else if(game.operator.carriedItemInstanceId)game.interaction.dropCarriedItem();else game.interaction.trigger();}
 function updateInteractionUI(){const target=game.interaction.getTarget(),searching=Boolean(game.interaction.searchingEntityId),carryingId=game.operator.carriedItemInstanceId,action=game.interaction.activeAction;if(carryingId&&target&&action&&!['pack','take','occupied'].includes(action.id)){actionPanel.hidden=false;actionName.textContent=target.name;actionButton.textContent=action.label;actionButton.disabled=Boolean(action.disabled);}else if(carryingId){const item=findEntity(game.entities,carryingId);actionPanel.hidden=false;actionName.textContent=item?.name??"Carried Item";actionButton.textContent="Drop";actionButton.disabled=false;}else if(target&&action){actionPanel.hidden=false;actionName.textContent=target.name;actionButton.textContent=action.label;actionButton.disabled=Boolean(action.disabled);}else actionPanel.hidden=true;actionPanel.classList.toggle("action-panel--searching",searching);if(searching){const e=findEntity(game.entities,game.interaction.searchingEntityId);actionProgress.style.width=`${Math.round((e?.searchProgress||0)*100)}%`;}else actionProgress.style.width="0%";const stack=$("#message-stack");stack.replaceChildren(...game.messages.map(m=>{const n=document.createElement("div");n.className="message-toast";n.textContent=m.text;n.style.opacity=String(Math.min(1,m.time/.25));return n;}));$("#pack-usage-compact").textContent=`${game.inventory.getUsedPips()}/8`;}
@@ -55,18 +53,7 @@ const screenX=game.operator.x-camera.x,screenY=game.operator.y-camera.y;
 $("#debug-screen-position").textContent=`${Math.round(screenX)}, ${Math.round(screenY)}`;
 $("#debug-operator-visible").textContent=camera.contains(game.operator,0)?"yes":"NO";
 $("#debug-render").textContent=renderer.lastOperatorRenderError?"ERROR":"OK";$("#debug-facing").textContent=game.operator.facing;$("#debug-target").textContent=game.interaction.getTarget()?.id??"—";$("#debug-incident").textContent=game.incident.state;$("#debug-excursion").textContent=game.excursion.state;$("#debug-operations").textContent=game.operations.started?`${game.operations.operations.filter(o=>o.status==="completed").length}/3 complete`:"inactive";$("#debug-obstruction").textContent=game.excursion.obstructionState;$("#debug-water").textContent=game.isInWater()?`${game.waterExposure.toFixed(1)}s`:findEntity(game.entities,"culvert_water_01")?.depth??"dry";$("#debug-weather").textContent=game.weather;$("#debug-collision").textContent=game.getCollisionReason?.()??"clear";const r=game.lastCollisionRecovery;$("#debug-recovery").textContent=r?`${r.context}: ${Math.round(r.to.x)},${Math.round(r.to.y)}`:"none";const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
-function maintainCamera(){
-  const rect=canvas.getBoundingClientRect();
-  const invalidViewport=!Number.isFinite(camera.width)||!Number.isFinite(camera.height)||camera.width<100||camera.height<100;
-  const sizeChanged=Math.abs(camera.width-rect.width)>2||Math.abs(camera.height-rect.height)>2;
-  if(invalidViewport||sizeChanged){
-    renderer.resize();
-    camera.snapTo(game.operator);
-    return;
-  }
-  if(!camera.contains(game.operator,96))camera.snapTo(game.operator);
-}
-function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());maintainCamera();camera.lockTo(game.operator);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}`;updateObjective();updateCompass();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
+function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.lockTo(game.operator);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}`;updateObjective();updateCompass();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
 function recoverPosition(source){const before={x:game.operator.x,y:game.operator.y};game.resetPosition();camera.snapTo(game.operator);console.info("Fieldwork position recovery",{build:BUILD_ID,source,before,after:{x:game.operator.x,y:game.operator.y}});}
 beginButton.addEventListener("click",startGame);actionButton.addEventListener("click",triggerContextAction);$("#backpack-button").addEventListener("click",()=>inventoryOpen?closeInventory():openInventory());$("#inventory-close").addEventListener("click",closeInventory);$("#operations-button").addEventListener("click",()=>operationsOpen?closeOperations():openOperations());$("#operations-close").addEventListener("click",closeOperations);$("#operations-list").addEventListener("click",event=>{const button=event.target.closest("button[data-operation-id]");if(!button)return;if(game.operations.claim(button.dataset.operationId)){buildOperations();updateObjective();}});$("#inspect-close").addEventListener("click",closeInspect);$("#dialogue-close").addEventListener("click",closeDialogue);$("#report-close").addEventListener("click",closeReport);
-window.addEventListener("keydown",event=>{const key=event.key.toLowerCase();if(key==="e"&&started){event.preventDefault();triggerContextAction();}if(key==="b"&&started){event.preventDefault();inventoryOpen?closeInventory():openInventory();}if(key==="o"&&started){event.preventDefault();operationsOpen?closeOperations():openOperations();}if(key==="escape"){if(dialogueOpen)closeDialogue();else if(operationsOpen)closeOperations();else if(!reportOverlay.hidden)closeReport();else if(!inspectOverlay.hidden)closeInspect();else if(inventoryOpen)closeInventory();}});$("#reset-position-button").addEventListener("click",()=>recoverPosition("debug reset button"));$("#debug-button").addEventListener("click",()=>{const active=$("#debug-button").getAttribute("aria-pressed")==="true";$("#debug-button").setAttribute("aria-pressed",String(!active));$("#debug-panel").hidden=active;$("#reset-position-button").hidden=active;});$("#objective-card").addEventListener("click",()=>{$("#objective-card").classList.toggle("objective-card--collapsed");if(objectiveTimer)clearTimeout(objectiveTimer);});window.addEventListener("resize",()=>{if(started)recenterAfterLayout("window resize");});window.visualViewport?.addEventListener("resize",()=>{if(started)recenterAfterLayout("visual viewport resize");});requestAnimationFrame(frame);
+window.addEventListener("keydown",event=>{const key=event.key.toLowerCase();if(key==="e"&&started){event.preventDefault();triggerContextAction();}if(key==="b"&&started){event.preventDefault();inventoryOpen?closeInventory():openInventory();}if(key==="o"&&started){event.preventDefault();operationsOpen?closeOperations():openOperations();}if(key==="escape"){if(dialogueOpen)closeDialogue();else if(operationsOpen)closeOperations();else if(!reportOverlay.hidden)closeReport();else if(!inspectOverlay.hidden)closeInspect();else if(inventoryOpen)closeInventory();}});$("#reset-position-button").addEventListener("click",()=>recoverPosition("debug reset button"));$("#debug-button").addEventListener("click",()=>{const active=$("#debug-button").getAttribute("aria-pressed")==="true";$("#debug-button").setAttribute("aria-pressed",String(!active));$("#debug-panel").hidden=active;$("#reset-position-button").hidden=active;});$("#objective-card").addEventListener("click",()=>{$("#objective-card").classList.toggle("objective-card--collapsed");if(objectiveTimer)clearTimeout(objectiveTimer);});window.addEventListener("resize",()=>{if(started)resizeAndCenter("window resize");});window.visualViewport?.addEventListener("resize",()=>{if(started)resizeAndCenter("visual viewport resize");});window.addEventListener("orientationchange",()=>{if(started)setTimeout(()=>resizeAndCenter("orientation change"),120);});requestAnimationFrame(frame);
