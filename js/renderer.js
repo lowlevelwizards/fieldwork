@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10c2-ada-action-prompt-hotfix-20260731";
-import { drawOperator } from "./presentation/operator-renderer.js?v=10c2-ada-action-prompt-hotfix-20260731";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10c2-ada-action-prompt-hotfix-20260731";
-import { findEntity } from "./world-entities.js?v=10c2-ada-action-prompt-hotfix-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { findEntity } from "./world-entities.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -218,11 +218,10 @@ export class Renderer{
  #applyWorkPose(ctx,actor){
   const phase=actor.workPhase??0;
   ctx.translate(actor.x,actor.y);
-  if(actor.workPose==="dead"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.scale(.94,.72);ctx.translate(-actor.x,-actor.y);ctx.translate(0,18);}
-  else if(actor.workPose==="downed"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.scale(.98,.78);ctx.translate(-actor.x,-actor.y);ctx.translate(Math.sin(phase*.9)*.7,13);}
-  else if(actor.workPose==="dragged"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.scale(.98,.76);ctx.translate(-actor.x,-actor.y);ctx.translate(0,14);}
-  else if(actor.workPose==="crawl"){ctx.translate(0,13);ctx.scale(1,.83);ctx.rotate(Math.sin(phase*1.2)*.025);}
-  else if(actor.workPose==="medical"){ctx.translate(0,9);ctx.rotate(Math.sin(phase*3)*.012);}
+  if(["dead","downed","dragged","crawl"].includes(actor.workPose)){
+    // Dedicated pose families are drawn by operator-renderer. Never squash or
+    // rotate the standing model to fake a casualty.
+  }else if(actor.workPose==="medical"){ctx.translate(0,9);ctx.rotate(Math.sin(phase*3)*.012);}
   else if(actor.workPose==="kneel"){ctx.translate(0,8);ctx.rotate(Math.sin(phase*1.8)*.018);}
   else if(actor.workPose==="inspect"){ctx.rotate(Math.sin(phase*2.2)*.035);ctx.translate(0,2);}
   else if(actor.workPose==="sort"){ctx.translate(0,Math.sin(phase*5)*1.8);}

@@ -1,4 +1,4 @@
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c1-ada-progression-supply-hotfix-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -73,24 +73,34 @@ export class MedicalSystem{
   }
 
   findPatient(actor){
-    const allies=this.game.actors.filter(candidate=>
+    const candidates=this.game.actors.filter(candidate=>
       candidate.id!==actor.id &&
       candidate.factionId===actor.factionId &&
       candidate.operationId &&
       !candidate.medical?.dead &&
       this.game.wounds.getTreatmentNeed(candidate)
     );
+
+    // Commune crews regard Mara as an allied casualty and use their own
+    // supplies to stabilize her when she goes down.
+    if(actor.factionId==="commune"){
+      const operator=this.game.operator;
+      const operatorNeed=this.game.wounds.getTreatmentNeed(operator);
+      if(operatorNeed&&!operator.medical?.dead)candidates.push(operator);
+    }
+
     let best=null;
-    for(const candidate of allies){
+    for(const candidate of candidates){
       const d=distance(actor,candidate);
-      if(d>300)continue;
+      if(d>420)continue;
       const need=this.game.wounds.getTreatmentNeed(candidate);
       if(!need||!this.hasSupply(actor,need.type))continue;
       const reserved=this.reservations.get(candidate.id);
       if(reserved&&reserved!==actor.id)continue;
-      const conditionScore={critical:130,unconscious:150,serious:85,wounded:45}[candidate.medical?.condition]??20;
-      const roleBonus=actor.role==="Field Medic"?40:actor.role==="Medic"?40:0;
-      const score=conditionScore+need.priority+roleBonus-d*.16;
+      const conditionScore={critical:145,unconscious:175,serious:90,wounded:45}[candidate.medical?.condition]??20;
+      const playerBonus=candidate.id===this.game.operator.id?35:0;
+      const roleBonus=/medic|shelter worker/i.test(actor.role??"")?45:0;
+      const score=conditionScore+need.priority+roleBonus+playerBonus-d*.12;
       if(!best||score>best.score)best={patient:candidate,need,score,d};
     }
     return best;
@@ -103,8 +113,9 @@ export class MedicalSystem{
     const buddy=this.findPatient(actor);
     const isMedic=/medic/i.test(actor.role??"");
 
-    if(buddy&&(isMedic||buddy.patient.medical.condition==="critical"||buddy.patient.medical.unconscious)){
-      if(danger<.74||buddy.patient.medical.condition==="critical")return {patient:buddy.patient,need:buddy.need,self:false};
+    if(buddy&&(isMedic||buddy.patient.id===this.game.operator.id||buddy.patient.medical.condition==="critical"||buddy.patient.medical.unconscious)){
+      const urgent=buddy.patient.id===this.game.operator.id&&["critical","unconscious"].includes(buddy.patient.medical.condition);
+      if(danger<.74||buddy.patient.medical.condition==="critical"||urgent)return {patient:buddy.patient,need:buddy.need,self:false};
     }
     if(selfNeed&&this.hasSupply(actor,selfNeed.type)){
       if(danger<.58||["critical","serious"].includes(actor.medical.condition))return {patient:actor,need:selfNeed,self:true};

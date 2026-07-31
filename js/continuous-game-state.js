@@ -1,11 +1,11 @@
-import { GameState } from "./game.js?v=10c-casualty-states-aid-movement-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=10c-casualty-states-aid-movement-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=10c-casualty-states-aid-movement-20260731";
-import { PerceptionSystem } from "./perception.js?v=10c-casualty-states-aid-movement-20260731";
-import { CombatSystem } from "./combat.js?v=10c-casualty-states-aid-movement-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=10c-casualty-states-aid-movement-20260731";
-import { WoundSystem } from "./wound-system.js?v=10c-casualty-states-aid-movement-20260731";
-import { MedicalSystem } from "./medical-system.js?v=10c-casualty-states-aid-movement-20260731";
+import { GameState } from "./game.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { PerceptionSystem } from "./perception.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { CombatSystem } from "./combat.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { WoundSystem } from "./wound-system.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { MedicalSystem } from "./medical-system.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -111,8 +111,10 @@ export class ContinuousGameState extends GameState {
     const relative=Math.abs(signedRelative);
     const directionalMultiplier=relative<Math.PI/4?1:relative<Math.PI*3/4?.74:.58;
 
+    const playerMedical=this.operator.medical;
+    const casualtyCap=playerMedical?.dead||playerMedical?.unconscious?0:playerMedical?.condition==="critical"?.16:1;
     const draggingCap=this.medical?.playerDraggingId?.38:1;
-    const aimCap=Math.min(this.combat.movementSpeedCap??1,draggingCap);
+    const aimCap=Math.min(this.combat.movementSpeedCap??1,draggingCap,casualtyCap);
     this.operator.moveSpeed=originalSpeed
       *this.getEnvironmentSpeedMultiplier()
       *this.wounds.getMovementMultiplier(this.operator)
@@ -163,6 +165,13 @@ export class ContinuousGameState extends GameState {
       if(speed>4)this.operator.walkingPhase+=delta*cadence*this.operator.motionSpeedRatio;
 
       this.wounds.update(delta);
+      if(this.operator.medical?.condition==="critical"){
+        this.operator.workPose="crawl";
+        this.combat.toggleAim(false);
+      }else if(this.operator.medical?.unconscious||this.operator.medical?.dead){
+        this.operator.workPose=this.operator.medical.dead?"dead":"downed";
+        this.combat.toggleAim(false);
+      }
       this.combat.update(delta, move);
       this.perception.update(delta);
       this.encounters.update(delta);

@@ -131,6 +131,14 @@ export class WoundSystem{
     m.unconscious=next==="unconscious";
     m.dead=next==="dead";
     target.medicalState=m.dead?"dead":m.unconscious?"unconscious":next;
+    const dominant=this.getDominantWound(target);
+    target.woundPoseRegion=dominant?.region??null;
+    target.woundPoseSeverity=dominant?.severity??null;
+    if((m.unconscious||m.dead)&&!Number.isFinite(target.collapseAngle)){
+      const facingAngle={right:0,down:Math.PI/2,left:Math.PI,up:-Math.PI/2}[target.facing]??0;
+      target.collapseAngle=facingAngle+(Math.random()-.5)*.28;
+    }
+    if(!m.unconscious&&!m.dead)target.collapseAngle=null;
     if(m.dead){
       target.condition="dead";target.vx=0;target.vy=0;target.moveTarget=null;
       target.workPose="dead";target.medicalPose="dead";target.operationPausedByEncounter=true;
@@ -174,6 +182,13 @@ export class WoundSystem{
     medical.bleedingRate=medical.wounds.reduce((sum,w)=>sum+(w.controlled?0:w.bleedingRate),0);
     this.#derive(target,true);
     return wound;
+  }
+
+  getDominantWound(target){
+    const medical=this.ensure(target);
+    const rank={minor:1,moderate:2,severe:3,catastrophic:4};
+    return [...medical.wounds]
+      .sort((a,b)=>(rank[b.severity]??0)-(rank[a.severity]??0))[0]??null;
   }
 
   getAssessment(target){

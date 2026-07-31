@@ -1,4 +1,4 @@
-import { getItemDefinition } from "../data/items.js?v=10c2-ada-action-prompt-hotfix-20260731";
+import { getItemDefinition } from "../data/items.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
 
 const ITEM_SIZES = {
   radio_battery: [28, 18],
@@ -181,8 +181,7 @@ export function getAvailableAction(entity, game) {
     if(entity.id==="worker_ada"){
       const seededWound=entity.medical?.wounds?.find(wound=>wound.seededLabel==="ada_initial_leg_wound");
       const bandaged=Boolean(game.incident.bandageUsed||seededWound?.controlled);
-      const nearBench=Math.hypot(entity.x-1265,entity.y-1238)<110;
-      const sheltered=Boolean(game.incident.workerSheltered||entity.seated||nearBench);
+      const sheltered=Boolean(game.incident.workerSheltered);
 
       if(!bandaged){
         if(nearbyMedical){
@@ -211,7 +210,6 @@ export function getAvailableAction(entity, game) {
         };
       }
 
-      // Once immediate care is complete, dialogue is the useful default.
       return {id:"talk",label:"Talk",priority:ACTION_PRIORITY.TALK+10};
     }
 
