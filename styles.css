@@ -524,3 +524,8 @@ h1 {
   border-color:rgba(212,78,62,.72);
   box-shadow:0 0 0 2px rgba(212,78,62,.12),0 8px 22px rgba(0,0,0,.22);
 }
+
+
+/* 1.0C — casualty assessment and treatment clarity */
+.assessment-overlay .overlay-card{border-color:rgba(213,92,73,.42)}
+#interact-button{max-width:190px;white-space:normal;line-height:1.05}
