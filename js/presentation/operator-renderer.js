@@ -252,6 +252,8 @@ export function drawOperator(ctx, operator, carriedItem = null) {
 
   ctx.save();
   ctx.translate(operator.x, operator.y);
+  const speed=Math.hypot(operator.vx??0,operator.vy??0),pace=Math.min(1,operator.motionPace??speed/260);
+  if(speed>5){const nx=(operator.vx??0)/speed,ny=(operator.vy??0)/speed;const lean=pace*4.5;ctx.translate(nx*lean,ny*lean);ctx.rotate(nx*0.018*pace);}
   if (motion.searching) {
     const leanX = facing === "left" ? -4 : facing === "right" ? 4 : 0;
     ctx.translate(leanX, 3 + motion.searchPose * 1.5);
