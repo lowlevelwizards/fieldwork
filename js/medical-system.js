@@ -1,4 +1,4 @@
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11c-medical-movement-weapon-recovery-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11d-engagement-fronts-action-locks-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -137,6 +137,7 @@ export class MedicalSystem{
       startedAt:performance.now()/1000
     };
     actor.operationPausedByEncounter=true;
+    actor.actionLock=null;
     actor.workPose=patient.id===actor.id?"kneel":"walk";
     actor.workProp=null;
     actor.workMedicalItem=null;
@@ -152,13 +153,15 @@ export class MedicalSystem{
     actor.medicalAction=null;
     actor.workProp=null;
     actor.workMedicalItem=null;
+    actor.actionLock=null;
     if(["medical","kneel"].includes(actor.workPose))actor.workPose=null;
     if(reason)actor.currentTask=reason;
   }
 
   beginRescueDrag(actor,patient){
     if(!actor||!patient||patient.medical?.dead)return false;
-    const cover=this.game.encounters?.findCover?.(actor,actor.tacticalEnemyCenter??this.game.aiCombat?.getTarget?.(actor)??patient);
+    const threat=actor.tacticalEnemyCenter??this.game.aiCombat?.getTarget?.(actor)??patient;
+    const cover=actor.tacticalRallyPoint??this.game.encounters?.findCover?.(actor,threat);
     if(!cover)return false;
     actor.rescueDrag={
       patientId:patient.id,
@@ -169,6 +172,8 @@ export class MedicalSystem{
     patient.operationPausedByEncounter=true;
     patient.moveTarget=null;
     actor.operationPausedByEncounter=true;
+    actor.draggingCasualtyId=patient.id;
+    actor.actionLock={owner:"rescue_drag",allowsMovement:true,allowsCombat:false};
     actor.workPose="walk";
     actor.currentTask=`Extracting ${patient.id===this.game.operator.id?"Mara":patient.name} to cover`;
     return true;
@@ -186,6 +191,8 @@ export class MedicalSystem{
       if(patient.id===this.game.operator.id)patient.lockedByInteraction=false;
     }
     actor.rescueDrag=null;
+    actor.draggingCasualtyId=null;
+    actor.actionLock=null;
     actor.workPose=null;
     actor.currentTask="Casualty moved to cover";
   }
@@ -318,6 +325,7 @@ export class MedicalSystem{
       }
 
       if(action.phase==="prepare"){
+        actor.actionLock={owner:"medical",phase:"prepare",allowsMovement:false,allowsCombat:false};
         actor.vx=0;actor.vy=0;
         actor.locomotionMode="idle";
         actor.workPose="kneel";
@@ -332,7 +340,9 @@ export class MedicalSystem{
         return;
       }
 
+      actor.actionLock={owner:"medical",phase:"treat",allowsMovement:false,allowsCombat:false};
       actor.vx=0;actor.vy=0;
+      actor.moveTarget=null;
       actor.locomotionMode="idle";
       actor.workPose="medical";
       actor.workProp="medical_bag";
@@ -452,6 +462,7 @@ export class MedicalSystem{
       duration:TREATMENT_DURATION[action.type]??3
     };
     this.game.operator.lockedByInteraction=true;
+    this.game.operator.actionLock={owner:"medical",phase:"treat",allowsMovement:false,allowsCombat:false};
     this.game.operator.workPose="medical";
     this.game.operator.searchPose=1;
     this.game.pushMessage(`${action.label} — ${patient.id===this.game.operator.id?"self":patient.name}`,1.4);

@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { drawOperator } from "./presentation/operator-renderer.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { findEntity } from "./world-entities.js?v=11c-medical-movement-weapon-recovery-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=11d-engagement-fronts-action-locks-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=11d-engagement-fronts-action-locks-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=11d-engagement-fronts-action-locks-20260731";
+import { findEntity } from "./world-entities.js?v=11d-engagement-fronts-action-locks-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -17,7 +17,7 @@ export class Renderer{
   ctx.save();
   try{
     ctx.scale(this.camera.zoom,this.camera.zoom);
-    ctx.translate(-this.camera.x,-this.camera.y);this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);if(game.debugEncounterZones)this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawCombatWorld(ctx,game);this.#drawMapBorder(ctx);
+    ctx.translate(-this.camera.x,-this.camera.y);this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBloodDecals(ctx,game);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);if(game.debugEncounterZones)this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawCombatWorld(ctx,game);this.#drawMapBorder(ctx);
   }finally{
     ctx.restore();
   }
@@ -101,6 +101,18 @@ export class Renderer{
       ctx.beginPath();ctx.arc(x,y,20,-.7,.7);ctx.stroke();
     }
   }finally{ctx.restore();}
+ }
+
+ #drawBloodDecals(ctx,game){
+  for(const decal of game.bloodDecals??[]){
+    ctx.save();
+    ctx.globalAlpha=decal.alpha??.25;
+    ctx.fillStyle="#6f3030";
+    ctx.beginPath();
+    ctx.ellipse(decal.x,decal.y,decal.radius??7,(decal.radius??7)*.55,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
  }
 
  #drawWoundScreen(ctx,game){
@@ -439,11 +451,13 @@ export class Renderer{
 
  #drawPlayer(ctx,operator,carried){
   try{
-    const combat=this._currentGame?.combat;
-    const renderOperator=combat&&!carried?{...operator,carriedItemInstanceId:"combat-weapon-hidden"}:operator;
-    if(combat&&!carried&&combat.pointsBehindOperator)this.#drawCombatWeapon(ctx,operator,combat);
+    const game=this._currentGame;
+    const combat=game?.combat;
+    const showCombatWeapon=Boolean(combat?.weaponAvailable)&&!carried;
+    const renderOperator=showCombatWeapon?{...operator,carriedItemInstanceId:"combat-weapon-hidden"}:operator;
+    if(showCombatWeapon&&combat.pointsBehindOperator)this.#drawCombatWeapon(ctx,operator,combat);
     drawOperator(ctx,renderOperator,carried);
-    if(combat&&!carried&&!combat.pointsBehindOperator)this.#drawCombatWeapon(ctx,operator,combat);
+    if(showCombatWeapon&&!combat.pointsBehindOperator)this.#drawCombatWeapon(ctx,operator,combat);
     this.lastOperatorRenderError=null;
   }catch(error){
     this.lastOperatorRenderError=String(error?.message||error);

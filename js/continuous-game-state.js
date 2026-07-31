@@ -1,12 +1,13 @@
-import { GameState } from "./game.js?v=11b-tactical-persistence-clarity-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=11b-tactical-persistence-clarity-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=11b-tactical-persistence-clarity-20260731";
-import { PerceptionSystem } from "./perception.js?v=11b-tactical-persistence-clarity-20260731";
-import { CombatSystem } from "./combat.js?v=11b-tactical-persistence-clarity-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=11b-tactical-persistence-clarity-20260731";
-import { WoundSystem } from "./wound-system.js?v=11b-tactical-persistence-clarity-20260731";
-import { MedicalSystem } from "./medical-system.js?v=11b-tactical-persistence-clarity-20260731";
-import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=11b-tactical-persistence-clarity-20260731";
+import { GameState } from "./game.js?v=11d-engagement-fronts-action-locks-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=11d-engagement-fronts-action-locks-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=11d-engagement-fronts-action-locks-20260731";
+import { PerceptionSystem } from "./perception.js?v=11d-engagement-fronts-action-locks-20260731";
+import { CombatSystem } from "./combat.js?v=11d-engagement-fronts-action-locks-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=11d-engagement-fronts-action-locks-20260731";
+import { WoundSystem } from "./wound-system.js?v=11d-engagement-fronts-action-locks-20260731";
+import { MedicalSystem } from "./medical-system.js?v=11d-engagement-fronts-action-locks-20260731";
+import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=11d-engagement-fronts-action-locks-20260731";
+import { TacticalFrontSystem } from "./tactical-front.js?v=11d-engagement-fronts-action-locks-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor({scenario="operations"}={}) {
@@ -37,6 +38,7 @@ export class ContinuousGameState extends GameState {
     this.medical = new MedicalSystem(this);
     this.aiCombat = new AICombatSystem(this);
     this.perception = new PerceptionSystem(this);
+    this.tacticalFronts = new TacticalFrontSystem(this);
     this.encounters = new FactionEncounterSystem(this);
     const phases = [
       { name: "New Moon", illumination: 0.0 },

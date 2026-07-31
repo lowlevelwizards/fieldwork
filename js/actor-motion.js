@@ -29,6 +29,39 @@ export function isActorPositionClear(game,x,y,radius=18){
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
+function medicalSpeedCap(actor){
+  const medical=actor?.medical;
+  if(!medical)return 1;
+  if(medical.dead||medical.unconscious)return 0;
+  if(medical.condition==="critical")return .16;
+  if(medical.condition==="serious")return .72;
+  if(medical.condition==="wounded")return .88;
+  return 1;
+}
+
+function actionAllowsMovement(actor){
+  return !actor?.actionLock||actor.actionLock.allowsMovement!==false;
+}
+
+function applyActorSeparation(game,actor,nextX,nextY){
+  if(!game?.actors)return {x:nextX,y:nextY};
+  let x=nextX,y=nextY;
+  for(const other of [game.operator,...game.actors]){
+    if(!other||other.id===actor.id||other.medical?.dead)continue;
+    const friendly=other.factionId===actor.factionId||
+      (actor.id===game.operator.id&&other.factionId==="commune");
+    const minimum=friendly?48:(
+      other.medical?.unconscious||other.medical?.condition==="critical"?100:205
+    );
+    const dx=x-other.x,dy=y-other.y,d=Math.hypot(dx,dy);
+    if(d>=minimum||d<.001)continue;
+    const push=(minimum-d)*(friendly?.42:.86);
+    x+=dx/d*push;
+    y+=dy/d*push;
+  }
+  return {x,y};
+}
+
 export function isImmobileCasualty(actor){
   return Boolean(
     actor?.condition==="dead" ||
@@ -55,12 +88,13 @@ export function moveActorToward(actor,target,delta,{
   pose="walk",
   game=null
 }={}){
-  if(!actor||!target||isImmobileCasualty(actor)){
+  if(!actor||!target||isImmobileCasualty(actor)||!actionAllowsMovement(actor)){
     stopActor(actor,actor?.medical?.dead?"dead":actor?.medical?.unconscious?"downed":null);
     return true;
   }
 
-  const safeTarget=game?projectOutsideObstacles(game,target.x,target.y,actor.radius??18):target;
+  const protectedTarget=game?.tacticalFronts?.protectDestination?.(actor,target)??target;
+  const safeTarget=game?projectOutsideObstacles(game,protectedTarget.x,protectedTarget.y,actor.radius??18):protectedTarget;
   const dx=safeTarget.x-actor.x,dy=safeTarget.y-actor.y;
   const distance=Math.hypot(dx,dy);
   actor.moveTarget={x:safeTarget.x,y:safeTarget.y};
@@ -73,11 +107,18 @@ export function moveActorToward(actor,target,delta,{
     return true;
   }
 
-  const speed=Math.max(8,(actor.moveSpeed??60)*speedMultiplier);
+  const cap=medicalSpeedCap(actor);
+  if(cap<=0){stopActor(actor,actor?.medical?.dead?"dead":"downed");return true;}
+  const draggingCap=actor.rescueDrag||actor.draggingCasualtyId?.58:1;
+  const speed=Math.max(4,(actor.moveSpeed??60)*speedMultiplier*cap*draggingCap);
   const step=Math.min(distance,speed*delta);
   const nx=dx/distance,ny=dy/distance;
   actor.vx=nx*speed;actor.vy=ny*speed;
   let nextX=actor.x+nx*step,nextY=actor.y+ny*step;
+  if(game){
+    const separated=applyActorSeparation(game,actor,nextX,nextY);
+    nextX=separated.x;nextY=separated.y;
+  }
   if(game&&!isActorPositionClear(game,nextX,nextY,actor.radius??18)){
     // Tangential slide around the obstacle instead of entering its center.
     const left={x:actor.x-ny*step,y:actor.y+nx*step};
@@ -90,7 +131,7 @@ export function moveActorToward(actor,target,delta,{
     }
   }
   actor.x=nextX;actor.y=nextY;
-  actor.walkingPhase=(actor.walkingPhase??0)+delta*8;
+  actor.walkingPhase=(actor.walkingPhase??0)+delta*(medicalSpeedCap(actor)<.3?2.1:8);
   actor.motionState="walking";
   actor.workPose=pose;
   actor.facing=Math.abs(dx)>Math.abs(dy)?(dx<0?"left":"right"):(dy<0?"up":"down");
@@ -109,7 +150,7 @@ export function trailActorToward(actor,target,delta,{
   actor.workPose=pose;
   actor.motionState=pose;
   if(distance<=arrivalRadius){
-    actor.x=safeTarget.x;actor.y=safeTarget.y;actor.groundY=actor.y+(actor.radius??18);return true;
+    actor.x=target.x;actor.y=target.y;actor.groundY=actor.y+(actor.radius??18);return true;
   }
   const step=Math.min(distance,maximumSpeed*delta);
   actor.x+=dx/distance*step;

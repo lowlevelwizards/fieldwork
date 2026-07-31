@@ -28,7 +28,9 @@ function hitRegion(target,impact){
 
 export class WoundSystem{
   constructor(game){
-    this.game=game;this.recent=[];this.ensure(game.operator);
+    this.game=game;this.recent=[];
+    this.game.bloodDecals??=[];
+    this.ensure(game.operator);
     for(const actor of game.actors??[])this.ensure(actor);
   }
 
@@ -55,6 +57,14 @@ export class WoundSystem{
       createdAt:performance.now()/1000,sourceId:source?.id??null
     };
     medical.wounds.push(wound);
+    this.game.bloodDecals.push({
+      id:`blood_${wound.id}`,
+      x:impact.x,y:impact.y,
+      radius:5+profile.bleeding*3,
+      alpha:.28,
+      createdAt:performance.now()/1000
+    });
+    if(this.game.bloodDecals.length>120)this.game.bloodDecals.splice(0,this.game.bloodDecals.length-120);
     medical.bleedingRate+=profile.bleeding;
     medical.shock=clamp(medical.shock+profile.shock,0,100);
     medical.pain=clamp(medical.pain+profile.pain,0,100);

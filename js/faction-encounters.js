@@ -1,5 +1,5 @@
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=11b-tactical-persistence-clarity-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11b-tactical-persistence-clarity-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=11d-engagement-fronts-action-locks-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11d-engagement-fronts-action-locks-20260731";
 const RELATIONSHIPS = {
   "commune:northline": -22,
   "commune:freelancers": -34,
@@ -391,6 +391,7 @@ export class FactionEncounterSystem{
 
     for(const actor of [...a.actors,...b.actors]){
       if(isImmobileCasualty(actor)||actor.beingDragged){stopActor(actor,actor.medical?.dead?"dead":"downed");continue;}
+      if(actor.actionLock?.allowsMovement===false)continue;
       actor.encounterState=encounter.state;
       actor.encounterReason=encounter.reason;
       actor.encounterId=encounter.id;
@@ -475,8 +476,9 @@ export class FactionEncounterSystem{
         actor.tacticalPlan=plan;
         actor.tacticalRole=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
         actor.tacticalEnemyCenter={...enemyCenter};
-        actor.tacticalPlanUntil=now+9;
+        actor.tacticalPlanUntil=now+14;
       });
+      this.game.tacticalFronts?.assign?.(encounter,group,enemy,plan);
     }
   }
 

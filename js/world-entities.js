@@ -170,6 +170,23 @@ export function findEntity(entities, id) {
   return entities.find(entity => entity.id === id) ?? null;
 }
 
+
+function casualtyLocalPosition(entity,operator){
+  const angle=entity.collapseAngle??0;
+  const dx=operator.x-entity.x,dy=operator.y-entity.y;
+  const cos=Math.cos(-angle),sin=Math.sin(-angle);
+  return {x:dx*cos-dy*sin,y:dx*sin+dy*cos};
+}
+
+function casualtyInteractionZone(entity,operator){
+  const local=casualtyLocalPosition(entity,operator);
+  const headDistance=Math.hypot(local.x+24,local.y);
+  const torsoDistance=Math.hypot(local.x,local.y);
+  if(headDistance<58)return "head";
+  if(torsoDistance<70)return "torso";
+  return "feet";
+}
+
 export function getAvailableAction(entity, game) {
   if (!entity || entity.revealed === false) return null;
   const held = game.getHeldItem();
@@ -214,10 +231,18 @@ export function getAvailableAction(entity, game) {
     }
 
 
+    const casualtyZone=assessment&&["critical","unconscious"].includes(assessment.condition)||assessment?.dead
+      ?casualtyInteractionZone(entity,game.operator)
+      :null;
     if(assessment?.dead){
-      return {id:"assess_casualty",label:`${entity.name} — Dead`,priority:ACTION_PRIORITY.CARE};
+      return casualtyZone==="head"
+        ?{id:"drag_casualty",label:`Drag ${entity.name}`,priority:ACTION_PRIORITY.CARE+7}
+        :{id:"assess_casualty",label:"Assess",priority:ACTION_PRIORITY.CARE};
     }
-    if(nearbyMedical&&!nearbyMedical.disabled){
+    if(assessment&&["critical","unconscious"].includes(assessment.condition)&&casualtyZone==="head"){
+      return {id:"drag_casualty",label:`Drag ${entity.name}`,priority:ACTION_PRIORITY.CARE+9};
+    }
+    if(nearbyMedical&&!nearbyMedical.disabled&&casualtyZone!=="feet"){
       return {
         id:"treat_casualty",
         label:nearbyMedical.label,
@@ -226,7 +251,7 @@ export function getAvailableAction(entity, game) {
       };
     }
     if(assessment&&["critical","unconscious"].includes(assessment.condition)){
-      return {id:"drag_casualty",label:`Drag ${entity.name}`,priority:ACTION_PRIORITY.CARE+5};
+      return {id:"assess_casualty",label:"Assess",priority:ACTION_PRIORITY.CARE+5};
     }
 
     if(assessment&&assessment.condition!=="healthy"){

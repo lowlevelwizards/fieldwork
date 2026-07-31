@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { ContinuousGameState } from "./continuous-game-state.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { InputController, CombatInputController } from "./input.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { Renderer } from "./renderer.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { getItemDefinition } from "../data/items.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { findEntity } from "./world-entities.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { validateItemLocations } from "./item-locations.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=11c-medical-movement-weapon-recovery-20260731";
+import { Camera } from "./camera.js?v=11d-engagement-fronts-action-locks-20260731";
+import { ContinuousGameState } from "./continuous-game-state.js?v=11d-engagement-fronts-action-locks-20260731";
+import { InputController, CombatInputController } from "./input.js?v=11d-engagement-fronts-action-locks-20260731";
+import { Renderer } from "./renderer.js?v=11d-engagement-fronts-action-locks-20260731";
+import { getItemDefinition } from "../data/items.js?v=11d-engagement-fronts-action-locks-20260731";
+import { findEntity } from "./world-entities.js?v=11d-engagement-fronts-action-locks-20260731";
+import { validateItemLocations } from "./item-locations.js?v=11d-engagement-fronts-action-locks-20260731";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=11d-engagement-fronts-action-locks-20260731";
 
-const BUILD_ID="1.1C";
+const BUILD_ID="1.1D";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;

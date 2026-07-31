@@ -1,5 +1,5 @@
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating } from "./actor-state.js?v=11c-medical-movement-weapon-recovery-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11c-medical-movement-weapon-recovery-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating } from "./actor-state.js?v=11d-engagement-fronts-action-locks-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11d-engagement-fronts-action-locks-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -80,7 +80,7 @@ export class AICombatSystem{
   onPlayerShot(origin,end,result){
     this.lastPlayerShotAt=this.game.clockMinutes;
     for(const actor of this.game.actors){
-      if(!actor.operationId||actor.condition==="incapacitated")continue;
+      if(!actor.operationId||!isAlive(actor))continue;
       this.ensureActor(actor);
       const missDistance=pointSegmentDistance(actor,origin,end);
       if(result.actor===actor){
@@ -240,6 +240,10 @@ export class AICombatSystem{
 
   updateActor(actor,delta){
     this.ensureActor(actor);
+    if(actor.actionLock?.allowsCombat===false){
+      actor.fireCooldown=0;actor.burstRemaining=0;actor.aimReadiness=0;
+      return;
+    }
     this.updateMorale(actor,delta);
     if(actor.medicalAction){
       actor.vx=0;actor.vy=0;actor.burstRemaining=0;actor.fireHeld=false;
@@ -299,18 +303,38 @@ export class AICombatSystem{
     actor.facing=facingFromAngle(actor.combatAimAngle);
     const targetDistance=distance(actor,target);
     actor.aimReadiness=clamp(actor.aimReadiness+delta*(actor.moraleState==="pinned"?.75:2.4),0,1);
-    const plan=(actor.tacticalPlanUntil??0)>performance.now()/1000?actor.tacticalPlan:"hold";
+    const now=performance.now()/1000;
+    const plan=(actor.tacticalPlanUntil??0)>now?actor.tacticalPlan:"hold";
+    const slot=(actor.tacticalSlotUntil??0)>now?actor.tacticalSlot:null;
+    if(slot&&actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"){
+      const slotDistance=Math.hypot(slot.x-actor.x,slot.y-actor.y);
+      if(slotDistance>58){
+        const urgent=plan==="withdraw"||plan==="flank_left"||plan==="flank_right";
+        moveActorToward(actor,slot,delta,{
+          game:this.game,
+          speedMultiplier:urgent?1.2:.78,
+          arrivalRadius:42,
+          task:plan==="withdraw"?"Falling back to rally line":
+            plan.startsWith("flank")?"Moving to flank position":
+            plan==="push"?"Advancing the firing line":"Taking assigned firing position",
+          pose:"walk"
+        });
+        actor.locomotionMode=urgent?"run":"jog";
+        actor.aimReadiness=Math.max(.2,actor.aimReadiness-delta*.5);
+        return;
+      }
+    }
 
     // Execute a persistent squad plan instead of independently wandering after each burst.
     if(actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"){
-      if(plan==="withdraw"||targetDistance<CONFIG.preferredMinRange){
+      if(plan==="withdraw"||targetDistance<340){
         const fallback={x:actor.x-Math.cos(desired)*(plan==="withdraw"?250:145),y:actor.y-Math.sin(desired)*(plan==="withdraw"?250:145)};
         moveActorToward(actor,fallback,delta,{game:this.game,speedMultiplier:plan==="withdraw"?1.55:.9,arrivalRadius:14,task:plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire",pose:"walk"});
         actor.currentTask=plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire";
         actor.aimReadiness=Math.max(.25,actor.aimReadiness-delta*.45);
-      }else if(plan==="push"&&targetDistance>380&&
-        (actor.suppression??0)<32&&
-        (target.suppression??0)>38){
+      }else if(plan==="push"&&targetDistance>430&&
+        (actor.suppression??0)<28&&
+        (target.suppression??0)>46){
         moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:1.05,arrivalRadius:340,task:"Pushing under covering fire",pose:"walk"});
         actor.currentTask="Pushing under covering fire";
       }else if((plan==="flank_left"||plan==="flank_right")&&actor.tacticalRole==="maneuver"&&targetDistance>300){

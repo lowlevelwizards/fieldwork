@@ -1,4 +1,4 @@
-import { canBeTargeted, isAlive } from "./actor-state.js?v=11c-medical-movement-weapon-recovery-20260731";
+import { canBeTargeted, isAlive } from "./actor-state.js?v=11d-engagement-fronts-action-locks-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const shortestAngle=(from,to)=>Math.atan2(Math.sin(to-from),Math.cos(to-from));
 const pointDistance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -65,7 +65,10 @@ export class CombatSystem{
     !medical?.dead &&
     !medical?.unconscious &&
     medical?.condition!=="critical" &&
-    !operator.beingDragged;
+    !operator.beingDragged &&
+    !this.game.medical?.playerDraggingId &&
+    !this.game.medical?.playerAction &&
+    operator.actionLock?.allowsCombat!==false;
  }
  setAimAngle(angle){
   if(Number.isFinite(angle)&&this.weaponAvailable)this.aimAngle=angle;
