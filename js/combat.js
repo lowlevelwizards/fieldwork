@@ -64,6 +64,7 @@ export class CombatSystem{
   if(Number.isFinite(angle)&&this.weaponAvailable)this.aimAngle=angle;
  }
  toggleAim(force=null){
+  const operator=this.game.operator;
   if(!this.weaponAvailable||!this.game.wounds?.canAct?.(operator)){
    this.aiming=false;
    this.fireHeld=false;

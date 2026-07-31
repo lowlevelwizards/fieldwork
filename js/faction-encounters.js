@@ -196,14 +196,14 @@ export class FactionEncounterSystem{
         encounter.state="aware";encounter.elapsed=0;
       }else if(d<650&&encounter.state==="aware"&&encounter.elapsed>1.2){
         encounter.state="watchful";encounter.elapsed=0;
-      }else if(d<520&&encounter.state==="watchful"&&encounter.elapsed>2.4){
+      }else if(d<680&&encounter.state==="watchful"&&encounter.elapsed>3.2){
         encounter.state="challenging";encounter.elapsed=0;
         encounter.repeatCount++;
         this.raiseDisposition(key,encounter.reason,encounter.repeatCount>1?14:9);
         this.beginChallenge(encounter,a,b,nearest,rel);
-      }else if(d<420&&encounter.state==="challenging"&&encounter.elapsed>3.2){
+      }else if(d<590&&encounter.state==="challenging"&&encounter.elapsed>3.8){
         encounter.state="blocking";encounter.elapsed=0;
-      }else if(d<360&&encounter.state==="blocking"&&encounter.elapsed>3.8&&rel<=-40){
+      }else if(d<510&&encounter.state==="blocking"&&encounter.elapsed>4.2&&rel<=-25){
         encounter.state="threatening";encounter.elapsed=0;
         encounter.lastHostileContactAt=performance.now()/1000;
         this.raiseDisposition(key,encounter.reason,22);
@@ -288,13 +288,17 @@ export class FactionEncounterSystem{
     for(let i=0;i<group.actors.length;i++){
       const actor=group.actors[i];
       actor.contactReaction=reaction;
-      actor.operationPausedByEncounter=true;
-      actor.vx=0;actor.vy=0;actor.motionState="encounter";
+      const hardPause=["overwatch","take_cover","block","protect","challenge"].includes(reaction);
+      actor.operationPausedByEncounter=hardPause;
+      if(hardPause){
+        actor.vx=0;actor.vy=0;actor.motionState="encounter";
+      }
       actor.workProp=null;
       faceToward(actor,{x:otherCenter.x,y:otherCenter.y});
 
       if(reaction==="track"){
-        actor.currentAction="Scouting contact";actor.currentTask="Watching the contact and planning the next move";actor.workPose="scan";
+        actor.currentAction="Scouting contact";actor.currentTask="Watching the contact while repositioning";actor.workPose="scan";
+        actor.operationPausedByEncounter=false;
       }else if(reaction==="overwatch"){
         actor.currentAction="Taking overwatch";actor.currentTask="Holding an overwatch position";actor.workPose="brace";
       }else if(reaction==="take_cover"){
@@ -349,7 +353,7 @@ export class FactionEncounterSystem{
       actor.encounterState=encounter.state;
       actor.encounterReason=encounter.reason;
       actor.encounterId=encounter.id;
-      actor.operationPausedByEncounter=["watchful","challenging","blocking","threatening"].includes(encounter.state);
+      actor.operationPausedByEncounter=["challenging","blocking","threatening"].includes(encounter.state);
       actor.encounterState=encounter.state;
       actor.encounterReason=encounter.reason;
       actor.encounterId=encounter.id;
