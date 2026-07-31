@@ -1,4 +1,4 @@
-import { canBeTargeted, isAlive } from "./actor-state.js?v=11b-tactical-persistence-clarity-20260731";
+import { canBeTargeted, isAlive } from "./actor-state.js?v=11c-medical-movement-weapon-recovery-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const shortestAngle=(from,to)=>Math.atan2(Math.sin(to-from),Math.cos(to-from));
 const pointDistance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -59,7 +59,13 @@ export class CombatSystem{
   this.suppressionDirection=null;
  }
  get weaponAvailable(){
-  return !this.game.operator.carriedItemInstanceId;
+  const operator=this.game.operator;
+  const medical=operator.medical;
+  return !operator.carriedItemInstanceId &&
+    !medical?.dead &&
+    !medical?.unconscious &&
+    medical?.condition!=="critical" &&
+    !operator.beingDragged;
  }
  setAimAngle(angle){
   if(Number.isFinite(angle)&&this.weaponAvailable)this.aimAngle=angle;
@@ -147,7 +153,10 @@ export class CombatSystem{
   if(!this.weaponAvailable){
    this.aiming=false;
    this.fireHeld=false;
+   this.lookInputActive=false;
    this.aimReadiness+=(0-this.aimReadiness)*(1-Math.exp(-delta*7));
+   operator.targetLookAngle=operator.lookAngle??0;
+   operator.perceptionLookAngle=operator.lookAngle??0;
   }
   for(const actor of this.game.actors){
    if(actor.factionId&&actor.operationId&&actor.ammoInMagazine===undefined){

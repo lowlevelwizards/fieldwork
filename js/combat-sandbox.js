@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=11b-tactical-persistence-clarity-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=11c-medical-movement-weapon-recovery-20260731";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -79,7 +79,7 @@ function actorFrom(faction,teamId,index,spawn,wave){
   type:"actor",teamId,factionId:faction,operationId:"combat_sandbox",
   kitId:KITS[faction][index%KITS[faction].length],
   x:spawn.x+offset.x,y:spawn.y+offset.y,width:44,height:70,groundY:spawn.y+offset.y+34,
-  radius:18,vx:0,vy:0,moveSpeed:58+(index%3)*4,facing:faction==="northline"?"down":faction==="freelancers"?"up":"right",
+  radius:18,vx:0,vy:0,moveSpeed:112+(index%3)*8,facing:faction==="northline"?"down":faction==="freelancers"?"up":"right",
   walkingPhase:0,backpackLoadRatio:.45,carriedItemInstanceId:null,
   routeIndex:0,waitTime:0,workPhase:0,motionState:"walking",
   currentTask:"Entering the combat test range",currentAction:"Walking",workPose:"walk",workProp:null,
@@ -145,7 +145,7 @@ export class CombatSandboxDirector{
     actor.patrolTarget=projectOutsideObstacles(this.game,base.x+(Math.random()-.5)*170,base.y+(Math.random()-.5)*170,actor.radius);
   }
   moveActorToward(actor,actor.patrolTarget,delta,{
-    game:this.game,speedMultiplier:.72,arrivalRadius:55,task:"Patrolling the test range",pose:"walk"
+    game:this.game,speedMultiplier:.58,arrivalRadius:55,task:"Patrolling the test range",pose:"walk"
   });
  }
  update(delta){

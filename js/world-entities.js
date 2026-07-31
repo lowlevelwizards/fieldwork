@@ -217,11 +217,11 @@ export function getAvailableAction(entity, game) {
     if(assessment?.dead){
       return {id:"assess_casualty",label:`${entity.name} — Dead`,priority:ACTION_PRIORITY.CARE};
     }
-    if(nearbyMedical){
+    if(nearbyMedical&&!nearbyMedical.disabled){
       return {
         id:"treat_casualty",
-        label:nearbyMedical.disabled?nearbyMedical.label:nearbyMedical.label,
-        disabled:Boolean(nearbyMedical.disabled),
+        label:nearbyMedical.label,
+        disabled:false,
         priority:ACTION_PRIORITY.USE_MISSION_ITEM+8
       };
     }

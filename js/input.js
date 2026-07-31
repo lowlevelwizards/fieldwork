@@ -75,7 +75,7 @@ export class InputController {
 
 export class CombatInputController {
   constructor({
-    touchSurface, aimButton, fireButton, canvas, combat, movementInput,
+    touchSurface, aimButton, fireButton, canvas, combat, getCombat = null, movementInput,
     getAimAngle, tryWorldInteraction = null, isBlocked = () => false,
     isStarted = () => true, canUseCombat = () => true
   }) {
@@ -84,6 +84,7 @@ export class CombatInputController {
     this.fireButton=fireButton;
     this.canvas=canvas;
     this.combat=combat;
+    this.getCombat=getCombat??(()=>this.combat);
     this.movementInput=movementInput;
     this.getAimAngle=getAimAngle;
     this.tryWorldInteraction=tryWorldInteraction;
@@ -96,9 +97,10 @@ export class CombatInputController {
   }
 
   #available(){return this.isStarted()&&!this.isBlocked();}
-  #combatAvailable(){return this.#available()&&this.canUseCombat();}
+  #currentCombat(){return this.getCombat?.()??this.combat;}
+  #combatAvailable(){return this.#available()&&Boolean(this.#currentCombat())&&this.canUseCombat();}
   #isUi(event){return Boolean(event.target.closest('button,.inventory-overlay,.inspect-overlay,.dialogue-overlay,.debug-panel'));}
-  #setAngle(event){if(this.#combatAvailable())this.combat.setAimAngle(this.getAimAngle(event.clientX,event.clientY));}
+  #setAngle(event){if(this.#combatAvailable())this.#currentCombat().setAimAngle(this.getAimAngle(event.clientX,event.clientY));}
 
   #bind(){
     this.touchSurface.addEventListener('pointerdown',event=>{
@@ -121,7 +123,7 @@ export class CombatInputController {
       if(!leftSide&&this.lookPointerId===null&&this.#combatAvailable()){
         event.preventDefault();
         this.lookPointerId=event.pointerId;
-        this.combat.lookInputActive=true;
+        this.#currentCombat().lookInputActive=true;
         this.#setAngle(event);
         try{this.touchSurface.setPointerCapture(event.pointerId)}catch{}
       }
@@ -148,7 +150,7 @@ export class CombatInputController {
         event.preventDefault();
         this.#setAngle(event);
         this.lookPointerId=null;
-        this.combat.lookInputActive=false;
+        this.#currentCombat().lookInputActive=false;
       }
       try{this.touchSurface.releasePointerCapture(event.pointerId)}catch{}
     };
@@ -159,7 +161,7 @@ export class CombatInputController {
       if(!this.#combatAvailable())return;
       event.preventDefault();
       event.stopPropagation();
-      this.combat.toggleAim();
+      this.#currentCombat().toggleAim();
     },{passive:false});
 
     const fireStart=event=>{
@@ -168,12 +170,12 @@ export class CombatInputController {
       // Consume rapid taps before Safari can reinterpret them as page zoom.
       if(event.pointerType==="touch")this.lastFireTouchAt=performance.now();
       event.stopPropagation();
-      this.combat.setFireHeld(true);
-      this.combat.tryFire();
+      this.#currentCombat().setFireHeld(true);
+      this.#currentCombat().tryFire();
       try{this.fireButton.setPointerCapture(event.pointerId)}catch{}
     };
     const fireStop=event=>{
-      this.combat.setFireHeld(false);
+      this.#currentCombat().setFireHeld(false);
       try{this.fireButton.releasePointerCapture(event.pointerId)}catch{}
     };
     this.fireButton.addEventListener('pointerdown',fireStart,{passive:false});
@@ -191,30 +193,30 @@ export class CombatInputController {
       if(!this.#combatAvailable()||event.pointerType==='touch')return;
       if(event.button===2){
         event.preventDefault();
-        this.combat.toggleAim();
+        this.#currentCombat().toggleAim();
       }else if(event.button===0){
         event.preventDefault();
-        this.combat.setFireHeld(true);
-        this.combat.tryFire();
+        this.#currentCombat().setFireHeld(true);
+        this.#currentCombat().tryFire();
       }
     });
     window.addEventListener('pointerup',event=>{
-      if(event.pointerType!=='touch')this.combat.setFireHeld(false);
+      if(event.pointerType!=='touch')this.#currentCombat().setFireHeld(false);
     });
     window.addEventListener('keydown',event=>{
       if(!this.#combatAvailable())return;
       const key=event.key.toLowerCase();
       if(key==='f'){
         event.preventDefault();
-        this.combat.toggleAim();
+        this.#currentCombat().toggleAim();
       }else if(key===' '&&!event.repeat){
         event.preventDefault();
-        this.combat.setFireHeld(true);
-        this.combat.tryFire();
+        this.#currentCombat().setFireHeld(true);
+        this.#currentCombat().tryFire();
       }
     });
     window.addEventListener('keyup',event=>{
-      if(event.key===' ')this.combat.setFireHeld(false);
+      if(event.key===' ')this.#currentCombat().setFireHeld(false);
     });
   }
 }

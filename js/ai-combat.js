@@ -1,5 +1,5 @@
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating } from "./actor-state.js?v=11b-tactical-persistence-clarity-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11b-tactical-persistence-clarity-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating } from "./actor-state.js?v=11c-medical-movement-weapon-recovery-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11c-medical-movement-weapon-recovery-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -305,19 +305,21 @@ export class AICombatSystem{
     if(actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"){
       if(plan==="withdraw"||targetDistance<CONFIG.preferredMinRange){
         const fallback={x:actor.x-Math.cos(desired)*(plan==="withdraw"?250:145),y:actor.y-Math.sin(desired)*(plan==="withdraw"?250:145)};
-        moveActorToward(actor,fallback,delta,{game:this.game,speedMultiplier:plan==="withdraw"?.52:.34,arrivalRadius:14,task:plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire",pose:"walk"});
+        moveActorToward(actor,fallback,delta,{game:this.game,speedMultiplier:plan==="withdraw"?1.55:.9,arrivalRadius:14,task:plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire",pose:"walk"});
         actor.currentTask=plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire";
         actor.aimReadiness=Math.max(.25,actor.aimReadiness-delta*.45);
-      }else if(plan==="push"&&targetDistance>310){
-        moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:.25,arrivalRadius:300,task:"Pushing under covering fire",pose:"walk"});
+      }else if(plan==="push"&&targetDistance>380&&
+        (actor.suppression??0)<32&&
+        (target.suppression??0)>38){
+        moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:1.05,arrivalRadius:340,task:"Pushing under covering fire",pose:"walk"});
         actor.currentTask="Pushing under covering fire";
-      }else if((plan==="flank_left"||plan==="flank_right")&&actor.tacticalRole==="maneuver"){
+      }else if((plan==="flank_left"||plan==="flank_right")&&actor.tacticalRole==="maneuver"&&targetDistance>300){
         const side=plan==="flank_left"?-1:1;
         const flank={x:actor.x-Math.sin(desired)*side*180+Math.cos(desired)*75,y:actor.y+Math.cos(desired)*side*180+Math.sin(desired)*75};
-        moveActorToward(actor,flank,delta,{game:this.game,speedMultiplier:.34,arrivalRadius:24,task:"Moving on the flank",pose:"walk"});
+        moveActorToward(actor,flank,delta,{game:this.game,speedMultiplier:1.25,arrivalRadius:24,task:"Moving on the flank",pose:"walk"});
         actor.currentTask="Moving on the flank";
       }else if(plan!=="hold"&&targetDistance>CONFIG.preferredMaxRange&&targetDistance<800&&actor.aimReadiness<.62){
-        moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:.12,arrivalRadius:CONFIG.preferredMaxRange,task:"Advancing under observation",pose:"walk"});
+        moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:.7,arrivalRadius:CONFIG.preferredMaxRange,task:"Advancing under observation",pose:"walk"});
       }
     }
 
@@ -330,7 +332,7 @@ export class AICombatSystem{
 
     if(actor.moraleState==="pinned"){
       const cover=this.game.encounters?.findCover?.(actor,target);
-      if(cover)moveActorToward(actor,cover,delta,{game:this.game,speedMultiplier:.22,arrivalRadius:18,task:"Crawling into cover",pose:"walk"});
+      if(cover)moveActorToward(actor,cover,delta,{game:this.game,speedMultiplier:1.2,arrivalRadius:18,task:"Crawling into cover",pose:"walk"});
       else{actor.vx=0;actor.vy=0;}
       return;
     }

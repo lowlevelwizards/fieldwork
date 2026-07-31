@@ -1,4 +1,4 @@
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11b-tactical-persistence-clarity-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11c-medical-movement-weapon-recovery-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -117,8 +117,8 @@ export class MedicalSystem{
       const urgent=buddy.patient.id===this.game.operator.id&&["critical","unconscious"].includes(buddy.patient.medical.condition);
       if(danger<.74||buddy.patient.medical.condition==="critical"||urgent)return {patient:buddy.patient,need:buddy.need,self:false};
     }
-    if(selfNeed&&this.hasSupply(actor,selfNeed.type)){
-      if(danger<.58||["critical","serious"].includes(actor.medical.condition))return {patient:actor,need:selfNeed,self:true};
+    if(selfNeed&&actor.medical?.condition!=="critical"&&this.hasSupply(actor,selfNeed.type)){
+      if(danger<.58||actor.medical.condition==="serious")return {patient:actor,need:selfNeed,self:true};
     }
     if(buddy&&danger<.42)return {patient:buddy.patient,need:buddy.need,self:false};
     return null;
@@ -130,16 +130,17 @@ export class MedicalSystem{
     actor.medicalAction={
       patientId:patient.id,
       itemType:need.type,
+      phase:patient.id===actor.id?"prepare":"approach",
+      phaseProgress:0,
       progress:0,
       duration:TREATMENT_DURATION[need.type]??3,
       startedAt:performance.now()/1000
     };
     actor.operationPausedByEncounter=true;
-    actor.vx=0;actor.vy=0;
-    actor.workPose="medical";
-    actor.workProp="medical_bag";
-    actor.workMedicalItem=need.type;
-    actor.currentAction=patient.id===actor.id?"Treating self":`Treating ${patient.name}`;
+    actor.workPose=patient.id===actor.id?"kneel":"walk";
+    actor.workProp=null;
+    actor.workMedicalItem=null;
+    actor.currentAction=patient.id===actor.id?"Preparing self aid":`Responding to ${patient.name}`;
     actor.currentTask=actor.currentAction;
     return true;
   }
@@ -151,7 +152,96 @@ export class MedicalSystem{
     actor.medicalAction=null;
     actor.workProp=null;
     actor.workMedicalItem=null;
+    if(["medical","kneel"].includes(actor.workPose))actor.workPose=null;
     if(reason)actor.currentTask=reason;
+  }
+
+  beginRescueDrag(actor,patient){
+    if(!actor||!patient||patient.medical?.dead)return false;
+    const cover=this.game.encounters?.findCover?.(actor,actor.tacticalEnemyCenter??this.game.aiCombat?.getTarget?.(actor)??patient);
+    if(!cover)return false;
+    actor.rescueDrag={
+      patientId:patient.id,
+      destination:cover,
+      phase:"attach"
+    };
+    patient.beingDragged=true;
+    patient.operationPausedByEncounter=true;
+    patient.moveTarget=null;
+    actor.operationPausedByEncounter=true;
+    actor.workPose="walk";
+    actor.currentTask=`Extracting ${patient.id===this.game.operator.id?"Mara":patient.name} to cover`;
+    return true;
+  }
+
+  stopRescueDrag(actor){
+    const rescue=actor.rescueDrag;
+    if(!rescue)return;
+    const patient=rescue.patientId===this.game.operator.id
+      ?this.game.operator
+      :this.game.actors.find(candidate=>candidate.id===rescue.patientId);
+    if(patient){
+      patient.beingDragged=false;
+      patient.dragHeadAnchor=null;
+      if(patient.id===this.game.operator.id)patient.lockedByInteraction=false;
+    }
+    actor.rescueDrag=null;
+    actor.workPose=null;
+    actor.currentTask="Casualty moved to cover";
+  }
+
+  updateRescueDrag(actor,delta){
+    const rescue=actor.rescueDrag;
+    if(!rescue)return false;
+    const patient=rescue.patientId===this.game.operator.id
+      ?this.game.operator
+      :this.game.actors.find(candidate=>candidate.id===rescue.patientId);
+    if(!patient||patient.medical?.dead){
+      this.stopRescueDrag(actor);
+      return false;
+    }
+
+    const patientDistance=distance(actor,patient);
+    if(rescue.phase==="attach"&&patientDistance>42){
+      moveActorToward(actor,patient,delta,{
+        game:this.game,speedMultiplier:1.65,arrivalRadius:38,
+        task:`Running to ${patient.id===this.game.operator.id?"Mara":patient.name}`,pose:"walk"
+      });
+      actor.locomotionMode="run";
+      return true;
+    }
+    rescue.phase="tow";
+    patient.beingDragged=true;
+    if(patient.id===this.game.operator.id)patient.lockedByInteraction=true;
+
+    const arrived=moveActorToward(actor,rescue.destination,delta,{
+      game:this.game,speedMultiplier:1.25,arrivalRadius:22,
+      task:"Dragging casualty to cover",pose:"walk"
+    });
+    actor.locomotionMode="run";
+
+    const travelAngle=Math.atan2(actor.vy||rescue.destination.y-actor.y,actor.vx||rescue.destination.x-actor.x);
+    const trailerAngle=travelAngle+Math.PI;
+    const bodyCenter={
+      x:actor.x+Math.cos(trailerAngle)*54,
+      y:actor.y+Math.sin(trailerAngle)*54+5
+    };
+    trailActorToward(patient,bodyCenter,delta,{
+      maximumSpeed:Math.max(170,(actor.moveSpeed??80)*1.8),
+      arrivalRadius:2,pose:"dragged"
+    });
+    const angleDiff=Math.atan2(
+      Math.sin(trailerAngle-(patient.collapseAngle??trailerAngle)),
+      Math.cos(trailerAngle-(patient.collapseAngle??trailerAngle))
+    );
+    patient.collapseAngle=(patient.collapseAngle??trailerAngle)+angleDiff*(1-Math.exp(-delta*12));
+
+    if(arrived){
+      this.stopRescueDrag(actor);
+      actor.medicalDecisionCooldown=.15;
+      return false;
+    }
+    return true;
   }
 
   completeTreatment(actor){
@@ -170,12 +260,23 @@ export class MedicalSystem{
     this.cancelTreatment(actor);
     actor.workPose="kneel";
     actor.currentTask=result.ok?"Treatment complete":"Treatment failed";
+    const stillCasualty=patient.medical?.unconscious||patient.medical?.condition==="critical";
+    const exposed=this.dangerLevel(actor)>.38;
+    if(result.ok&&patient.id!==actor.id&&stillCasualty&&exposed){
+      this.beginRescueDrag(actor,patient);
+    }
   }
 
   updateActor(actor,delta){
     this.ensureInventory(actor);
     if(actor.medical?.dead||actor.medical?.unconscious){
       this.cancelTreatment(actor);
+      this.stopRescueDrag(actor);
+      return;
+    }
+
+    if(actor.rescueDrag){
+      this.updateRescueDrag(actor,delta);
       return;
     }
 
@@ -190,25 +291,53 @@ export class MedicalSystem{
       }
 
       const danger=this.dangerLevel(actor);
-      if(danger>.88&&patient.medical?.condition!=="critical"){
+      if(danger>.9&&patient.medical?.condition!=="critical"){
         this.cancelTreatment(actor,"Treatment interrupted by fire");
         actor.suppression=clamp((actor.suppression??0)+8,0,100);
         return;
       }
 
-      const d=distance(actor,patient);
-      if(patient.id!==actor.id&&d>52){
-        moveActorToward(actor,patient,delta,{game:this.game,
-          speedMultiplier:.3,arrivalRadius:48,
-          task:`Walking to ${patient.name}`,pose:"walk"
-        });
+      if(action.phase==="approach"){
+        const d=distance(actor,patient);
+        if(d>48){
+          const urgent=["critical","unconscious"].includes(patient.medical?.condition);
+          moveActorToward(actor,patient,delta,{
+            game:this.game,
+            speedMultiplier:urgent?1.65:1.15,
+            arrivalRadius:44,
+            task:`${urgent?"Running":"Moving"} to ${patient.id===this.game.operator.id?"Mara":patient.name}`,
+            pose:"walk"
+          });
+          actor.locomotionMode=urgent?"run":"jog";
+          actor.workProp=null;
+          actor.workMedicalItem=null;
+          return;
+        }
+        action.phase="prepare";
+        action.phaseProgress=0;
+      }
+
+      if(action.phase==="prepare"){
+        actor.vx=0;actor.vy=0;
+        actor.locomotionMode="idle";
+        actor.workPose="kneel";
+        actor.workProp=null;
+        actor.workMedicalItem=null;
+        actor.currentTask=`Preparing ${action.itemType.replaceAll("_"," ")}`;
+        action.phaseProgress+=delta/.48;
+        if(action.phaseProgress>=1){
+          action.phase="treat";
+          action.phaseProgress=0;
+        }
         return;
       }
 
       actor.vx=0;actor.vy=0;
+      actor.locomotionMode="idle";
       actor.workPose="medical";
       actor.workProp="medical_bag";
       actor.workMedicalItem=action.itemType;
+      actor.currentTask=patient.id===actor.id?"Treating self":`Treating ${patient.name}`;
       action.progress=clamp(action.progress+delta/action.duration,0,1);
       if(action.progress>=1)this.completeTreatment(actor);
       return;
@@ -287,13 +416,15 @@ export class MedicalSystem{
     const nearby=this.getNearbyPatient();
     if(nearby){
       const treatment=this.getTreatmentActionFor(nearby.actor);
-      if(treatment)return treatment;
+      if(treatment&&!treatment.disabled)return treatment;
       if(nearby.assessment.dead||nearby.assessment.condition==="unconscious"||nearby.assessment.condition==="critical"){
         return {label:`DRAG ${nearby.actor.name}`.toUpperCase(),type:"drag",patientId:nearby.actor.id};
       }
       return {label:`ASSESS ${nearby.actor.name}`.toUpperCase(),type:"assess",patientId:nearby.actor.id};
     }
 
+    const playerMedical=this.game.operator.medical;
+    if(playerMedical?.dead||playerMedical?.unconscious||playerMedical?.condition==="critical")return null;
     return this.getTreatmentActionFor(this.game.operator);
   }
 

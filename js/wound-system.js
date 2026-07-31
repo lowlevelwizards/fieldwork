@@ -152,6 +152,12 @@ export class WoundSystem{
     }else{
       target.medicalPose=next==="serious"?"wounded":next==="wounded"?"wounded":null;
       if(target.operationId&&target.condition==="incapacitated")target.condition="active";
+      if(["crawl","downed","dead","dragged"].includes(target.workPose)){
+        target.workPose=null;
+        target.motionState="idle";
+      }
+      target.beingDragged=false;
+      target.dragHeadAnchor=null;
     }
 
     if(previous!==next&&!immediate){
