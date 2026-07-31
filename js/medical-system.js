@@ -1,4 +1,5 @@
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11e-combat-authority-team-response-20260731";
+import { canTreatSelf } from "./actor-state.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -131,7 +132,7 @@ export class MedicalSystem{
       if(!best||score>best.score)best={...choice,score};
     };
 
-    if(selfNeed&&actor.medical?.condition!=="critical"&&this.hasSupply(actor,selfNeed.type)){
+    if(selfNeed&&canTreatSelf(actor)&&this.hasSupply(actor,selfNeed.type)){
       const urgency={wounded:22,serious:58}[actor.medical?.condition]??10;
       const score=urgency+(isMedic?8:0)-danger*72-(currentlyEngaged?18:0);
       consider({patient:actor,need:selfNeed,self:true},score);

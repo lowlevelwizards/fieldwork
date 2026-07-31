@@ -1,5 +1,6 @@
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=11e-combat-authority-team-response-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11e-combat-authority-team-response-20260731";
+import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
 const RELATIONSHIPS = {
   "commune:northline": -22,
   "commune:freelancers": -34,
@@ -57,7 +58,7 @@ export class FactionEncounterSystem{
 
 
   getDisposition(key){
-    if(!this.dispositions.has(key))this.dispositions.set(key,{level:"clear",score:0,quietTime:0,lastReason:null});
+    if(!this.dispositions.has(key))this.dispositions.set(key,{level:"hostile",score:72,quietTime:0,lastReason:"active belligerents"});
     return this.dispositions.get(key);
   }
 
@@ -71,8 +72,8 @@ export class FactionEncounterSystem{
   }
 
   easeDisposition(disposition){
-    disposition.score=Math.max(0,disposition.score-8);
-    disposition.level=disposition.score>=70?"hostile":disposition.score>=38?"contested":disposition.score>=12?"wary":disposition.score>0?"observed":"clear";
+    disposition.score=Math.max(58,disposition.score-4);
+    disposition.level=disposition.score>=70?"hostile":"contested";
     disposition.quietTime=0;
   }
 
@@ -151,7 +152,8 @@ export class FactionEncounterSystem{
           violenceAt:-999,
           lastPlanAt:-999,
           planA:"observe",
-          planB:"observe"
+          planB:"observe",
+          alertState:"unaware"
         };
         this.encounters.set(key,encounter);
       }
@@ -206,25 +208,31 @@ export class FactionEncounterSystem{
         continue;
       }
 
-      const repeatAcceleration=disposition.level==="contested"||disposition.level==="hostile"?2.2:disposition.level==="wary"?1.55:1;
+      const repeatAcceleration=disposition.level==="hostile"?2.4:1.6;
       encounter.elapsed+=delta*(repeatAcceleration-1);
 
-      // Contact begins at scouting distance. Crews observe and plan before closing.
-      if(d<780&&encounter.state==="unaware"){
-        encounter.state="aware";encounter.elapsed=0;
-      }else if(d<650&&encounter.state==="aware"&&encounter.elapsed>1.2){
-        encounter.state="watchful";encounter.elapsed=0;
-      }else if(d<680&&encounter.state==="watchful"&&encounter.elapsed>3.2){
-        encounter.state="challenging";encounter.elapsed=0;
-        encounter.repeatCount++;
-        this.raiseDisposition(key,encounter.reason,encounter.repeatCount>1?14:9);
-        this.beginChallenge(encounter,a,b,nearest,rel);
-      }else if(d<590&&encounter.state==="challenging"&&encounter.elapsed>3.8){
-        encounter.state="blocking";encounter.elapsed=0;
-      }else if(d<510&&encounter.state==="blocking"&&encounter.elapsed>4.2&&rel<=-25){
-        encounter.state="threatening";encounter.elapsed=0;
-        encounter.lastHostileContactAt=performance.now()/1000;
-        this.raiseDisposition(key,encounter.reason,22);
+      const confirmed=["located","identified"].includes(encounter.contactLevel);
+      const doctrineA=getDoctrine(a.factionId),doctrineB=getDoctrine(b.factionId);
+      const contactDistance=Math.max(doctrineA.contactDistance,doctrineB.contactDistance);
+
+      if(areBelligerents(a.factionId,b.factionId)){
+        encounter.alertState=confirmed?"contact":"alerted";
+        encounter.state="watchful";
+        // Belligerent groups stop casual movement as soon as they have contact.
+        for(const actor of [...a.actors,...b.actors]){
+          actor.operationPausedByEncounter=true;
+          actor.encounterState=encounter.alertState;
+          actor.currentTask=confirmed?"Confirmed hostile contact":"Taking tactical precautions";
+        }
+        if(confirmed||d<Math.min(contactDistance,680)){
+          encounter.combatEngaged=true;
+          encounter.state="threatening";
+          encounter.alertState="engaged";
+          encounter.violenceAt=Math.max(encounter.violenceAt,performance.now()/1000-8);
+        }
+      }else{
+        if(d<780&&encounter.state==="unaware"){encounter.state="aware";encounter.elapsed=0;}
+        else if(d<650&&encounter.state==="aware"&&encounter.elapsed>1.2){encounter.state="watchful";encounter.elapsed=0;}
       }
       if(encounter.state==="threatening"&&hasContact){
         encounter.lastHostileContactAt=now;
@@ -462,13 +470,30 @@ export class FactionEncounterSystem{
 
   chooseSquadPlan(ours,theirs,encounter,side){
     const own=this.teamStatus(ours),enemy=this.teamStatus(theirs);
+    const doctrine=getDoctrine(ours.factionId);
     if(!own.capable.length)return "withdraw";
-    if(own.casualties>0&&own.capable.some(actor=>/medic|shelter worker/i.test(actor.role??"")))return "rescue";
-    if(own.suppression>62||own.capable.length<Math.max(1,enemy.capable.length-1))return "withdraw";
-    if(own.capable.length>enemy.capable.length+1&&own.suppression<34)return "push";
-    if(encounter.repeatCount%3===1)return side==="A"?"flank_left":"flank_right";
-    if(encounter.repeatCount%3===2)return side==="A"?"flank_right":"flank_left";
-    return "hold";
+
+    const strength=(own.capable.length+1)/(enemy.capable.length+1);
+    const casualtyRatio=own.casualties/Math.max(1,ours.actors.length);
+    const suppression=own.suppression/100;
+    const enemySuppression=enemy.suppression/100;
+    const hasMedic=own.capable.some(actor=>/medic|shelter worker/i.test(actor.role??""));
+
+    const scores={
+      hold:doctrine.missionWeights.hold*55+(1-suppression)*24,
+      flank:doctrine.missionWeights.flank*50+enemySuppression*28+(strength>=.8?12:0),
+      push:doctrine.missionWeights.push*48+enemySuppression*42+(strength-1)*34-casualtyRatio*48,
+      withdraw:doctrine.missionWeights.withdraw*44+suppression*58+casualtyRatio*62+(strength<.75?30:0),
+      rescue:doctrine.missionWeights.rescue*38+(hasMedic&&own.casualties?46:0)-suppression*22
+    };
+    if(enemySuppression<.38||strength<1.12)scores.push-=45;
+    if(ours.factionId==="commune"&&encounter.violenceAt<0)scores.flank+=20;
+    if(ours.factionId==="freelancers"&&casualtyRatio>.2)scores.withdraw+=35;
+    if(ours.factionId==="northline")scores.hold+=18;
+
+    const winner=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0]?.[0]??"hold";
+    if(winner==="flank")return side==="A"?"flank_left":"flank_right";
+    return winner;
   }
 
   assignCombatPlans(encounter,a,b,nearest,delta){

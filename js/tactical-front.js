@@ -1,5 +1,6 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=11e-combat-authority-team-response-20260731";
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=11e-combat-authority-team-response-20260731";
+import { getDoctrine } from "./faction-doctrine.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { projectOutsideObstacles } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12a-unified-ai-authority-doctrine-20260731";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 
@@ -87,6 +88,27 @@ export class TacticalFrontSystem{
     return front;
   }
 
+  coverNear(raw,front,actor){
+    const doctrine=getDoctrine(actor.factionId);
+    const candidates=(this.game.map.obstacles??[])
+      .filter(obstacle=>Math.hypot(obstacle.x-raw.x,obstacle.y-raw.y)<260)
+      .map(obstacle=>{
+        const awayX=obstacle.x-front.enemyCenter.x;
+        const awayY=obstacle.y-front.enemyCenter.y;
+        const length=Math.max(1,Math.hypot(awayX,awayY));
+        const clearance=(obstacle.radius??28)+(actor.radius??18)+10;
+        const point={
+          x:obstacle.x+awayX/length*clearance,
+          y:obstacle.y+awayY/length*clearance
+        };
+        const distanceToSlot=Math.hypot(point.x-raw.x,point.y-raw.y);
+        const hard=obstacle.type==="rock"?48:obstacle.type==="tree"?24:12;
+        return {point,score:hard*doctrine.coverPriority-distanceToSlot*.2};
+      })
+      .sort((a,b)=>b.score-a.score);
+    return candidates[0]?.score>0?candidates[0].point:raw;
+  }
+
   slotFor(front,actor,index,count){
     const medic=/medic|shelter worker/i.test(actor.role??"");
     const role=medic?"medic":actor.tacticalRole??(index===0?"leader":index===1?"base_of_fire":"maneuver");
@@ -116,7 +138,8 @@ export class TacticalFrontSystem{
       x:front.lineCenter.x+front.lateral.x*along+front.forward.x*depth,
       y:front.lineCenter.y+front.lateral.y*along+front.forward.y*depth
     };
-    return projectOutsideObstacles(this.game,raw.x,raw.y,actor.radius??18,10);
+    const covered=this.coverNear(raw,front,actor);
+    return projectOutsideObstacles(this.game,covered.x,covered.y,actor.radius??18,10);
   }
 
   assign(encounter,team,enemy,plan){

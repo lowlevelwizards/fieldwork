@@ -28,3 +28,25 @@ export function canBeTargeted(actor,{allowCritical=false,allowTreating=false}={}
 export function canReceiveOrders(actor){
   return isConscious(actor)&&!actor.beingDragged;
 }
+
+
+export function canAim(actor){
+  return isCombatCapable(actor)&&actor.actionLock?.allowsCombat!==false&&!isTreating(actor);
+}
+export function canFire(actor){
+  return canAim(actor)&&!actor.reloading&&actor.ammoInMagazine!==0;
+}
+export function canReload(actor){
+  return isCombatCapable(actor)&&actor.actionLock?.allowsCombat!==false&&!isTreating(actor);
+}
+export function canTreatSelf(actor){
+  return isConscious(actor)&&!isCritical(actor)&&!actor.beingDragged;
+}
+export function cancelCombatState(actor){
+  if(!actor)return;
+  actor.burstRemaining=0;
+  actor.fireHeld=false;
+  actor.aimReadiness=0;
+  actor.reloading=false;
+  actor.reloadProgress=0;
+}

@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=11d-engagement-fronts-action-locks-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -85,7 +85,9 @@ function actorFrom(faction,teamId,index,spawn,wave){
   currentTask:"Entering the combat test range",currentAction:"Walking",workPose:"walk",workProp:null,
   interactionRadius:84,priority:18,relationship:"Unknown",
   greeting:[`${FACTION_NAMES[faction]} patrol.`,"We're watching the range."],
-  seated:false,sandboxPatrol:true,patrolTarget:null
+  seated:false,sandboxPatrol:true,patrolTarget:null,
+  squadMission:faction==="northline"?"secure_route":faction==="commune"?"infiltrate_and_ambush":"raid_and_extract",
+  alertState:"unaware"
  };
 }
 

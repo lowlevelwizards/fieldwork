@@ -1,14 +1,14 @@
-import { GameState } from "./game.js?v=11e-combat-authority-team-response-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=11e-combat-authority-team-response-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=11e-combat-authority-team-response-20260731";
-import { PerceptionSystem } from "./perception.js?v=11e-combat-authority-team-response-20260731";
-import { CombatSystem } from "./combat.js?v=11e-combat-authority-team-response-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=11e-combat-authority-team-response-20260731";
-import { WoundSystem } from "./wound-system.js?v=11e-combat-authority-team-response-20260731";
-import { MedicalSystem } from "./medical-system.js?v=11e-combat-authority-team-response-20260731";
-import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=11e-combat-authority-team-response-20260731";
-import { TacticalFrontSystem } from "./tactical-front.js?v=11e-combat-authority-team-response-20260731";
-import { TeamResponseSystem } from "./team-response.js?v=11e-combat-authority-team-response-20260731";
+import { GameState } from "./game.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { PerceptionSystem } from "./perception.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { CombatSystem } from "./combat.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { WoundSystem } from "./wound-system.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { MedicalSystem } from "./medical-system.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { TacticalFrontSystem } from "./tactical-front.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { TeamResponseSystem } from "./team-response.js?v=12a-unified-ai-authority-doctrine-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor({scenario="operations"}={}) {
