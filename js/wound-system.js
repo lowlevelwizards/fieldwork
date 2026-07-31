@@ -27,7 +27,10 @@ function hitRegion(target,impact){
 }
 
 export class WoundSystem{
-  constructor(game){this.game=game;this.recent=[];this.ensure(game.operator);}
+  constructor(game){
+    this.game=game;this.recent=[];this.ensure(game.operator);
+    for(const actor of game.actors??[])this.ensure(actor);
+  }
 
   ensure(target){
     target.medical ??={
@@ -127,15 +130,18 @@ export class WoundSystem{
     m.condition=next;
     m.unconscious=next==="unconscious";
     m.dead=next==="dead";
+    target.medicalState=m.dead?"dead":m.unconscious?"unconscious":next;
     if(m.dead){
-      target.condition="dead";target.vx=0;target.vy=0;target.workPose="dead";target.medicalPose="dead";
+      target.condition="dead";target.vx=0;target.vy=0;target.moveTarget=null;
+      target.workPose="dead";target.medicalPose="dead";target.operationPausedByEncounter=true;
     }else if(m.unconscious){
-      target.condition="incapacitated";target.vx=0;target.vy=0;target.workPose="downed";target.medicalPose="unconscious";
+      target.condition="incapacitated";target.vx=0;target.vy=0;target.moveTarget=null;
+      target.workPose="downed";target.medicalPose="unconscious";target.operationPausedByEncounter=true;
     }else if(next==="critical"){
       target.medicalPose="critical";
-      if(target.operationId)target.workPose="crawl";
+      target.workPose="crawl";
     }else{
-      target.medicalPose=null;
+      target.medicalPose=next==="serious"?"wounded":next==="wounded"?"wounded":null;
       if(target.operationId&&target.condition==="incapacitated")target.condition="active";
     }
 
@@ -145,6 +151,49 @@ export class WoundSystem{
       else if(next==="unconscious")this.game.pushMessage(`${label} is unconscious`,2.5);
       else if(next==="dead")this.game.pushMessage(`${label} has died`,2.8);
     }
+  }
+
+
+  seedWound(target,{region="legs",severity="moderate",controlled=false,label=null}={}){
+    const medical=this.ensure(target);
+    if(medical.wounds.some(w=>w.seededLabel===label&&label))return medical.wounds.find(w=>w.seededLabel===label);
+    const profile=SEVERITY[severity]??SEVERITY.moderate;
+    const wound={
+      id:`wound_${target.id}_${medical.wounds.length+1}`,
+      region,severity,
+      bleedingRate:controlled?0:profile.bleeding,
+      shock:profile.shock,
+      pain:profile.pain,
+      controlled,
+      treatment:controlled?"bandage":null,
+      seededLabel:label
+    };
+    medical.wounds.push(wound);
+    medical.shock=clamp(Math.max(medical.shock,profile.shock),0,100);
+    medical.pain=clamp(Math.max(medical.pain,profile.pain),0,100);
+    medical.bleedingRate=medical.wounds.reduce((sum,w)=>sum+(w.controlled?0:w.bleedingRate),0);
+    this.#derive(target,true);
+    return wound;
+  }
+
+  getAssessment(target){
+    const medical=this.ensure(target);
+    const active=medical.wounds.filter(w=>!w.controlled);
+    const controlled=medical.wounds.filter(w=>w.controlled);
+    const worst=[...active].sort((a,b)=>({catastrophic:4,severe:3,moderate:2,minor:1}[b.severity]-({catastrophic:4,severe:3,moderate:2,minor:1}[a.severity])))[0];
+    return {
+      condition:medical.condition,
+      conscious:!medical.unconscious&&!medical.dead,
+      dead:medical.dead,
+      bleeding:medical.bleedingRate,
+      blood:Math.round(medical.blood),
+      shock:Math.round(medical.shock),
+      pain:Math.round(medical.pain),
+      worst,
+      active,
+      controlled,
+      need:this.getTreatmentNeed(target)
+    };
   }
 
   getTreatmentNeed(target){

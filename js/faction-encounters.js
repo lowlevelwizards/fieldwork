@@ -1,3 +1,4 @@
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c-casualty-states-aid-movement-20260731";
 const RELATIONSHIPS = {
   "commune:northline": -22,
   "commune:freelancers": -34,
@@ -304,7 +305,7 @@ export class FactionEncounterSystem{
       }else if(reaction==="take_cover"){
         actor.currentAction="Taking cover";actor.currentTask="Moving toward nearby cover";actor.workPose="brace";
         const cover=this.findCover(actor,otherCenter);
-        if(cover){actor.x+=(cover.x-actor.x)*.035;actor.y+=(cover.y-actor.y)*.035;}
+        if(cover)moveActorToward(actor,cover,1/60,{speedMultiplier:.48,arrivalRadius:18,task:"Moving to cover",pose:"walk"});
       }else if(reaction==="block"){
         actor.currentAction="Blocking route";actor.currentTask="Blocking access to the work site";actor.workPose="brace";
       }else if(reaction==="protect"){
@@ -314,11 +315,14 @@ export class FactionEncounterSystem{
       }else if(reaction==="flank"){
         actor.currentAction="Flanking contact";actor.currentTask="Moving for a side angle";actor.workPose="walk";
         const dx=otherCenter.x-actor.x,dy=otherCenter.y-actor.y,d=Math.max(1,Math.hypot(dx,dy));
-        const side=i%2?1:-1;actor.x+=(-dy/d)*side*.7;actor.y+=(dx/d)*side*.7;
+        const side=i%2?1:-1;
+        const flankTarget={x:actor.x+(-dy/d)*side*110,y:actor.y+(dx/d)*side*110};
+        moveActorToward(actor,flankTarget,1/60,{speedMultiplier:.55,arrivalRadius:12,task:"Flanking contact",pose:"walk"});
       }else if(reaction==="retreat"||reaction==="disengage"){
         actor.currentAction="Disengaging";actor.currentTask="Breaking contact";actor.workPose="walk";
         const dx=actor.x-otherCenter.x,dy=actor.y-otherCenter.y,d=Math.max(1,Math.hypot(dx,dy));
-        actor.x+=dx/d*1.1;actor.y+=dy/d*1.1;
+        const retreatTarget={x:actor.x+dx/d*150,y:actor.y+dy/d*150};
+        moveActorToward(actor,retreatTarget,1/60,{speedMultiplier:.62,arrivalRadius:12,task:"Breaking contact",pose:"walk"});
       }
       actor.groundY=actor.y+actor.radius;
     }
@@ -350,6 +354,7 @@ export class FactionEncounterSystem{
     faceToward(challenger,target);faceToward(target,challenger);
 
     for(const actor of [...a.actors,...b.actors]){
+      if(isImmobileCasualty(actor)||actor.beingDragged){stopActor(actor,actor.medical?.dead?"dead":"downed");continue;}
       actor.encounterState=encounter.state;
       actor.encounterReason=encounter.reason;
       actor.encounterId=encounter.id;
@@ -378,11 +383,13 @@ export class FactionEncounterSystem{
   }
 
   placeBlocker(challenger,target){
+    if(isImmobileCasualty(challenger)||challenger.beingDragged){stopActor(challenger);return;}
     const dx=target.x-challenger.x,dy=target.y-challenger.y,d=Math.max(1,Math.hypot(dx,dy));
-    const desiredX=target.x-dx/d*54,desiredY=target.y-dy/d*54;
-    challenger.x+=(desiredX-challenger.x)*0.08;
-    challenger.y+=(desiredY-challenger.y)*0.08;
-    challenger.groundY=challenger.y+challenger.radius;
+    const desired={x:target.x-dx/d*74,y:target.y-dy/d*74};
+    const arrived=moveActorToward(challenger,desired,1/60,{
+      speedMultiplier:.5,arrivalRadius:12,task:"Moving to block the route",pose:"walk"
+    });
+    if(arrived){challenger.workPose="brace";challenger.currentTask="Blocking the route";}
   }
 
   chooseYield(encounter,a,b){

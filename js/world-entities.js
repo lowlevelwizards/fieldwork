@@ -1,4 +1,4 @@
-import { getItemDefinition } from "../data/items.js?v=081-perception-presentation-20260730";
+import { getItemDefinition } from "../data/items.js?v=10c-casualty-states-aid-movement-20260731";
 
 const ITEM_SIZES = {
   radio_battery: [28, 18],
@@ -175,20 +175,39 @@ export function getAvailableAction(entity, game) {
   const held = game.getHeldItem();
 
   if (entity.type === "actor") {
-    if (entity.id === "worker_ada") {
-      if (!entity.assessed) return { id: "assess", label: "Assess", priority: ACTION_PRIORITY.CARE };
-      if (held?.definitionId === "bandage" && !game.incident.bandageUsed) return { id: "use_bandage", label: "Bandage", priority: ACTION_PRIORITY.USE_MISSION_ITEM };
-      if (held?.definitionId === "water_bottle" && !game.incident.waterUsed) return { id: "give_water", label: "Give Water", priority: ACTION_PRIORITY.USE_MISSION_ITEM };
-      if (game.incident.bandageUsed && !game.incident.workerSheltered && !game.assistedActorId) return { id: "assist", label: "Assist", priority: ACTION_PRIORITY.CARE };
-      if (game.assistedActorId === entity.id) return { id: "release_assist", label: "Let Go", priority: ACTION_PRIORITY.CARE };
-      const encounter = game.encounters?.getActorEncounter?.(entity.id);
-    return {
-      id: "talk",
-      label: encounter ? (encounter.state === "challenging" ? "Respond" : encounter.state === "blocking" ? "Confront" : "Talk") : "Talk",
-      priority: encounter ? ACTION_PRIORITY.OBJECTIVE : ACTION_PRIORITY.TALK
-    };
+    const assessment=game.wounds?.getAssessment?.(entity);
+    const nearbyMedical=game.medical?.getTreatmentActionFor?.(entity);
+
+    if(assessment?.dead){
+      return {id:"assess_casualty",label:`${entity.name} — Dead`,priority:ACTION_PRIORITY.CARE};
     }
-    return { id: "talk", label: "Talk", priority: ACTION_PRIORITY.TALK };
+    if(nearbyMedical){
+      return {
+        id:"treat_casualty",
+        label:nearbyMedical.disabled?nearbyMedical.label:nearbyMedical.label,
+        disabled:Boolean(nearbyMedical.disabled),
+        priority:ACTION_PRIORITY.USE_MISSION_ITEM+8
+      };
+    }
+    if(assessment&&["critical","unconscious"].includes(assessment.condition)){
+      return {id:"drag_casualty",label:`Drag ${entity.name}`,priority:ACTION_PRIORITY.CARE+5};
+    }
+
+    if(entity.id==="worker_ada"){
+      if(held?.definitionId==="water_bottle"&&!game.incident.waterUsed)return {id:"give_water",label:"Give Water",priority:ACTION_PRIORITY.USE_MISSION_ITEM};
+      if(game.incident.bandageUsed&&!game.incident.workerSheltered&&!game.assistedActorId)return {id:"assist",label:"Help Ada Walk",priority:ACTION_PRIORITY.CARE};
+    }
+
+    if(assessment&&assessment.condition!=="healthy"){
+      return {id:"assess_casualty",label:`Assess ${entity.name}`,priority:ACTION_PRIORITY.CARE};
+    }
+
+    const encounter=game.encounters?.getActorEncounter?.(entity.id);
+    return {
+      id:"talk",
+      label:encounter?(encounter.state==="challenging"?"Respond":encounter.state==="blocking"?"Confront":"Talk"):"Talk",
+      priority:encounter?ACTION_PRIORITY.OBJECTIVE:ACTION_PRIORITY.TALK
+    };
   }
 
   if (entity.type === "door") {

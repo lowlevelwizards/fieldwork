@@ -1,3 +1,4 @@
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c-casualty-states-aid-movement-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -242,8 +243,9 @@ export class AICombatSystem{
       actor.vx=0;actor.vy=0;actor.burstRemaining=0;actor.fireHeld=false;
       return;
     }
-    if(actor.condition==="incapacitated"||actor.condition==="dead"){
-      actor.vx=0;actor.vy=0;actor.operationPausedByEncounter=true;
+    if(isImmobileCasualty(actor)||actor.beingDragged){
+      stopActor(actor,actor.medical?.dead?"dead":"downed");
+      actor.operationPausedByEncounter=true;
       return;
     }
 
@@ -276,11 +278,7 @@ export class AICombatSystem{
         actor.combatAimAngle+=shortestAngle(actor.combatAimAngle,desired)*(1-Math.exp(-delta*3.5));
         actor.lookAngle=actor.combatAimAngle;
         const d=Math.hypot(memory.x-actor.x,memory.y-actor.y);
-        if(d>360){
-          actor.x+=Math.cos(desired)*actor.moveSpeed*.16*delta;
-          actor.y+=Math.sin(desired)*actor.moveSpeed*.16*delta;
-          actor.groundY=actor.y+actor.radius;
-        }
+        if(d>360)moveActorToward(actor,memory,delta,{speedMultiplier:.16,arrivalRadius:350,task:"Searching last known position",pose:"walk"});
       }else{
         actor.lastKnownEnemyPosition=null;
         if(actor.moraleState==="steady"&&!actor.encounterId)actor.operationPausedByEncounter=false;
@@ -303,24 +301,20 @@ export class AICombatSystem{
     // Preserve a useful rifle engagement distance instead of collapsing into CQB.
     if(actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"){
       if(targetDistance<CONFIG.preferredMinRange){
-        actor.x-=Math.cos(desired)*actor.moveSpeed*.34*delta;
-        actor.y-=Math.sin(desired)*actor.moveSpeed*.34*delta;
-        actor.groundY=actor.y+actor.radius;
+        const fallback={x:actor.x-Math.cos(desired)*145,y:actor.y-Math.sin(desired)*145};
+        moveActorToward(actor,fallback,delta,{speedMultiplier:.34,arrivalRadius:12,task:"Opening distance under fire",pose:"walk"});
         actor.currentTask="Opening distance under fire";
         actor.aimReadiness=Math.max(.35,actor.aimReadiness-delta*.4);
       }else if(targetDistance>CONFIG.preferredMaxRange&&targetDistance<760&&actor.aimReadiness<.62){
-        actor.x+=Math.cos(desired)*actor.moveSpeed*.12*delta;
-        actor.y+=Math.sin(desired)*actor.moveSpeed*.12*delta;
-        actor.groundY=actor.y+actor.radius;
+        moveActorToward(actor,target,delta,{speedMultiplier:.12,arrivalRadius:CONFIG.preferredMaxRange,task:"Advancing under observation",pose:"walk"});
         actor.currentTask="Advancing under observation";
       }
     }
 
     if(actor.moraleState==="breaking"){
       const dx=actor.x-target.x,dy=actor.y-target.y,d=Math.max(1,Math.hypot(dx,dy));
-      actor.x+=dx/d*actor.moveSpeed*.42*delta;
-      actor.y+=dy/d*actor.moveSpeed*.42*delta;
-      actor.groundY=actor.y+actor.radius;
+      const retreat={x:actor.x+dx/d*180,y:actor.y+dy/d*180};
+      moveActorToward(actor,retreat,delta,{speedMultiplier:.42,arrivalRadius:12,task:"Breaking contact",pose:"walk"});
       return;
     }
 

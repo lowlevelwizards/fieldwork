@@ -1,11 +1,11 @@
-import { GameState } from "./game.js?v=10b-medical-gameplay-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=10b-medical-gameplay-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=10b-medical-gameplay-20260731";
-import { PerceptionSystem } from "./perception.js?v=10b-medical-gameplay-20260731";
-import { CombatSystem } from "./combat.js?v=10b-medical-gameplay-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=10b-medical-gameplay-20260731";
-import { WoundSystem } from "./wound-system.js?v=10b-medical-gameplay-20260731";
-import { MedicalSystem } from "./medical-system.js?v=10b-medical-gameplay-20260731";
+import { GameState } from "./game.js?v=10c-casualty-states-aid-movement-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=10c-casualty-states-aid-movement-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=10c-casualty-states-aid-movement-20260731";
+import { PerceptionSystem } from "./perception.js?v=10c-casualty-states-aid-movement-20260731";
+import { CombatSystem } from "./combat.js?v=10c-casualty-states-aid-movement-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=10c-casualty-states-aid-movement-20260731";
+import { WoundSystem } from "./wound-system.js?v=10c-casualty-states-aid-movement-20260731";
+import { MedicalSystem } from "./medical-system.js?v=10c-casualty-states-aid-movement-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -15,6 +15,13 @@ export class ContinuousGameState extends GameState {
     this.operator.targetLookAngle = 0;
     this.combat = new CombatSystem(this);
     this.wounds = new WoundSystem(this);
+    const ada=this.actors.find(actor=>actor.id==="worker_ada");
+    if(ada){
+      ada.factionId="commune";
+      ada.role="Shelter Worker";
+      this.wounds.seedWound(ada,{region:"legs",severity:"moderate",controlled:false,label:"ada_initial_leg_wound"});
+      ada.currentTask="Injured beside the truck";
+    }
     this.medical = new MedicalSystem(this);
     this.aiCombat = new AICombatSystem(this);
     this.perception = new PerceptionSystem(this);
@@ -104,7 +111,8 @@ export class ContinuousGameState extends GameState {
     const relative=Math.abs(signedRelative);
     const directionalMultiplier=relative<Math.PI/4?1:relative<Math.PI*3/4?.74:.58;
 
-    const aimCap=this.combat.movementSpeedCap??1;
+    const draggingCap=this.medical?.playerDraggingId?.38:1;
+    const aimCap=Math.min(this.combat.movementSpeedCap??1,draggingCap);
     this.operator.moveSpeed=originalSpeed
       *this.getEnvironmentSpeedMultiplier()
       *this.wounds.getMovementMultiplier(this.operator)

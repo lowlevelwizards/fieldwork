@@ -1,3 +1,4 @@
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c-casualty-states-aid-movement-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -32,6 +33,8 @@ export class MedicalSystem{
   constructor(game){
     this.game=game;
     this.playerAction=null;
+    this.playerDraggingId=null;
+    this.playerSelectedPatientId=null;
     this.reservations=new Map();
   }
 
@@ -182,12 +185,10 @@ export class MedicalSystem{
 
       const d=distance(actor,patient);
       if(patient.id!==actor.id&&d>52){
-        const angle=Math.atan2(patient.y-actor.y,patient.x-actor.x);
-        actor.x+=Math.cos(angle)*actor.moveSpeed*.3*delta;
-        actor.y+=Math.sin(angle)*actor.moveSpeed*.3*delta;
-        actor.groundY=actor.y+actor.radius;
-        actor.currentTask=`Moving to ${patient.name}`;
-        actor.workPose="walk";
+        moveActorToward(actor,patient,delta,{
+          speedMultiplier:.3,arrivalRadius:48,
+          task:`Walking to ${patient.name}`,pose:"walk"
+        });
         return;
       }
 
@@ -210,30 +211,129 @@ export class MedicalSystem{
     return this.game.inventory.getItems().find(item=>item.definitionId===type&&item.condition!=="wet")??null;
   }
 
-  getPlayerAction(){
-    if(this.playerAction)return {label:"Treating…",disabled:true};
-    const need=this.game.wounds.getTreatmentNeed(this.game.operator);
-    if(!need)return null;
-    const item=this.getPlayerSupply(need.type);
-    if(!item)return null;
-    return {label:need.label,type:need.type,itemId:item.id};
+  getNearbyPatient(){
+    const operator=this.game.operator;
+    let best=null;
+    for(const actor of this.game.actors){
+      if(actor.medical?.dead&&distance(operator,actor)>105)continue;
+      const d=distance(operator,actor);
+      if(d>108)continue;
+      const assessment=this.game.wounds.getAssessment(actor);
+      if(!assessment.active.length&&!assessment.dead&&!assessment.conscious)continue;
+      const score=(assessment.dead?15:assessment.condition==="unconscious"?120:assessment.condition==="critical"?105:assessment.condition==="serious"?70:35)-d*.15;
+      if(!best||score>best.score)best={actor,assessment,d,score};
+    }
+    return best;
   }
 
-  startPlayerTreatment(){
-    const action=this.getPlayerAction();
+  getTreatmentActionFor(patient){
+    if(!patient||patient.medical?.dead)return null;
+    const need=this.game.wounds.getTreatmentNeed(patient);
+    if(!need)return null;
+    const item=this.getPlayerSupply(need.type);
+    if(!item)return {
+      label:`NEEDS ${need.type.replaceAll("_"," ").toUpperCase()}`,
+      disabled:true,
+      patientId:patient.id,
+      type:need.type
+    };
+    const count=this.game.inventory.getItems().filter(candidate=>candidate.definitionId===need.type&&candidate.condition!=="wet").length;
+    return {
+      label:`${need.label} · ${count}`,
+      type:need.type,itemId:item.id,patientId:patient.id,
+      patientName:patient.id===this.game.operator.id?"SELF":patient.name
+    };
+  }
+
+  getPlayerAction(){
+    if(this.playerDraggingId)return {label:"DROP CASUALTY",type:"drop_casualty"};
+    if(this.playerAction)return {label:"Treating…",disabled:true};
+
+    const nearby=this.getNearbyPatient();
+    if(nearby){
+      const treatment=this.getTreatmentActionFor(nearby.actor);
+      if(treatment)return treatment;
+      if(nearby.assessment.dead||nearby.assessment.condition==="unconscious"||nearby.assessment.condition==="critical"){
+        return {label:`DRAG ${nearby.actor.name}`.toUpperCase(),type:"drag",patientId:nearby.actor.id};
+      }
+      return {label:`ASSESS ${nearby.actor.name}`.toUpperCase(),type:"assess",patientId:nearby.actor.id};
+    }
+
+    return this.getTreatmentActionFor(this.game.operator);
+  }
+
+  startPlayerTreatment(action=this.getPlayerAction()){
     if(!action||action.disabled)return false;
+    if(action.type==="drag")return this.startDrag(action.patientId);
+    if(action.type==="drop_casualty")return this.stopDrag();
+    if(action.type==="assess"){
+      const patient=this.game.actors.find(actor=>actor.id===action.patientId);
+      if(patient)this.game.assessmentRequest={actor:patient,text:this.formatAssessment(patient)};
+      return Boolean(patient);
+    }
+
+    const patient=action.patientId===this.game.operator.id
+      ?this.game.operator
+      :this.game.actors.find(actor=>actor.id===action.patientId);
+    if(!patient)return false;
     this.game.combat.toggleAim(false);
     this.playerAction={
+      patientId:patient.id,
       itemType:action.type,
       itemId:action.itemId,
+      label:action.label,
       progress:0,
       duration:TREATMENT_DURATION[action.type]??3
     };
     this.game.operator.lockedByInteraction=true;
     this.game.operator.workPose="medical";
     this.game.operator.searchPose=1;
-    this.game.pushMessage(action.label,1.2);
+    this.game.pushMessage(`${action.label} — ${patient.id===this.game.operator.id?"self":patient.name}`,1.4);
     return true;
+  }
+
+  formatAssessment(patient){
+    const assessment=this.game.wounds.getAssessment(patient);
+    if(assessment.dead)return `${patient.name}: Dead. No treatment possible.`;
+    const wounds=assessment.active.map(w=>`${w.severity} ${w.region} bleeding`).join("; ")||"No uncontrolled bleeding";
+    const need=assessment.need?assessment.need.type.replaceAll("_"," "):"observation";
+    return `${patient.name}: ${assessment.condition.toUpperCase()}. ${wounds}. Blood ${assessment.blood}%. Shock ${assessment.shock}%. Needs ${need}.`;
+  }
+
+  startDrag(patientId){
+    if(this.playerDraggingId||this.game.operator.carriedItemInstanceId)return false;
+    const patient=this.game.actors.find(actor=>actor.id===patientId);
+    if(!patient)return false;
+    const assessment=this.game.wounds.getAssessment(patient);
+    if(!assessment.dead&&!["critical","unconscious"].includes(assessment.condition))return false;
+    this.playerDraggingId=patient.id;
+    patient.beingDragged=true;
+    patient.operationPausedByEncounter=true;
+    patient.vx=0;patient.vy=0;patient.moveTarget=null;
+    this.game.combat.toggleAim(false);
+    this.game.pushMessage(`Dragging ${patient.name}`,1.5);
+    return true;
+  }
+
+  stopDrag(){
+    const patient=this.game.actors.find(actor=>actor.id===this.playerDraggingId);
+    if(patient)patient.beingDragged=false;
+    this.playerDraggingId=null;
+    this.game.pushMessage("Casualty released",1.2);
+    return true;
+  }
+
+  updateDrag(delta){
+    if(!this.playerDraggingId)return;
+    const patient=this.game.actors.find(actor=>actor.id===this.playerDraggingId);
+    if(!patient){this.playerDraggingId=null;return;}
+    const operator=this.game.operator;
+    const angle=operator.lookAngle??0;
+    const anchor={x:operator.x-Math.cos(angle)*48,y:operator.y-Math.sin(angle)*48+8};
+    trailActorToward(patient,anchor,delta,{maximumSpeed:Math.max(80,operator.moveSpeed*.72),pose:"dragged"});
+    patient.beingDragged=true;
+    patient.operationPausedByEncounter=true;
+    patient.vx=0;patient.vy=0;
   }
 
   updatePlayer(delta){
@@ -255,8 +355,13 @@ export class MedicalSystem{
     if(index>=0)this.game.backpack.itemInstanceIds.splice(index,1);
     const entityIndex=this.game.entities.findIndex(entity=>entity.id===action.itemId);
     if(entityIndex>=0)this.game.entities.splice(entityIndex,1);
-    const result=this.game.wounds.applyTreatment(this.game.operator,action.itemType,{source:this.game.operator});
-    if(result.ok)this.game.pushMessage(result.label,1.8);
+    const patient=action.patientId===this.game.operator.id
+      ?this.game.operator
+      :this.game.actors.find(actor=>actor.id===action.patientId);
+    const result=patient
+      ?this.game.wounds.applyTreatment(patient,action.itemType,{source:this.game.operator})
+      :{ok:false,reason:"Patient unavailable"};
+    if(result.ok)this.game.pushMessage(`${result.label} — ${patient.id===this.game.operator.id?"self":patient.name}`,1.8);
     this.playerAction=null;
     this.game.operator.lockedByInteraction=false;
     this.game.operator.workPose=null;
@@ -264,6 +369,7 @@ export class MedicalSystem{
   }
 
   update(delta){
+    this.updateDrag(delta);
     this.updatePlayer(delta);
     for(const actor of this.game.actors){
       if(actor.operationId&&actor.factionId)this.updateActor(actor,delta);

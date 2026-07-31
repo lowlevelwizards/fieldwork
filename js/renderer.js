@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10b-medical-gameplay-20260731";
-import { drawOperator } from "./presentation/operator-renderer.js?v=10b-medical-gameplay-20260731";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10b-medical-gameplay-20260731";
-import { findEntity } from "./world-entities.js?v=10b-medical-gameplay-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10c-casualty-states-aid-movement-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=10c-casualty-states-aid-movement-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10c-casualty-states-aid-movement-20260731";
+import { findEntity } from "./world-entities.js?v=10c-casualty-states-aid-movement-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -170,6 +170,7 @@ export class Renderer{
           this.#drawWorkAccessory(ctx,actor);
           this.#drawEncounterIndicator(ctx,actor);
           this.#drawAICombatIndicator(ctx,actor);
+          this.#drawCasualtyState(ctx,actor);
         }catch(error){
           console.error("Fieldwork actor render failed",{actorId:actor.id,kitId:actor.kitId,error});
           this.#drawActorFallback(ctx,actor);
@@ -201,9 +202,10 @@ export class Renderer{
  #applyWorkPose(ctx,actor){
   const phase=actor.workPhase??0;
   ctx.translate(actor.x,actor.y);
-  if(actor.workPose==="dead"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.translate(-actor.x,-actor.y);ctx.translate(0,14);}
-  else if(actor.workPose==="downed"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.translate(-actor.x,-actor.y);ctx.translate(0,10);}
-  else if(actor.workPose==="crawl"){ctx.translate(0,12);ctx.rotate(Math.sin(phase*1.2)*.025);}
+  if(actor.workPose==="dead"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.scale(.94,.72);ctx.translate(-actor.x,-actor.y);ctx.translate(0,18);}
+  else if(actor.workPose==="downed"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.scale(.98,.78);ctx.translate(-actor.x,-actor.y);ctx.translate(Math.sin(phase*.9)*.7,13);}
+  else if(actor.workPose==="dragged"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.scale(.98,.76);ctx.translate(-actor.x,-actor.y);ctx.translate(0,14);}
+  else if(actor.workPose==="crawl"){ctx.translate(0,13);ctx.scale(1,.83);ctx.rotate(Math.sin(phase*1.2)*.025);}
   else if(actor.workPose==="medical"){ctx.translate(0,9);ctx.rotate(Math.sin(phase*3)*.012);}
   else if(actor.workPose==="kneel"){ctx.translate(0,8);ctx.rotate(Math.sin(phase*1.8)*.018);}
   else if(actor.workPose==="inspect"){ctx.rotate(Math.sin(phase*2.2)*.035);ctx.translate(0,2);}
@@ -297,6 +299,34 @@ export class Renderer{
     ctx.strokeStyle=color;ctx.globalAlpha=.55;ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(actor.x,y,9+Math.sin((actor.workPhase??0)*4)*1.5,0,Math.PI*2);ctx.stroke();
    }
+  }finally{ctx.restore();}
+ }
+
+ #drawCasualtyState(ctx,actor){
+  const medical=actor.medical;if(!medical||medical.condition==="healthy")return;
+  ctx.save();
+  try{
+    const x=actor.x,y=actor.y-98;
+    const state=medical.dead?"DEAD":medical.unconscious?"UNCONSCIOUS":medical.condition.toUpperCase();
+    const color=medical.dead?"#747873":medical.unconscious?"#b9b6a9":medical.condition==="critical"?"#d94f42":medical.condition==="serious"?"#df8c3d":"#d5bc58";
+    ctx.font="800 9px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillStyle="rgba(18,25,21,.88)";
+    const width=Math.max(58,ctx.measureText(state).width+18);
+    ctx.beginPath();ctx.roundRect(x-width/2,y-8,width,16,8);ctx.fill();
+    ctx.fillStyle=color;ctx.fillText(state,x,y);
+    if(medical.bleedingRate>.05&&!medical.dead){
+      ctx.fillStyle="#b84138";
+      ctx.beginPath();ctx.arc(actor.x+13,actor.y+22,3+Math.sin((actor.workPhase??0)*4)*.5,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.moveTo(actor.x+13,actor.y+25);ctx.lineTo(actor.x+10,actor.y+32);ctx.lineTo(actor.x+16,actor.y+32);ctx.closePath();ctx.fill();
+    }
+    if(medical.unconscious&&!medical.dead){
+      ctx.strokeStyle="rgba(220,225,211,.55)";ctx.lineWidth=2;
+      const breath=8+Math.sin(performance.now()*.003)*2;
+      ctx.beginPath();ctx.arc(actor.x,actor.y+18,breath,0,Math.PI);ctx.stroke();
+    }
+    if(actor.beingDragged){
+      ctx.fillStyle="#e59a47";ctx.font="800 8px system-ui";ctx.fillText("DRAGGED",actor.x,actor.y+48);
+    }
   }finally{ctx.restore();}
  }
 

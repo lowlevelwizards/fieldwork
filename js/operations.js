@@ -1,4 +1,5 @@
-import { findEntity } from "./world-entities.js?v=081-perception-presentation-20260730";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c-casualty-states-aid-movement-20260731";
+import { findEntity } from "./world-entities.js?v=10c-casualty-states-aid-movement-20260731";
 
 const FACTIONS={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const PLAYER_FACTION="commune";
@@ -65,6 +66,7 @@ export class OperationSystem{
  completeTask(op,index){if(!op||op.tasks[index]?.status==="completed")return;op.tasks[index].status="completed";if(op.tasks[index+1])op.tasks[index+1].status="in_progress";}
  updateActor(actor,delta){
   const def=MEMBER_LOOKUP.get(actor.id);if(!def)return;
+  if(isImmobileCasualty(actor)||actor.beingDragged){stopActor(actor,actor.medical?.dead?"dead":"downed");return;}
   if(actor.operationPausedByEncounter){
    actor.vx=0;actor.vy=0;actor.groundY=actor.y+actor.radius;
    return;

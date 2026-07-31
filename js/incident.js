@@ -1,4 +1,4 @@
-import { findEntity } from "./world-entities.js?v=081-perception-presentation-20260730";
+import { findEntity } from "./world-entities.js?v=10c-casualty-states-aid-movement-20260731";
 
 const ADA_SEAT = { x: 1265, y: 1238 };
 
@@ -24,6 +24,7 @@ export class IncidentController {
     const worker = this.worker;
     if (!worker) return;
 
+    if(worker.medical?.dead||worker.medical?.unconscious)return;
     if (!this.bandageUsed && this.elapsed > 150 && worker.condition === "bleeding") {
       worker.severity = "weak";
       worker.currentTask = "Growing weaker";
@@ -92,6 +93,7 @@ export class IncidentController {
     const worker = this.worker;
     if (!worker || !this.consumeHeld("bandage")) return false;
     this.bandageUsed = true;
+    this.game.wounds?.applyTreatment?.(worker,"bandage",{source:this.game.operator});
     worker.condition = "injured";
     worker.severity = "stable";
     worker.needs = worker.needs.filter(need => need !== "bandage");

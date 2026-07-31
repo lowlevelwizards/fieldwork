@@ -1,5 +1,5 @@
-import { findEntity, getAvailableAction } from "./world-entities.js?v=095-interaction-trust-combat-state-20260730";
-import { transferItem } from "./item-locations.js?v=095-interaction-trust-combat-state-20260730";
+import { findEntity, getAvailableAction } from "./world-entities.js?v=10c-casualty-states-aid-movement-20260731";
+import { transferItem } from "./item-locations.js?v=10c-casualty-states-aid-movement-20260731";
 
 function distanceToEntity(operator, entity) {
   const cx = entity.x + entity.width / 2;
@@ -89,6 +89,16 @@ export class InteractionSystem {
     const entity = findEntity([...this.game.entities, ...this.game.actors], this.targetId);
     if (!entity) return false;
     const action = this.activeAction.id;
+
+    if(action==="assess_casualty"){
+      this.game.assessmentRequest={actor:entity,text:this.game.medical.formatAssessment(entity)};
+      return true;
+    }
+    if(action==="treat_casualty"){
+      const treatment=this.game.medical.getTreatmentActionFor(entity);
+      return treatment&&!treatment.disabled?this.game.medical.startPlayerTreatment(treatment):false;
+    }
+    if(action==="drag_casualty")return this.game.medical.startDrag(entity.id);
 
     if (action === "assess") {
       entity.assessed = true;

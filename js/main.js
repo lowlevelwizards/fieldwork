@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=10b1-aim-escalation-hotfix-20260731";
-import { ContinuousGameState } from "./continuous-game-state.js?v=10b1-aim-escalation-hotfix-20260731";
-import { InputController, CombatInputController } from "./input.js?v=10b1-aim-escalation-hotfix-20260731";
-import { Renderer } from "./renderer.js?v=10b1-aim-escalation-hotfix-20260731";
-import { getItemDefinition } from "../data/items.js?v=10b1-aim-escalation-hotfix-20260731";
-import { findEntity } from "./world-entities.js?v=10b1-aim-escalation-hotfix-20260731";
-import { validateItemLocations } from "./item-locations.js?v=10b1-aim-escalation-hotfix-20260731";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=10b1-aim-escalation-hotfix-20260731";
+import { Camera } from "./camera.js?v=10c-casualty-states-aid-movement-20260731";
+import { ContinuousGameState } from "./continuous-game-state.js?v=10c-casualty-states-aid-movement-20260731";
+import { InputController, CombatInputController } from "./input.js?v=10c-casualty-states-aid-movement-20260731";
+import { Renderer } from "./renderer.js?v=10c-casualty-states-aid-movement-20260731";
+import { getItemDefinition } from "../data/items.js?v=10c-casualty-states-aid-movement-20260731";
+import { findEntity } from "./world-entities.js?v=10c-casualty-states-aid-movement-20260731";
+import { validateItemLocations } from "./item-locations.js?v=10c-casualty-states-aid-movement-20260731";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=10c-casualty-states-aid-movement-20260731";
 
-const BUILD_ID="1.0B.1";
+const BUILD_ID="1.0C";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -65,7 +65,9 @@ function updateInteractionUI(){
   searchFill.style.width=`${Math.round((entity?.searchProgress??0)*100)}%`;
  }else if(treating){
   searchStatus.hidden=false;
-  searchLabel.textContent="Treating wound…";
+  const treatment=game.medical.playerAction;
+  const patient=treatment?.patientId===game.operator.id?game.operator:game.actors.find(actor=>actor.id===treatment?.patientId);
+  searchLabel.textContent=`${treatment?.label??"Treating"} — ${patient?.name??"self"}`;
   searchFill.style.width=`${Math.round((game.medical.playerAction?.progress??0)*100)}%`;
  }else{
   searchStatus.hidden=true;
