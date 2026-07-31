@@ -60,7 +60,21 @@ export class CombatSystem{
  toggleAim(force=null){
   if(this.reloading&&force!==false)return;
   this.aiming=force===null?!this.aiming:Boolean(force);
-  if(this.aiming)this.game.operator.targetLookAngle=this.aimAngle;
+  if(this.aiming)this.#updateBodyTarget();
+ }
+ #updateBodyTarget(){
+  const operator=this.game.operator;
+  const bodyAngle=operator.lookAngle??operator.targetLookAngle??this.aimAngle;
+  const difference=shortestAngle(bodyAngle,this.aimAngle);
+  const softLimit=38*Math.PI/180;
+  const hardLimit=58*Math.PI/180;
+  const magnitude=Math.abs(difference);
+  if(magnitude>softLimit){
+   const follow=Math.min(magnitude-softLimit,hardLimit-softLimit);
+   operator.targetLookAngle=bodyAngle+Math.sign(difference)*follow;
+  }else{
+   operator.targetLookAngle=operator.targetLookAngle??bodyAngle;
+  }
  }
  setFireHeld(held){
   this.fireHeld=Boolean(held);
@@ -126,11 +140,10 @@ export class CombatSystem{
   const desiredWeaponAngle=this.aiming
    ? activeAngle
    : lowCarryAngle;
-  this.weaponAngle+=shortestAngle(this.weaponAngle,desiredWeaponAngle)*(1-Math.exp(-delta*15));
+  const weaponFollowRate=this.aiming?10.5:15;
+  this.weaponAngle+=shortestAngle(this.weaponAngle,desiredWeaponAngle)*(1-Math.exp(-delta*weaponFollowRate));
 
-  if(this.aiming){
-   operator.targetLookAngle=this.aimAngle;
-  }
+  if(this.aiming)this.#updateBodyTarget();
 
   const movementTarget=this.movementRatio*WEAPON.movementSpread;
   const targetSpread=WEAPON.baseSpread+movementTarget+this.weatherMinimum;

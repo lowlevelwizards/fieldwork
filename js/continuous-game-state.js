@@ -66,13 +66,11 @@ export class ContinuousGameState extends GameState {
     const inputLength = Math.hypot(move?.x ?? 0, move?.y ?? 0);
     if (inputLength > 0.08 && !this.combat.aiming) {
       this.operator.targetLookAngle = Math.atan2(move.y, move.x);
-    } else if (this.combat.aiming) {
-      this.operator.targetLookAngle = this.combat.aimAngle;
     }
     const current = this.operator.lookAngle ?? this.operator.targetLookAngle ?? 0;
     const target = this.operator.targetLookAngle ?? current;
     const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
-    const smoothing = 1 - Math.exp(-delta * 10);
+    const smoothing = 1 - Math.exp(-delta * (this.combat.aiming ? 6.2 : 10));
     this.operator.lookAngle = current + difference * smoothing;
 
     try {

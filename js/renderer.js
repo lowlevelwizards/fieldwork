@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=092-combat-controls-refactor-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=092-combat-controls-refactor-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=092-combat-controls-refactor-20260730";
-import { findEntity } from "./world-entities.js?v=092-combat-controls-refactor-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=093-combat-feel-ui-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=093-combat-feel-ui-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=093-combat-feel-ui-20260730";
+import { findEntity } from "./world-entities.js?v=093-combat-feel-ui-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -382,11 +382,14 @@ export class Renderer{
    }
    if(!combat.reloading){
     ctx.translate(targetX,targetY);ctx.rotate(angle);
-    ctx.strokeStyle="rgba(250,250,237,.82)";ctx.lineWidth=2.2;ctx.lineCap="round";
-    const height=15;
+    ctx.strokeStyle="rgba(250,250,237,.86)";ctx.lineWidth=2.2;ctx.lineCap="round";ctx.lineJoin="round";
+    // Iron-sight brackets sit on either side of the aim axis and collapse
+    // inward as the weapon settles. Their long edges remain perpendicular
+    // to the shot line instead of stacking along it.
+    const gap=Math.max(7,bracketGap*.62),halfWidth=12,hook=6;
     ctx.beginPath();
-    ctx.moveTo(-bracketGap,-height);ctx.lineTo(-bracketGap-8,-height);ctx.lineTo(-bracketGap-8,height);ctx.lineTo(-bracketGap,height);
-    ctx.moveTo(bracketGap,-height);ctx.lineTo(bracketGap+8,-height);ctx.lineTo(bracketGap+8,height);ctx.lineTo(bracketGap,height);
+    ctx.moveTo(-halfWidth,-gap-hook);ctx.lineTo(-halfWidth,-gap);ctx.lineTo(halfWidth,-gap);ctx.lineTo(halfWidth,-gap-hook);
+    ctx.moveTo(-halfWidth,gap+hook);ctx.lineTo(-halfWidth,gap);ctx.lineTo(halfWidth,gap);ctx.lineTo(halfWidth,gap+hook);
     ctx.stroke();
    }
   }finally{ctx.restore();}

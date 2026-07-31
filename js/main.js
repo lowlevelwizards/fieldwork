@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=092-combat-controls-refactor-20260730";
-import { ContinuousGameState } from "./continuous-game-state.js?v=092-combat-controls-refactor-20260730";
-import { InputController, CombatInputController } from "./input.js?v=092-combat-controls-refactor-20260730";
-import { Renderer } from "./renderer.js?v=092-combat-controls-refactor-20260730";
-import { getItemDefinition } from "../data/items.js?v=092-combat-controls-refactor-20260730";
-import { findEntity } from "./world-entities.js?v=092-combat-controls-refactor-20260730";
-import { validateItemLocations } from "./item-locations.js?v=092-combat-controls-refactor-20260730";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=092-combat-controls-refactor-20260730";
+import { Camera } from "./camera.js?v=093-combat-feel-ui-20260730";
+import { ContinuousGameState } from "./continuous-game-state.js?v=093-combat-feel-ui-20260730";
+import { InputController, CombatInputController } from "./input.js?v=093-combat-feel-ui-20260730";
+import { Renderer } from "./renderer.js?v=093-combat-feel-ui-20260730";
+import { getItemDefinition } from "../data/items.js?v=093-combat-feel-ui-20260730";
+import { findEntity } from "./world-entities.js?v=093-combat-feel-ui-20260730";
+import { validateItemLocations } from "./item-locations.js?v=093-combat-feel-ui-20260730";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=093-combat-feel-ui-20260730";
 
-const BUILD_ID="0.9A.2";
+const BUILD_ID="0.9A.3";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),actionPanel=$("#action-panel"),actionName=$("#action-name"),actionButton=$("#action-button"),actionProgress=$("#action-progress-fill"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -16,7 +16,7 @@ $("#debug-build").textContent=declaredBuild===BUILD_ID?BUILD_ID:`HTML ${declared
 if(declaredBuild!==BUILD_ID){console.error("Fieldwork build mismatch",{html:declaredBuild,javascript:BUILD_ID});setTimeout(()=>alert(`Fieldwork cache mismatch detected.\nHTML: ${declaredBuild}\nJavaScript: ${BUILD_ID}\nReload the page once.`),50);}
 console.info(`Fieldwork ${BUILD_ID} loaded`,{href:location.href,time:new Date().toISOString()});
 
-const camera=new Camera(),game=new ContinuousGameState(),renderer=new Renderer(canvas,camera),input=new InputController({joystickZone:$("#joystick-zone"),joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
+const camera=new Camera(),game=new ContinuousGameState(),renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
 const aimZone=$("#aim-zone"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill");
 let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
 function resizeAndCenter(reason="viewport"){
@@ -74,7 +74,7 @@ function worldAimAngleFromPointer(clientX,clientY){
 }
 
 const combatInput=new CombatInputController({
- aimZone, aimButton, fireButton, canvas, combat:game.combat,
+ touchSurface:gameScreen, aimButton, fireButton, canvas, combat:game.combat, movementInput:input,
  getAimAngle:worldAimAngleFromPointer,
  isBlocked:modalOpen,
  isStarted:()=>started
