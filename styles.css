@@ -529,3 +529,7 @@ h1 {
 /* 1.0C — casualty assessment and treatment clarity */
 .assessment-overlay .overlay-card{border-color:rgba(213,92,73,.42)}
 #interact-button{max-width:190px;white-space:normal;line-height:1.05}
+
+.title-actions{display:grid;gap:12px;margin-top:18px}
+.secondary-button{min-height:52px;border:1px solid rgba(229,154,71,.58);border-radius:18px;background:rgba(27,38,31,.9);color:#f0efe4;font:750 16px system-ui;letter-spacing:.04em}
+.secondary-button:active{transform:scale(.985);background:rgba(229,154,71,.18)}
