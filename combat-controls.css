@@ -74,3 +74,65 @@
 .joystick-base::after{content:"";position:absolute;inset:30px;border:1px solid rgba(238,241,231,.28);border-radius:50%}
 .joystick-knob{width:46px;height:46px;margin:-23px 0 0 -23px;background:rgba(235,239,228,.88)}
 .combat-controls{bottom:calc(14px + env(safe-area-inset-bottom));right:max(12px,env(safe-area-inset-right))}
+
+
+/* 0.9A.5 — interaction trust and reserved bottom control lanes */
+.combat-controls[hidden] { display:none !important; }
+.combat-controls {
+  right:max(12px,env(safe-area-inset-right));
+  bottom:calc(82px + env(safe-area-inset-bottom));
+}
+.interact-button {
+  position:absolute;
+  z-index:40;
+  right:max(12px,env(safe-area-inset-right));
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  width:144px;
+  min-height:56px;
+  padding:8px 13px;
+  border:1px solid rgba(229,154,71,.65);
+  border-radius:17px;
+  background:rgba(28,38,32,.96);
+  color:#f2efe5;
+  box-shadow:0 7px 18px rgba(0,0,0,.24);
+  font:800 .72rem/1.15 system-ui,sans-serif;
+  letter-spacing:.065em;
+  touch-action:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.interact-button[hidden]{display:none}
+.interact-button:active{transform:scale(.97);background:rgba(91,58,29,.97)}
+.aim-button--active,.aim-button[aria-pressed="true"] {
+  background:#d98432 !important;
+  border-color:#ffbd67 !important;
+  color:#172019 !important;
+  box-shadow:0 7px 18px rgba(0,0,0,.24),0 0 0 2px rgba(229,154,71,.18);
+}
+.field-controls { pointer-events:none; z-index:39; }
+.message-stack {
+  left:auto;
+  right:max(12px,env(safe-area-inset-right));
+  bottom:calc(222px + env(safe-area-inset-bottom));
+  transform:none;
+  width:min(72vw,340px);
+}
+.search-status {
+  position:absolute;
+  right:max(12px,env(safe-area-inset-right));
+  bottom:calc(222px + env(safe-area-inset-bottom));
+  width:min(72vw,340px);
+  padding:9px 11px;
+  border:1px solid rgba(229,154,71,.42);
+  border-radius:13px;
+  background:rgba(18,27,22,.94);
+  color:#f1eee5;
+  box-shadow:0 6px 16px rgba(0,0,0,.2);
+}
+.search-status[hidden]{display:none}
+.search-status span{display:block;margin-bottom:7px;font-size:.74rem;font-weight:750;letter-spacing:.025em}
+.search-progress{height:5px;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.1)}
+#search-progress-fill{height:100%;width:0;background:#e59a47;transition:width .06s linear}
+@media (max-width:600px){
+  .combat-controls{bottom:calc(80px + env(safe-area-inset-bottom))}
+  .message-stack,.search-status{bottom:calc(218px + env(safe-area-inset-bottom))}
+}

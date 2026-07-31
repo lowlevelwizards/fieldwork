@@ -486,3 +486,7 @@ h1 {
 .hud--top{display:none!important}.objective-card{top:calc(58px + var(--safe-top));max-width:220px;opacity:.88}.objective-card--collapsed{display:none}
 .field-controls{pointer-events:none}.field-control-row{display:none!important}.message-stack{left:50%;right:auto;bottom:calc(110px + var(--safe-bottom));transform:translateX(-50%);width:min(76vw,360px)}
 .debug-panel{top:calc(62px + var(--safe-top));right:12px}
+
+/* 0.9A.5: keep utility controls independently tappable. */
+.minimal-tools,.minimal-tools button{pointer-events:auto}
+#backpack-button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
