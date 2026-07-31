@@ -305,7 +305,7 @@ function drawFlatCasualty(ctx,palette,{dead=false,dragged=false,phase=0,angle=0}
 
 function drawCriticalCrawl(ctx,palette,{phase=0,moving=false,facing="down"}={}) {
   const sign=facing==="left"?-1:1;
-  const crawl=moving?Math.sin(phase)*4:0;
+  const crawl=moving?Math.sin(phase*.52)*2.7:0;
   ctx.save();
   if(facing==="left"||facing==="right")ctx.scale(sign,1);
 
@@ -353,7 +353,7 @@ export function drawOperator(ctx, operator, carriedItem = null) {
   const palette = kit.palette;
   const facing = VALID_FACINGS.has(operator.facing) ? operator.facing : "up";
   const speed = Math.hypot(operator.vx??0, operator.vy??0);
-  const moving = speed > 5;
+  const moving = speed > 10;
   const phase = operator.walkingPhase;
   const carrying = Boolean(operator.carriedItemInstanceId);
   const mode=operator.locomotionMode??"idle";
