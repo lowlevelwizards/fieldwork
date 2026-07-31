@@ -377,6 +377,9 @@ export function drawOperator(ctx, operator, carriedItem = null) {
 
   const wound=woundPoseData(operator);
   motion.woundRegion=wound.region;
+  if(operator.actionLock?.allowsCombat===false||operator.medicalAction?.phase==="prepare"||operator.medicalAction?.phase==="treat"||operator.rescueDrag||operator.draggingCasualtyId){
+    motion.hideWeapon=true;
+  }
   if(wound.wounded){
     if(wound.region==="torso")motion.torsoLean+=(facing==="left"?-.16:.16);
     if(wound.region==="legs"){
