@@ -1,8 +1,8 @@
-import { GameState } from "./game.js?v=096-weapon-posture-targeting-locomotion-20260730";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=096-weapon-posture-targeting-locomotion-20260730";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=096-weapon-posture-targeting-locomotion-20260730";
-import { PerceptionSystem } from "./perception.js?v=096-weapon-posture-targeting-locomotion-20260730";
-import { CombatSystem } from "./combat.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { GameState } from "./game.js?v=097-pose-aim-retention-correction-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=097-pose-aim-retention-correction-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=097-pose-aim-retention-correction-20260731";
+import { PerceptionSystem } from "./perception.js?v=097-pose-aim-retention-correction-20260731";
+import { CombatSystem } from "./combat.js?v=097-pose-aim-retention-correction-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -69,7 +69,7 @@ export class ContinuousGameState extends GameState {
       ? (inputLength/walkThreshold)*.52
       : .52+((inputLength-walkThreshold)/(1-walkThreshold))*.48;
 
-    if(inputLength>0.08&&!this.combat.lookInputActive&&this.combat.weaponAvailable){
+    if(inputLength>0.08&&!this.combat.lookInputActive&&!this.combat.aiming&&this.combat.weaponAvailable){
       this.combat.setAimAngle(Math.atan2(move.y,move.x));
     }
     if(this.combat.weaponAvailable){
@@ -108,6 +108,13 @@ export class ContinuousGameState extends GameState {
           ?"strafe"
           :"backpedal";
     this.operator.aimingPosture=this.combat.aiming;
+    this.operator.torsoLeanTarget=this.combat.aiming
+      ? .11
+      :this.operator.locomotionMode==="run"
+        ?.16
+        :this.operator.locomotionMode==="forward"
+          ?.055
+          :0;
 
     try {
       super.update(delta, normalizedMove);
@@ -123,6 +130,10 @@ export class ContinuousGameState extends GameState {
       const acceleration=(speed-previousSpeed)/Math.max(delta,.001);
       this.operator.motionAcceleration=Math.max(-1,Math.min(1,acceleration/520));
       this.operator.motionSpeedRatio=Math.max(0,Math.min(1,speed/Math.max(1,originalSpeed)));
+      const targetLean=(this.operator.torsoLeanTarget??0)
+        -(this.operator.motionAcceleration??0)*.035;
+      this.operator.torsoLean=(this.operator.torsoLean??0)
+        +(targetLean-(this.operator.torsoLean??0))*(1-Math.exp(-delta*10));
       const cadence=this.operator.locomotionMode==="run"?5.2
         :this.operator.locomotionMode==="strafe"?2.2
         :this.operator.locomotionMode==="backpedal"?1.6

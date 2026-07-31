@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=096-weapon-posture-targeting-locomotion-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=096-weapon-posture-targeting-locomotion-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=096-weapon-posture-targeting-locomotion-20260730";
-import { findEntity } from "./world-entities.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=097-pose-aim-retention-correction-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=097-pose-aim-retention-correction-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=097-pose-aim-retention-correction-20260731";
+import { findEntity } from "./world-entities.js?v=097-pose-aim-retention-correction-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -316,12 +316,14 @@ export class Renderer{
   const angle=combat.weaponAngle??operator.lookAngle??0;
   const mirror=combat.pointingLeft?-1:1;
   const stockLength=15,receiverLength=24,barrelLength=34;
-  const shoulderBack=8*(1-readiness);
-  const shoulderDrop=13*(1-readiness);
+  // Keep both states near chest/shoulder height. Low ready tips the muzzle;
+  // active aim lifts the stock and rear hand toward the eye line.
+  const shoulderBack=3*(1-readiness);
+  const shoulderLift=4*(1-readiness)-5*readiness;
   const shoulderX=operator.x-Math.cos(angle)*shoulderBack+Math.cos(angle+Math.PI/2)*2;
-  const shoulderY=operator.y-Math.sin(angle)*shoulderBack+Math.sin(angle+Math.PI/2)*2+shoulderDrop;
-  const handReach=12+readiness*15;
-  const localPitch=(1-readiness)*.12*mirror;
+  const shoulderY=operator.y-Math.sin(angle)*shoulderBack+Math.sin(angle+Math.PI/2)*2+shoulderLift;
+  const handReach=17+readiness*10;
+  const localPitch=(1-readiness)*.055*mirror;
 
   ctx.save();
   try{
@@ -329,7 +331,7 @@ export class Renderer{
    ctx.rotate(angle);
    ctx.scale(1,mirror);
    ctx.rotate(localPitch);
-   ctx.translate(-7*(1-readiness),3*(1-readiness));
+   ctx.translate(-3*(1-readiness),1.5*(1-readiness)-2*readiness);
    ctx.fillStyle="#503f31";
    ctx.beginPath();ctx.roundRect(-10,-5,stockLength+10,10,4);ctx.fill();
    ctx.fillStyle="#252d2a";
@@ -402,7 +404,7 @@ export class Renderer{
     ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(startX,startY);ctx.lineTo(targetX,targetY);ctx.stroke();ctx.setLineDash([]);
    }
    if(!combat.reloading){
-    ctx.translate(targetX,targetY);ctx.rotate(angle);
+    ctx.translate(targetX,targetY);
     ctx.strokeStyle=targetKind==="clear"?"rgba(250,250,237,.88)":lineColor;
     ctx.fillStyle=lineColor;
     ctx.lineWidth=2.2;ctx.lineCap="round";ctx.lineJoin="round";

@@ -159,9 +159,10 @@ export class CombatSystem{
 
   const bodyAngle=operator.lookAngle??this.aimAngle;
   const sideSign=Math.cos(bodyAngle)<0?-1:1;
-  const lowCarryAngle=bodyAngle+sideSign*.82;
+  // Low ready stays at chest height: only the muzzle tips down.
+  const lowCarryAngle=bodyAngle+sideSign*.34;
   const desiredWeaponAngle=this.aiming?this.aimAngle:lowCarryAngle;
-  const weaponFollowRate=this.aiming?15.5:8.2;
+  const weaponFollowRate=this.aiming?16.5:9.2;
   this.weaponAngle+=shortestAngle(this.weaponAngle,desiredWeaponAngle)*(1-Math.exp(-delta*weaponFollowRate));
 
   this.#updateBodyTarget();
