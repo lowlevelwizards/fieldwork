@@ -238,7 +238,11 @@ export class AICombatSystem{
   updateActor(actor,delta){
     this.ensureActor(actor);
     this.updateMorale(actor,delta);
-    if(actor.condition==="incapacitated"){
+    if(actor.medicalAction){
+      actor.vx=0;actor.vy=0;actor.burstRemaining=0;actor.fireHeld=false;
+      return;
+    }
+    if(actor.condition==="incapacitated"||actor.condition==="dead"){
       actor.vx=0;actor.vy=0;actor.operationPausedByEncounter=true;
       return;
     }

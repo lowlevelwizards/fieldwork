@@ -1,10 +1,11 @@
-import { GameState } from "./game.js?v=10a-wound-core-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=10a-wound-core-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=10a-wound-core-20260731";
-import { PerceptionSystem } from "./perception.js?v=10a-wound-core-20260731";
-import { CombatSystem } from "./combat.js?v=10a-wound-core-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=10a-wound-core-20260731";
-import { WoundSystem } from "./wound-system.js?v=10a-wound-core-20260731";
+import { GameState } from "./game.js?v=10b-medical-gameplay-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=10b-medical-gameplay-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=10b-medical-gameplay-20260731";
+import { PerceptionSystem } from "./perception.js?v=10b-medical-gameplay-20260731";
+import { CombatSystem } from "./combat.js?v=10b-medical-gameplay-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=10b-medical-gameplay-20260731";
+import { WoundSystem } from "./wound-system.js?v=10b-medical-gameplay-20260731";
+import { MedicalSystem } from "./medical-system.js?v=10b-medical-gameplay-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -14,6 +15,7 @@ export class ContinuousGameState extends GameState {
     this.operator.targetLookAngle = 0;
     this.combat = new CombatSystem(this);
     this.wounds = new WoundSystem(this);
+    this.medical = new MedicalSystem(this);
     this.aiCombat = new AICombatSystem(this);
     this.perception = new PerceptionSystem(this);
     this.encounters = new FactionEncounterSystem(this);
@@ -157,6 +159,7 @@ export class ContinuousGameState extends GameState {
       this.perception.update(delta);
       this.encounters.update(delta);
       this.aiCombat.update(delta);
+      this.medical.update(delta);
     } finally {
       this.operator.moveSpeed=originalSpeed;
     }

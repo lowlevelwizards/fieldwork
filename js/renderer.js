@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10a-wound-core-20260731";
-import { drawOperator } from "./presentation/operator-renderer.js?v=10a-wound-core-20260731";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10a-wound-core-20260731";
-import { findEntity } from "./world-entities.js?v=10a-wound-core-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10b-medical-gameplay-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=10b-medical-gameplay-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10b-medical-gameplay-20260731";
+import { findEntity } from "./world-entities.js?v=10b-medical-gameplay-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -201,7 +201,11 @@ export class Renderer{
  #applyWorkPose(ctx,actor){
   const phase=actor.workPhase??0;
   ctx.translate(actor.x,actor.y);
-  if(actor.workPose==="kneel"){ctx.translate(0,8);ctx.rotate(Math.sin(phase*1.8)*.018);}
+  if(actor.workPose==="dead"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.translate(-actor.x,-actor.y);ctx.translate(0,14);}
+  else if(actor.workPose==="downed"){ctx.translate(actor.x,actor.y);ctx.rotate(Math.PI/2);ctx.translate(-actor.x,-actor.y);ctx.translate(0,10);}
+  else if(actor.workPose==="crawl"){ctx.translate(0,12);ctx.rotate(Math.sin(phase*1.2)*.025);}
+  else if(actor.workPose==="medical"){ctx.translate(0,9);ctx.rotate(Math.sin(phase*3)*.012);}
+  else if(actor.workPose==="kneel"){ctx.translate(0,8);ctx.rotate(Math.sin(phase*1.8)*.018);}
   else if(actor.workPose==="inspect"){ctx.rotate(Math.sin(phase*2.2)*.035);ctx.translate(0,2);}
   else if(actor.workPose==="sort"){ctx.translate(0,Math.sin(phase*5)*1.8);}
   else if(actor.workPose==="brace"){ctx.translate(actor.facing==="left"?-4:4,3);ctx.rotate((actor.facing==="left"?-1:1)*.055);}
@@ -309,11 +313,25 @@ export class Renderer{
   ctx.save();
   try{
     const x=actor.x,y=actor.y-82;
+    if(actor.medicalAction){
+      const action=actor.medicalAction;
+      ctx.fillStyle="rgba(18,27,22,.9)";
+      ctx.beginPath();ctx.roundRect(x-27,y-5,54,10,5);ctx.fill();
+      ctx.fillStyle="#8fc29b";
+      ctx.beginPath();ctx.roundRect(x-25,y-3,50*Math.max(0,Math.min(1,action.progress??0)),6,3);ctx.fill();
+      ctx.fillStyle="#dce7db";ctx.font="700 9px system-ui";ctx.textAlign="center";
+      ctx.fillText("AID",x,y-10);
+    }
     if(actor.reloading){
       ctx.fillStyle="rgba(18,27,22,.88)";
       ctx.beginPath();ctx.roundRect(x-24,y-5,48,10,5);ctx.fill();
       ctx.fillStyle="#e59a47";
       ctx.beginPath();ctx.roundRect(x-22,y-3,44*Math.max(0,Math.min(1,actor.reloadProgress??0)),6,3);ctx.fill();
+    }
+    if(actor.medicalAction&&actor.medicalInventory){
+      const count=Object.values(actor.medicalInventory).reduce((sum,value)=>sum+value,0);
+      ctx.fillStyle="#dce7db";ctx.font="600 8px system-ui";ctx.textAlign="center";
+      ctx.fillText(`${count} MED`,x,y+18);
     }
     const state=actor.moraleState;
     if(state&&state!=="steady"){

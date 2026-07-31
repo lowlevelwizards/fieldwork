@@ -33,7 +33,7 @@ export class WoundSystem{
     target.medical ??={
       blood:100,shock:0,pain:0,bleedingRate:0,
       condition:"healthy",wounds:[],unconscious:false,dead:false,
-      lastHitAt:-999,criticalSeconds:0
+      lastHitAt:-999,criticalSeconds:0,painMedicationSeconds:0,tourniquetRegions:[]
     };
     return target.medical;
   }
@@ -100,7 +100,9 @@ export class WoundSystem{
     medical.blood=clamp(medical.blood-activeBleeding*delta,0,100);
     const bleedingShock=activeBleeding*.55+(100-medical.blood)*.012;
     medical.shock=clamp(medical.shock+bleedingShock*delta-(activeBleeding<=.05?2.4:0)*delta,0,100);
-    medical.pain=clamp(medical.pain-.45*delta,0,100);
+    medical.painMedicationSeconds=Math.max(0,(medical.painMedicationSeconds??0)-delta);
+    const painDecay=medical.painMedicationSeconds>0?1.35:.45;
+    medical.pain=clamp(medical.pain-painDecay*delta,0,100);
     target.woundPulse=Math.max(0,(target.woundPulse??0)-delta*1.8);
     this.#derive(target,false,delta);
   }
@@ -125,9 +127,17 @@ export class WoundSystem{
     m.condition=next;
     m.unconscious=next==="unconscious";
     m.dead=next==="dead";
-    if(m.dead){target.condition="dead";target.vx=0;target.vy=0;}
-    else if(m.unconscious){target.condition="incapacitated";target.vx=0;target.vy=0;target.workPose="kneel";}
-    else if(target.operationId&&target.condition==="incapacitated")target.condition="active";
+    if(m.dead){
+      target.condition="dead";target.vx=0;target.vy=0;target.workPose="dead";target.medicalPose="dead";
+    }else if(m.unconscious){
+      target.condition="incapacitated";target.vx=0;target.vy=0;target.workPose="downed";target.medicalPose="unconscious";
+    }else if(next==="critical"){
+      target.medicalPose="critical";
+      if(target.operationId)target.workPose="crawl";
+    }else{
+      target.medicalPose=null;
+      if(target.operationId&&target.condition==="incapacitated")target.condition="active";
+    }
 
     if(previous!==next&&!immediate){
       const label=target.id===this.game.operator.id?"Mara":target.name;
@@ -137,8 +147,67 @@ export class WoundSystem{
     }
   }
 
+  getTreatmentNeed(target){
+    const medical=this.ensure(target);
+    const active=medical.wounds.filter(w=>!w.controlled);
+    if(!active.length){
+      if(medical.pain>=48)return {type:"painkillers",label:"Take Painkillers",priority:20};
+      return null;
+    }
+
+    const severityRank={minor:1,moderate:2,severe:3,catastrophic:4};
+    const worst=[...active].sort((a,b)=>severityRank[b.severity]-severityRank[a.severity])[0];
+    if(worst.severity==="catastrophic"&&["arms","legs"].includes(worst.region)){
+      return {type:"tourniquet",label:`Tourniquet ${REGION_LABELS[worst.region]}`,priority:100,woundId:worst.id};
+    }
+    if(["severe","catastrophic"].includes(worst.severity)){
+      return {type:"pressure_dressing",label:`Pressure Dressing: ${REGION_LABELS[worst.region]}`,priority:80,woundId:worst.id};
+    }
+    return {type:"bandage",label:`Bandage ${REGION_LABELS[worst.region]}`,priority:60,woundId:worst.id};
+  }
+
+  applyTreatment(target,treatmentType,{source=null}={}){
+    const medical=this.ensure(target);
+    if(medical.dead)return {ok:false,reason:"Too late"};
+    if(treatmentType==="painkillers"){
+      if(medical.pain<12)return {ok:false,reason:"Pain is already controlled"};
+      medical.pain=clamp(medical.pain-38,0,100);
+      medical.shock=clamp(medical.shock-5,0,100);
+      medical.painMedicationSeconds=Math.max(medical.painMedicationSeconds??0,45);
+      this.#derive(target,true);
+      return {ok:true,label:"Pain controlled"};
+    }
+
+    const need=this.getTreatmentNeed(target);
+    if(!need||need.type!==treatmentType)return {ok:false,reason:"That supply does not match the current wound"};
+    const wound=medical.wounds.find(w=>w.id===need.woundId&&!w.controlled);
+    if(!wound)return {ok:false,reason:"No suitable wound"};
+
+    wound.controlled=true;
+    wound.treatment=treatmentType;
+    wound.treatedBy=source?.id??target.id;
+    wound.treatedAt=performance.now()/1000;
+    if(treatmentType==="tourniquet"){
+      wound.tourniquet=true;
+      medical.tourniquetRegions ??= [];
+      if(!medical.tourniquetRegions.includes(wound.region))medical.tourniquetRegions.push(wound.region);
+      medical.pain=clamp(medical.pain+8,0,100);
+    }else if(treatmentType==="pressure_dressing"){
+      medical.shock=clamp(medical.shock-9,0,100);
+    }else{
+      medical.shock=clamp(medical.shock-4,0,100);
+    }
+    medical.bleedingRate=medical.wounds.reduce((sum,w)=>sum+(w.controlled?0:w.bleedingRate),0);
+    this.#derive(target,true);
+    return {ok:true,label:`${REGION_LABELS[wound.region]} bleeding controlled`,wound};
+  }
+
+  getActiveBleedingWounds(target){
+    return this.ensure(target).wounds.filter(w=>!w.controlled&&w.bleedingRate>0);
+  }
+
   getSummary(target){
     const m=this.ensure(target);
-    return {condition:m.condition,blood:Math.round(m.blood),shock:Math.round(m.shock),bleeding:m.bleedingRate,wounds:m.wounds.length};
+    return {condition:m.condition,blood:Math.round(m.blood),shock:Math.round(m.shock),pain:Math.round(m.pain),bleeding:m.bleedingRate,wounds:m.wounds.length,need:this.getTreatmentNeed(target)};
   }
 }

@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=10a-wound-core-20260731";
-import { ContinuousGameState } from "./continuous-game-state.js?v=10a-wound-core-20260731";
-import { InputController, CombatInputController } from "./input.js?v=10a-wound-core-20260731";
-import { Renderer } from "./renderer.js?v=10a-wound-core-20260731";
-import { getItemDefinition } from "../data/items.js?v=10a-wound-core-20260731";
-import { findEntity } from "./world-entities.js?v=10a-wound-core-20260731";
-import { validateItemLocations } from "./item-locations.js?v=10a-wound-core-20260731";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=10a-wound-core-20260731";
+import { Camera } from "./camera.js?v=10b-medical-gameplay-20260731";
+import { ContinuousGameState } from "./continuous-game-state.js?v=10b-medical-gameplay-20260731";
+import { InputController, CombatInputController } from "./input.js?v=10b-medical-gameplay-20260731";
+import { Renderer } from "./renderer.js?v=10b-medical-gameplay-20260731";
+import { getItemDefinition } from "../data/items.js?v=10b-medical-gameplay-20260731";
+import { findEntity } from "./world-entities.js?v=10b-medical-gameplay-20260731";
+import { validateItemLocations } from "./item-locations.js?v=10b-medical-gameplay-20260731";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=10b-medical-gameplay-20260731";
 
-const BUILD_ID="1.0A";
+const BUILD_ID="1.0B";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -37,6 +37,8 @@ function triggerContextAction(){
  if(modalOpen())return false;
  const action=game.interaction.activeAction;
  if(action&&!action.disabled)return game.interaction.trigger();
+ const medicalAction=game.medical?.getPlayerAction?.();
+ if(medicalAction&&!medicalAction.disabled)return game.medical.startPlayerTreatment();
  if(game.operator.carriedItemInstanceId)return game.interaction.dropCarriedItem();
  return false;
 }
@@ -52,22 +54,31 @@ function updateInteractionUI(){
  $("#pack-usage-compact").textContent=`${game.inventory.getUsedPips()}/8`;
 
  const action=game.interaction.activeAction;
+ const medicalAction=game.medical?.getPlayerAction?.();
  const held=game.getHeldItem();
  const searching=Boolean(game.interaction.searchingEntityId);
+ const treating=Boolean(game.medical?.playerAction);
  if(searching){
   const entity=findEntity(game.entities,game.interaction.searchingEntityId);
   searchStatus.hidden=false;
   searchLabel.textContent=`Searching ${entity?.name??"container"}…`;
   searchFill.style.width=`${Math.round((entity?.searchProgress??0)*100)}%`;
+ }else if(treating){
+  searchStatus.hidden=false;
+  searchLabel.textContent="Treating wound…";
+  searchFill.style.width=`${Math.round((game.medical.playerAction?.progress??0)*100)}%`;
  }else{
   searchStatus.hidden=true;
   searchFill.style.width="0%";
  }
 
- if(action&&!action.disabled&&!searching){
+ if(action&&!action.disabled&&!searching&&!treating){
   interactButton.hidden=false;
   interactButton.textContent=action.label.toUpperCase();
- }else if(held&&!searching){
+ }else if(medicalAction&&!medicalAction.disabled&&!searching&&!treating){
+  interactButton.hidden=false;
+  interactButton.textContent=medicalAction.label.toUpperCase();
+ }else if(held&&!searching&&!treating){
   interactButton.hidden=false;
   interactButton.textContent=`DROP ${held.name}`.toUpperCase();
  }else{
@@ -126,7 +137,7 @@ function updateMedicalUI(){
  if(!status||!summary)return;
  status.hidden=summary.condition==="healthy";
  condition.textContent=summary.condition.toUpperCase();
- detail.textContent=`Blood ${summary.blood}% · Shock ${summary.shock}%${summary.bleeding>.05?` · Bleeding ${summary.bleeding.toFixed(1)}`:""}`;
+ detail.textContent=`Blood ${summary.blood}% · Shock ${summary.shock}% · Pain ${summary.pain}%${summary.bleeding>.05?` · Bleeding ${summary.bleeding.toFixed(1)}`:""}`;
 }
 
 function worldAimAngleFromPointer(clientX,clientY){
