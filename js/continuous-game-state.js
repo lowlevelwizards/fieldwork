@@ -1,21 +1,33 @@
-import { GameState } from "./game.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { PerceptionSystem } from "./perception.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { CombatSystem } from "./combat.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { WoundSystem } from "./wound-system.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { MedicalSystem } from "./medical-system.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { GameState } from "./game.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { PerceptionSystem } from "./perception.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { CombatSystem } from "./combat.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { WoundSystem } from "./wound-system.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { MedicalSystem } from "./medical-system.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
 
 export class ContinuousGameState extends GameState {
-  constructor() {
+  constructor({scenario="operations"}={}) {
     super();
+    this.scenarioMode=scenario;
+    if(scenario==="sandbox"){
+      this.map=sandboxMap;
+      this.entities=this.entities.filter(entity=>entity.type==="item"&&["bandage","pressure_dressing","tourniquet"].includes(entity.definitionId));
+      this.actors=[];
+      this.operator.x=sandboxMap.spawn.x;this.operator.y=sandboxMap.spawn.y;
+      this.clockMinutes=13*60+20;this.weather="Clear";
+      this.incident.state="resolved";this.incident.bandageUsed=true;this.incident.workerSheltered=true;this.incident.waterUsed=true;this.incident.radioRestored=true;
+      this.operations=new CombatSandboxDirector(this);
+      this.objectiveText="Combat Sandbox · Observe, engage, treat casualties, and test faction behavior";
+    }
     this.excursion = new ContinuousExcursionController(this);
     this.operator.lookAngle = 0;
     this.operator.targetLookAngle = 0;
     this.combat = new CombatSystem(this);
     this.wounds = new WoundSystem(this);
-    const ada=this.actors.find(actor=>actor.id==="worker_ada");
+    const ada=this.scenarioMode==="operations"?this.actors.find(actor=>actor.id==="worker_ada"):null;
     if(ada){
       ada.factionId="commune";
       ada.role="Shelter Worker";

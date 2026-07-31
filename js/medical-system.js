@@ -1,4 +1,4 @@
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -196,7 +196,7 @@ export class MedicalSystem{
 
       const d=distance(actor,patient);
       if(patient.id!==actor.id&&d>52){
-        moveActorToward(actor,patient,delta,{
+        moveActorToward(actor,patient,delta,{game:this.game,
           speedMultiplier:.3,arrivalRadius:48,
           task:`Walking to ${patient.name}`,pose:"walk"
         });

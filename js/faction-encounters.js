@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c-casualty-states-aid-movement-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
 const RELATIONSHIPS = {
   "commune:northline": -22,
   "commune:freelancers": -34,
@@ -50,6 +50,7 @@ export class FactionEncounterSystem{
     this.encounters=new Map();
     this.dispositions=new Map();
     this.activeCount=0;
+    this.coverReservations=new Map();
   }
 
 
@@ -305,7 +306,7 @@ export class FactionEncounterSystem{
       }else if(reaction==="take_cover"){
         actor.currentAction="Taking cover";actor.currentTask="Moving toward nearby cover";actor.workPose="brace";
         const cover=this.findCover(actor,otherCenter);
-        if(cover)moveActorToward(actor,cover,1/60,{speedMultiplier:.48,arrivalRadius:18,task:"Moving to cover",pose:"walk"});
+        if(cover)moveActorToward(actor,cover,1/60,{game:this.game,speedMultiplier:.48,arrivalRadius:18,task:"Moving to cover",pose:"walk"});
       }else if(reaction==="block"){
         actor.currentAction="Blocking route";actor.currentTask="Blocking access to the work site";actor.workPose="brace";
       }else if(reaction==="protect"){
@@ -317,27 +318,41 @@ export class FactionEncounterSystem{
         const dx=otherCenter.x-actor.x,dy=otherCenter.y-actor.y,d=Math.max(1,Math.hypot(dx,dy));
         const side=i%2?1:-1;
         const flankTarget={x:actor.x+(-dy/d)*side*110,y:actor.y+(dx/d)*side*110};
-        moveActorToward(actor,flankTarget,1/60,{speedMultiplier:.55,arrivalRadius:12,task:"Flanking contact",pose:"walk"});
+        moveActorToward(actor,flankTarget,1/60,{game:this.game,speedMultiplier:.55,arrivalRadius:12,task:"Flanking contact",pose:"walk"});
       }else if(reaction==="retreat"||reaction==="disengage"){
         actor.currentAction="Disengaging";actor.currentTask="Breaking contact";actor.workPose="walk";
         const dx=actor.x-otherCenter.x,dy=actor.y-otherCenter.y,d=Math.max(1,Math.hypot(dx,dy));
         const retreatTarget={x:actor.x+dx/d*150,y:actor.y+dy/d*150};
-        moveActorToward(actor,retreatTarget,1/60,{speedMultiplier:.62,arrivalRadius:12,task:"Breaking contact",pose:"walk"});
+        moveActorToward(actor,retreatTarget,1/60,{game:this.game,speedMultiplier:.62,arrivalRadius:12,task:"Breaking contact",pose:"walk"});
       }
       actor.groundY=actor.y+actor.radius;
     }
   }
 
   findCover(actor,threat){
+    const now=performance.now()/1000;
+    for(const [key,reservation] of this.coverReservations)if(reservation.until<now)this.coverReservations.delete(key);
     const candidates=this.game.map.obstacles
-      .filter(obstacle=>Math.hypot(obstacle.x-actor.x,obstacle.y-actor.y)<330)
-      .map(obstacle=>{
-        const fromThreat=Math.hypot(obstacle.x-threat.x,obstacle.y-threat.y);
-        const fromActor=Math.hypot(obstacle.x-actor.x,obstacle.y-actor.y);
-        return{...obstacle,score:fromThreat-fromActor*.8+(obstacle.type==="rock"?45:25)};
+      .filter(obstacle=>Math.hypot(obstacle.x-actor.x,obstacle.y-actor.y)<420)
+      .map((obstacle,index)=>{
+        const awayX=obstacle.x-threat.x,awayY=obstacle.y-threat.y;
+        const length=Math.max(1,Math.hypot(awayX,awayY));
+        const clearance=(obstacle.radius??30)+(actor.radius??18)+12;
+        const point={
+          x:obstacle.x+awayX/length*clearance,
+          y:obstacle.y+awayY/length*clearance
+        };
+        const key=`${index}:${Math.round(point.x/24)}:${Math.round(point.y/24)}`;
+        const reserved=this.coverReservations.has(key)&&this.coverReservations.get(key).actorId!==actor.id;
+        const fromActor=Math.hypot(point.x-actor.x,point.y-actor.y);
+        const exposure=Math.hypot(point.x-threat.x,point.y-threat.y);
+        return{point,key,score:exposure-fromActor*.72+(obstacle.type==="rock"?55:30)-(reserved?500:0)};
       })
       .sort((a,b)=>b.score-a.score);
-    return candidates[0]??null;
+    const chosen=candidates[0];
+    if(!chosen)return null;
+    this.coverReservations.set(chosen.key,{actorId:actor.id,until:now+8});
+    return chosen.point;
   }
 
   applyEncounterBehavior(encounter,a,b,nearest){
@@ -386,7 +401,7 @@ export class FactionEncounterSystem{
     if(isImmobileCasualty(challenger)||challenger.beingDragged){stopActor(challenger);return;}
     const dx=target.x-challenger.x,dy=target.y-challenger.y,d=Math.max(1,Math.hypot(dx,dy));
     const desired={x:target.x-dx/d*74,y:target.y-dy/d*74};
-    const arrived=moveActorToward(challenger,desired,1/60,{
+    const arrived=moveActorToward(challenger,desired,1/60,{game:this.game,
       speedMultiplier:.5,arrivalRadius:12,task:"Moving to block the route",pose:"walk"
     });
     if(arrived){challenger.workPose="brace";challenger.currentTask="Blocking the route";}

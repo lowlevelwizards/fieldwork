@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { ContinuousGameState } from "./continuous-game-state.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { InputController, CombatInputController } from "./input.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { Renderer } from "./renderer.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { getItemDefinition } from "../data/items.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { findEntity } from "./world-entities.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { validateItemLocations } from "./item-locations.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { Camera } from "./camera.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { ContinuousGameState } from "./continuous-game-state.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { InputController, CombatInputController } from "./input.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { Renderer } from "./renderer.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { getItemDefinition } from "../data/items.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { findEntity } from "./world-entities.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { validateItemLocations } from "./item-locations.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
 
-const BUILD_ID="1.0C.3";
+const BUILD_ID="1.1A";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -16,21 +16,30 @@ $("#debug-build").textContent=declaredBuild===BUILD_ID?BUILD_ID:`HTML ${declared
 if(declaredBuild!==BUILD_ID){console.error("Fieldwork build mismatch",{html:declaredBuild,javascript:BUILD_ID});setTimeout(()=>alert(`Fieldwork cache mismatch detected.\nHTML: ${declaredBuild}\nJavaScript: ${BUILD_ID}\nReload the page once.`),50);}
 console.info(`Fieldwork ${BUILD_ID} loaded`,{href:location.href,time:new Date().toISOString()});
 
-const camera=new Camera(),game=new ContinuousGameState(),renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
-const aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
+const camera=new Camera();let game=new ContinuousGameState({scenario:"operations"});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
+const sandboxButton=$("#sandbox-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
 let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
 function resizeAndCenter(reason="viewport"){
   renderer.resize();
   camera.lockTo(game.operator);
   console.info("Viewport synchronized",{build:BUILD_ID,reason,operator:{x:game.operator.x,y:game.operator.y},camera:{x:camera.x,y:camera.y,width:camera.width,height:camera.height}});
 }
-function startGame(){
+function startGame(scenario="operations"){
+  if(started)return;
+  game=new ContinuousGameState({scenario});
   titleScreen.classList.remove("screen--active");
   gameScreen.classList.add("screen--active");
   started=true;
   requestAnimationFrame(()=>requestAnimationFrame(()=>resizeAndCenter("game start")));
   lastTime=performance.now();
-  objectiveTimer=setTimeout(()=>$("#objective-card").classList.add("objective-card--collapsed"),5200);
+  const objective=$("#objective-card");
+  if(scenario==="sandbox"){
+    objective.querySelector(".objective-kicker").textContent="COMBAT SANDBOX";
+    objective.querySelector("strong").textContent="Three-way tactical test";
+    objective.querySelector("span:last-child").textContent="Northline enters from the north, Freelancers from the south, and Commune from the west. Reinforcements replace lost teams.";
+    $("#operations-button")?.setAttribute("hidden","");
+  }
+  objectiveTimer=setTimeout(()=>objective.classList.add("objective-card--collapsed"),5200);
 }
 function modalOpen(){return inventoryOpen||operationsOpen||worldTextOpen||dialogueOpen||!reportOverlay.hidden;}
 function triggerContextAction(){
@@ -183,7 +192,7 @@ document.addEventListener("dblclick",event=>event.preventDefault(),{passive:fals
 document.addEventListener("gesturestart",event=>event.preventDefault(),{passive:false});
 document.addEventListener("gesturechange",event=>event.preventDefault(),{passive:false});
 document.addEventListener("gestureend",event=>event.preventDefault(),{passive:false});
-beginButton.addEventListener("click",startGame);
+beginButton.addEventListener("click",()=>startGame("operations"));sandboxButton.addEventListener("click",()=>startGame("sandbox"));
 $("#backpack-button").addEventListener("click",event=>{event.preventDefault();event.stopPropagation();inventoryOpen?closeInventory():openInventory();});
 $("#inventory-close").addEventListener("click",closeInventory);
 $("#operations-close").addEventListener("click",closeOperations);
