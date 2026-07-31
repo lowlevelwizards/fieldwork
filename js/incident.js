@@ -1,4 +1,4 @@
-import { findEntity } from "./world-entities.js?v=10c1-ada-progression-supply-hotfix-20260731";
+import { findEntity } from "./world-entities.js?v=10c2-ada-action-prompt-hotfix-20260731";
 
 const ADA_SEAT = { x: 1265, y: 1238 };
 
@@ -25,6 +25,27 @@ export class IncidentController {
     if (!worker) return;
 
     if(worker.medical?.dead||worker.medical?.unconscious)return;
+
+    // The shared medical AI or player treatment may control Ada's seeded wound
+    // without passing through the old incident action. Keep both systems in sync.
+    const seededWound=worker.medical?.wounds?.find(wound=>wound.seededLabel==="ada_initial_leg_wound");
+    if(seededWound?.controlled&&!this.bandageUsed){
+      this.bandageUsed=true;
+      worker.condition="injured";
+      worker.severity="stable";
+      worker.currentTask="Bleeding controlled; help her to the break table";
+      this.state="stabilized";
+    }
+
+    // Treat her actual seat position as authoritative, including old saves/builds.
+    const physicallyAtBench=Math.hypot(worker.x-ADA_SEAT.x,worker.y-ADA_SEAT.y)<95;
+    if((worker.seated||physicallyAtBench)&&this.bandageUsed&&!this.workerSheltered){
+      this.workerSheltered=true;
+      worker.seated=true;
+      worker.currentTask=this.waterUsed
+        ?"Stable and recovering at the break table"
+        :"Safe at the break table; needs water";
+    }
     if (!this.bandageUsed && this.elapsed > 150 && worker.condition === "bleeding") {
       worker.severity = "weak";
       worker.currentTask = "Growing weaker";

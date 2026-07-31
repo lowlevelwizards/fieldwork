@@ -1,4 +1,4 @@
-import { getItemDefinition } from "../data/items.js?v=10c1-ada-progression-supply-hotfix-20260731";
+import { getItemDefinition } from "../data/items.js?v=10c2-ada-action-prompt-hotfix-20260731";
 
 const ITEM_SIZES = {
   radio_battery: [28, 18],
@@ -179,21 +179,40 @@ export function getAvailableAction(entity, game) {
     const nearbyMedical=game.medical?.getTreatmentActionFor?.(entity);
 
     if(entity.id==="worker_ada"){
-      // Ada's introductory care sequence stays authored and legible even
-      // though the physical wound uses the shared medical simulation.
-      if(game.incident.bandageUsed&&!game.incident.workerSheltered&&!game.assistedActorId){
-        return {id:"assist",label:"Help Ada to Break Table",priority:ACTION_PRIORITY.USE_MISSION_ITEM+12};
+      const seededWound=entity.medical?.wounds?.find(wound=>wound.seededLabel==="ada_initial_leg_wound");
+      const bandaged=Boolean(game.incident.bandageUsed||seededWound?.controlled);
+      const nearBench=Math.hypot(entity.x-1265,entity.y-1238)<110;
+      const sheltered=Boolean(game.incident.workerSheltered||entity.seated||nearBench);
+
+      if(!bandaged){
+        if(nearbyMedical){
+          return {
+            id:"treat_casualty",
+            label:nearbyMedical.disabled?nearbyMedical.label:nearbyMedical.label,
+            disabled:Boolean(nearbyMedical.disabled),
+            priority:ACTION_PRIORITY.USE_MISSION_ITEM+18
+          };
+        }
+        return {id:"assess_casualty",label:"Assess Ada",priority:ACTION_PRIORITY.CARE};
       }
-      if(game.incident.bandageUsed&&game.incident.workerSheltered&&!game.incident.waterUsed){
+
+      if(!sheltered&&!game.assistedActorId){
+        return {id:"assist",label:"Help Ada to Break Table",priority:ACTION_PRIORITY.USE_MISSION_ITEM+18};
+      }
+
+      if(sheltered&&!game.incident.waterUsed){
         const waterAvailable=held?.definitionId==="water_bottle"||
           game.inventory.getItems().some(item=>item.definitionId==="water_bottle");
         return {
           id:"give_water",
           label:waterAvailable?"Give Ada Water":"Ada Needs Water",
           disabled:!waterAvailable,
-          priority:ACTION_PRIORITY.USE_MISSION_ITEM+12
+          priority:ACTION_PRIORITY.USE_MISSION_ITEM+18
         };
       }
+
+      // Once immediate care is complete, dialogue is the useful default.
+      return {id:"talk",label:"Talk",priority:ACTION_PRIORITY.TALK+10};
     }
 
 

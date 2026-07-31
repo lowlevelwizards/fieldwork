@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10c-casualty-states-aid-movement-20260731";
-import { drawOperator } from "./presentation/operator-renderer.js?v=10c-casualty-states-aid-movement-20260731";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10c-casualty-states-aid-movement-20260731";
-import { findEntity } from "./world-entities.js?v=10c-casualty-states-aid-movement-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10c2-ada-action-prompt-hotfix-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=10c2-ada-action-prompt-hotfix-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10c2-ada-action-prompt-hotfix-20260731";
+import { findEntity } from "./world-entities.js?v=10c2-ada-action-prompt-hotfix-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -51,12 +51,28 @@ export class Renderer{
 
  #drawInteractionPromptScreen(ctx,game){
   const target=game.interaction?.getTarget?.(),action=game.interaction?.activeAction;if(!target||!action)return;
-  const screen=this.camera.worldToScreen(target.x+(target.width??0)/2,target.y-18);
-  const x=screen.x,y=screen.y;
-  ctx.save();try{ctx.setTransform(this.dpr,0,0,this.dpr,0,0);ctx.font='700 13px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
-   const label=action.disabled?action.label:`${action.label}`;const width=Math.max(48,ctx.measureText(label).width+20);
-   ctx.fillStyle='rgba(18,27,22,.86)';ctx.beginPath();ctx.roundRect(x-width/2,y-14,width,28,12);ctx.fill();
-   ctx.strokeStyle='rgba(229,154,71,.72)';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle='#f0efe4';ctx.fillText(label,x,y);
+  const isActor=target.type==="actor";
+  const worldX=target.x+(target.width??0)/2+(isActor?48:0);
+  const worldY=target.y-(isActor?72:18);
+  const screen=this.camera.worldToScreen(worldX,worldY);
+  const x=Math.max(34,Math.min(this.canvas.clientWidth-34,screen.x));
+  const y=Math.max(78,Math.min(this.canvas.clientHeight-90,screen.y));
+  const compactLabels={
+    assess_casualty:"Assess",
+    treat_casualty:"Treat",
+    give_water:"Water",
+    assist:"Help",
+    drag_casualty:"Drag",
+    talk:"Talk"
+  };
+  const label=isActor?(compactLabels[action.id]??action.label):action.label;
+  ctx.save();try{
+   ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
+   ctx.font='750 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+   const width=Math.max(44,ctx.measureText(label).width+18);
+   ctx.fillStyle='rgba(18,27,22,.82)';ctx.beginPath();ctx.roundRect(x-width/2,y-11,width,22,10);ctx.fill();
+   ctx.strokeStyle='rgba(229,154,71,.62)';ctx.lineWidth=1;ctx.stroke();
+   ctx.fillStyle=action.disabled?'rgba(240,239,228,.55)':'#f0efe4';ctx.fillText(label,x,y);
   }finally{ctx.restore();}
  }
 
