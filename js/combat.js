@@ -82,6 +82,12 @@ export class CombatSystem{
  get aimingLineVisible(){
   return this.aiming&&!this.reloading&&this.aimReadiness>.18;
  }
+ get pointingLeft(){
+  return Math.cos(this.weaponAngle)<0;
+ }
+ get pointsBehindOperator(){
+  return Math.sin(this.weaponAngle)<-0.18;
+ }
  get muzzle(){
   const operator=this.game.operator;
   const length=54;
@@ -117,7 +123,9 @@ export class CombatSystem{
 
   const lowCarryAngle=(operator.lookAngle??0)+.62;
   const activeAngle=this.aimAngle;
-  const desiredWeaponAngle=lowCarryAngle+shortestAngle(lowCarryAngle,activeAngle)*this.aimReadiness;
+  const desiredWeaponAngle=this.aiming
+   ? activeAngle
+   : lowCarryAngle;
   this.weaponAngle+=shortestAngle(this.weaponAngle,desiredWeaponAngle)*(1-Math.exp(-delta*15));
 
   if(this.aiming){

@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=090-player-weapon-handling-20260730";
-import { ContinuousGameState } from "./continuous-game-state.js?v=090-player-weapon-handling-20260730";
-import { InputController } from "./input.js?v=090-player-weapon-handling-20260730";
-import { Renderer } from "./renderer.js?v=090-player-weapon-handling-20260730";
-import { getItemDefinition } from "../data/items.js?v=090-player-weapon-handling-20260730";
-import { findEntity } from "./world-entities.js?v=090-player-weapon-handling-20260730";
-import { validateItemLocations } from "./item-locations.js?v=090-player-weapon-handling-20260730";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=090-player-weapon-handling-20260730";
+import { Camera } from "./camera.js?v=091-control-rendering-hotfix-20260730";
+import { ContinuousGameState } from "./continuous-game-state.js?v=091-control-rendering-hotfix-20260730";
+import { InputController } from "./input.js?v=091-control-rendering-hotfix-20260730";
+import { Renderer } from "./renderer.js?v=091-control-rendering-hotfix-20260730";
+import { getItemDefinition } from "../data/items.js?v=091-control-rendering-hotfix-20260730";
+import { findEntity } from "./world-entities.js?v=091-control-rendering-hotfix-20260730";
+import { validateItemLocations } from "./item-locations.js?v=091-control-rendering-hotfix-20260730";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=091-control-rendering-hotfix-20260730";
 
-const BUILD_ID="0.9A";
+const BUILD_ID="0.9A.1";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),actionPanel=$("#action-panel"),actionName=$("#action-name"),actionButton=$("#action-button"),actionProgress=$("#action-progress-fill"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -79,7 +79,8 @@ function updateAimPointer(event){
 }
 
 aimZone.addEventListener("pointerdown",event=>{
- if(modalOpen()||event.target!==aimZone)return;
+ if(modalOpen())return;
+ event.preventDefault();
  aimPointerId=event.pointerId;
  aimPointerStart={x:event.clientX,y:event.clientY,time:performance.now()};
  aimPointerMoved=false;
@@ -88,15 +89,21 @@ aimZone.addEventListener("pointerdown",event=>{
 });
 aimZone.addEventListener("pointermove",event=>{
  if(event.pointerId!==aimPointerId)return;
- if(Math.hypot(event.clientX-aimPointerStart.x,event.clientY-aimPointerStart.y)>8)aimPointerMoved=true;
+ event.preventDefault();
+ if(Math.hypot(event.clientX-aimPointerStart.x,event.clientY-aimPointerStart.y)>8){
+   aimPointerMoved=true;
+   if(!game.combat.aiming)game.combat.toggleAim(true);
+ }
  updateAimPointer(event);
 });
 const finishAimPointer=event=>{
  if(event.pointerId!==aimPointerId)return;
- const shortTap=performance.now()-aimPointerStart.time<320&&!aimPointerMoved;
+ event.preventDefault();
+ const shortTap=performance.now()-aimPointerStart.time<360&&!aimPointerMoved;
  updateAimPointer(event);
  if(shortTap)game.combat.toggleAim();
  else if(!game.combat.aiming)game.combat.toggleAim(true);
+ try{aimZone.releasePointerCapture(event.pointerId);}catch{}
  aimPointerId=null;aimPointerStart=null;aimPointerMoved=false;
 };
 aimZone.addEventListener("pointerup",finishAimPointer);
@@ -120,6 +127,28 @@ fireButton.addEventListener("pointerleave",event=>{if(event.buttons===0)stopFiri
 
 function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.lockTo(game.operator);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;updateObjective();updateCompass();updateCombatUI();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
 function recoverPosition(source){const before={x:game.operator.x,y:game.operator.y};game.resetPosition();camera.snapTo(game.operator);console.info("Fieldwork position recovery",{build:BUILD_ID,source,before,after:{x:game.operator.x,y:game.operator.y}});}
+
+canvas.addEventListener("pointermove",event=>{
+ if(!started||modalOpen()||event.pointerType==="touch")return;
+ game.combat.setAimAngle(worldAimAngleFromPointer(event.clientX,event.clientY));
+ if(game.combat.aiming)game.operator.targetLookAngle=game.combat.aimAngle;
+});
+canvas.addEventListener("contextmenu",event=>event.preventDefault());
+canvas.addEventListener("pointerdown",event=>{
+ if(!started||modalOpen()||event.pointerType==="touch")return;
+ if(event.button===2){
+   event.preventDefault();
+   game.combat.toggleAim();
+ }else if(event.button===0&&game.combat.aiming){
+   event.preventDefault();
+   game.combat.setFireHeld(true);
+   game.combat.tryFire();
+ }
+});
+window.addEventListener("pointerup",event=>{
+ if(event.pointerType!=="touch")game.combat.setFireHeld(false);
+});
+
 beginButton.addEventListener("click",startGame);actionButton.addEventListener("click",triggerContextAction);$("#backpack-button").addEventListener("click",()=>inventoryOpen?closeInventory():openInventory());$("#inventory-close").addEventListener("click",closeInventory);$("#operations-button").addEventListener("click",()=>operationsOpen?closeOperations():openOperations());$("#operations-close").addEventListener("click",closeOperations);$("#operations-list").addEventListener("click",event=>{const button=event.target.closest("button[data-operation-id]");if(!button)return;if(game.operations.claim(button.dataset.operationId)){buildOperations();updateObjective();}});$("#inspect-close").addEventListener("click",closeInspect);$("#dialogue-close").addEventListener("click",closeDialogue);$("#report-close").addEventListener("click",closeReport);
 window.addEventListener("keydown",event=>{const key=event.key.toLowerCase();if(key==="e"&&started){event.preventDefault();triggerContextAction();}if(key==="b"&&started){event.preventDefault();inventoryOpen?closeInventory():openInventory();}if(key==="o"&&started){event.preventDefault();operationsOpen?closeOperations():openOperations();}if(key==="f"&&started){event.preventDefault();game.combat.toggleAim();}if(key===" "&&started&&!event.repeat){event.preventDefault();game.combat.setFireHeld(true);game.combat.tryFire();}if(key==="escape"){if(dialogueOpen)closeDialogue();else if(operationsOpen)closeOperations();else if(!reportOverlay.hidden)closeReport();else if(!inspectOverlay.hidden)closeInspect();else if(inventoryOpen)closeInventory();}});window.addEventListener("keyup",event=>{if(event.key===" ")game.combat.setFireHeld(false);});
 $("#reset-position-button").addEventListener("click",()=>recoverPosition("debug reset button"));$("#debug-button").addEventListener("click",()=>{const active=$("#debug-button").getAttribute("aria-pressed")==="true";$("#debug-button").setAttribute("aria-pressed",String(!active));$("#debug-panel").hidden=active;$("#reset-position-button").hidden=active;});$("#objective-card").addEventListener("click",()=>{$("#objective-card").classList.toggle("objective-card--collapsed");if(objectiveTimer)clearTimeout(objectiveTimer);});window.addEventListener("resize",()=>{if(started)resizeAndCenter("window resize");});window.visualViewport?.addEventListener("resize",()=>{if(started)resizeAndCenter("visual viewport resize");});window.addEventListener("orientationchange",()=>{if(started)setTimeout(()=>resizeAndCenter("orientation change"),120);});requestAnimationFrame(frame);

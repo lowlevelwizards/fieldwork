@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=090-player-weapon-handling-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=090-player-weapon-handling-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=090-player-weapon-handling-20260730";
-import { findEntity } from "./world-entities.js?v=090-player-weapon-handling-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=091-control-rendering-hotfix-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=091-control-rendering-hotfix-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=091-control-rendering-hotfix-20260730";
+import { findEntity } from "./world-entities.js?v=091-control-rendering-hotfix-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -273,8 +273,9 @@ export class Renderer{
   try{
     const combat=this._currentGame?.combat;
     const renderOperator=combat&&!carried?{...operator,carriedItemInstanceId:"combat-weapon-hidden"}:operator;
+    if(combat&&!carried&&combat.pointsBehindOperator)this.#drawCombatWeapon(ctx,operator,combat);
     drawOperator(ctx,renderOperator,carried);
-    if(combat&&!carried)this.#drawCombatWeapon(ctx,operator,combat);
+    if(combat&&!carried&&!combat.pointsBehindOperator)this.#drawCombatWeapon(ctx,operator,combat);
     this.lastOperatorRenderError=null;
   }catch(error){
     this.lastOperatorRenderError=String(error?.message||error);
@@ -306,15 +307,25 @@ export class Renderer{
   const shoulderY=operator.y+Math.sin(angle+Math.PI/2)*2-1;
   const stockLength=15,receiverLength=24,barrelLength=34;
   const handReach=18+readiness*7;
+  const mirror=combat.pointingLeft?-1:1;
+
   ctx.save();
   try{
    ctx.translate(shoulderX,shoulderY);
    ctx.rotate(angle);
+   ctx.scale(1,mirror);
    ctx.translate(-4*(1-readiness),5*(1-readiness));
-   ctx.fillStyle="#503f31";ctx.beginPath();ctx.roundRect(-10,-5,stockLength+10,10,4);ctx.fill();
-   ctx.fillStyle="#252d2a";ctx.beginPath();ctx.roundRect(stockLength-4,-5,receiverLength,10,3);ctx.fill();
+
+   ctx.fillStyle="#503f31";
+   ctx.beginPath();ctx.roundRect(-10,-5,stockLength+10,10,4);ctx.fill();
+
+   ctx.fillStyle="#252d2a";
+   ctx.beginPath();ctx.roundRect(stockLength-4,-5,receiverLength,10,3);ctx.fill();
    ctx.beginPath();ctx.roundRect(stockLength+receiverLength-6,-2.5,barrelLength,5,2.5);ctx.fill();
+
+   // Grip/magazine always hangs on the same physical underside after mirroring.
    ctx.beginPath();ctx.roundRect(stockLength+7,3,7,9,2);ctx.fill();
+
    ctx.fillStyle="#c3a58e";
    ctx.beginPath();ctx.roundRect(1,-4,10,8,4);ctx.fill();
    ctx.beginPath();ctx.roundRect(handReach,-4,10,8,4);ctx.fill();
