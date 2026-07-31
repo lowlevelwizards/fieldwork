@@ -1,5 +1,5 @@
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=11d-engagement-fronts-action-locks-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11d-engagement-fronts-action-locks-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=11e-combat-authority-team-response-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11e-combat-authority-team-response-20260731";
 const RELATIONSHIPS = {
   "commune:northline": -22,
   "commune:freelancers": -34,
@@ -190,7 +190,7 @@ export class FactionEncounterSystem{
         if(encounter.combatEngaged&&now-encounter.violenceAt<28){
           encounter.state="threatening";
           this.assignCombatPlans(encounter,a,b,nearest,delta);
-          this.applyEncounterBehavior(encounter,a,b,nearest);
+          for(const actor of [...a.actors,...b.actors])actor.operationPausedByEncounter=true;
           continue;
         }
         if(disposition.level!=="clear"&&d<760){
@@ -234,6 +234,13 @@ export class FactionEncounterSystem{
       if(encounter.combatEngaged){
         encounter.state="threatening";
         this.assignCombatPlans(encounter,a,b,nearest,delta);
+        // Combat AI owns movement once violence begins. Social encounter
+        // reactions remain pre-combat only.
+        for(const actor of [...a.actors,...b.actors]){
+          actor.encounterId=encounter.id;
+          actor.operationPausedByEncounter=true;
+        }
+        continue;
       }
       this.applyEncounterBehavior(encounter,a,b,nearest);
     }
@@ -431,6 +438,7 @@ export class FactionEncounterSystem{
 
   markViolence(actor,target){
     if(!actor||!target)return;
+    this.game.teamResponses?.emitUnderFire?.(target,actor,{x:target.x,y:target.y});
     const actorTeam=actor.teamId??actor.factionId;
     const targetTeam=target.teamId??target.factionId;
     const encounter=this.encounters.get(pairKey(actorTeam,targetTeam));
@@ -465,7 +473,7 @@ export class FactionEncounterSystem{
 
   assignCombatPlans(encounter,a,b,nearest,delta){
     const now=performance.now()/1000;
-    if(now-encounter.lastPlanAt<6)return;
+    if(now-encounter.lastPlanAt<14)return;
     encounter.lastPlanAt=now;
     encounter.planA=this.chooseSquadPlan(a,b,encounter,"A");
     encounter.planB=this.chooseSquadPlan(b,a,encounter,"B");

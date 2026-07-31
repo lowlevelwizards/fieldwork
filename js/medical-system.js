@@ -1,4 +1,4 @@
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11d-engagement-fronts-action-locks-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11e-combat-authority-team-response-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -64,12 +64,19 @@ export class MedicalSystem{
 
   hasSupply(actor,type){return this.getCount(actor,type)>0;}
 
-  dangerLevel(actor){
+  dangerLevel(actor,position=actor){
     const suppression=(actor.suppression??0)/100;
-    const activeTarget=this.game.aiCombat?.getTarget?.(actor);
-    const targetDistance=activeTarget?distance(actor,activeTarget):Infinity;
-    const proximity=targetDistance<260?.65:targetDistance<450?.35:0;
-    return clamp(suppression+proximity,0,1);
+    let nearest=Infinity;
+    let hostileCount=0;
+    for(const enemy of this.game.actors){
+      if(enemy.factionId===actor.factionId||enemy.medical?.dead||enemy.medical?.unconscious)continue;
+      const d=distance(position,enemy);
+      nearest=Math.min(nearest,d);
+      if(d<520)hostileCount++;
+    }
+    const proximity=nearest<220?.8:nearest<360?.55:nearest<520?.28:0;
+    const recentFire=(performance.now()/1000-(actor.lastIncomingFireAt??-999))<4?.35:0;
+    return clamp(suppression+proximity+Math.min(.25,hostileCount*.06)+recentFire,0,1);
   }
 
   findPatient(actor){
@@ -107,21 +114,44 @@ export class MedicalSystem{
   }
 
   chooseAction(actor){
-    if(actor.medical?.dead||actor.medical?.unconscious)return null;
+    if(actor.medical?.dead||actor.medical?.unconscious||actor.actionLock)return null;
     const selfNeed=this.game.wounds.getTreatmentNeed(actor);
-    const danger=this.dangerLevel(actor);
     const buddy=this.findPatient(actor);
-    const isMedic=/medic/i.test(actor.role??"");
+    const danger=this.dangerLevel(actor);
+    const isMedic=/medic|shelter worker/i.test(actor.role??"");
+    const team=this.game.actors.filter(candidate=>candidate.teamId===actor.teamId&&!candidate.medical?.dead);
+    const capable=team.filter(candidate=>candidate.medical?.condition!=="critical"&&!candidate.medical?.unconscious);
+    const lastCapable=capable.length<=1;
+    const currentlyEngaged=Boolean(this.game.encounters?.getActorEncounter?.(actor.id)?.combatEngaged);
+    const plan=actor.tacticalPlan??"hold";
 
-    if(buddy&&(isMedic||buddy.patient.id===this.game.operator.id||buddy.patient.medical.condition==="critical"||buddy.patient.medical.unconscious)){
-      const urgent=buddy.patient.id===this.game.operator.id&&["critical","unconscious"].includes(buddy.patient.medical.condition);
-      if(danger<.74||buddy.patient.medical.condition==="critical"||urgent)return {patient:buddy.patient,need:buddy.need,self:false};
-    }
+    let best=null;
+    const consider=(choice,score)=>{
+      if(!choice||score<58)return;
+      if(!best||score>best.score)best={...choice,score};
+    };
+
     if(selfNeed&&actor.medical?.condition!=="critical"&&this.hasSupply(actor,selfNeed.type)){
-      if(danger<.58||actor.medical.condition==="serious")return {patient:actor,need:selfNeed,self:true};
+      const urgency={wounded:22,serious:58}[actor.medical?.condition]??10;
+      const score=urgency+(isMedic?8:0)-danger*72-(currentlyEngaged?18:0);
+      consider({patient:actor,need:selfNeed,self:true},score);
     }
-    if(buddy&&danger<.42)return {patient:buddy.patient,need:buddy.need,self:false};
-    return null;
+
+    if(buddy){
+      const patient=buddy.patient;
+      const patientDanger=this.dangerLevel(actor,patient);
+      const urgency={
+        wounded:24,serious:58,critical:92,unconscious:98
+      }[patient.medical?.condition]??20;
+      const roleBonus=isMedic?28:patient.id===this.game.operator.id?16:0;
+      const combatCost=lastCapable?55:currentlyEngaged?22:0;
+      const planCost=["withdraw","push"].includes(plan)?18:0;
+      const distanceCost=Math.min(28,buddy.d*.07);
+      const score=urgency+roleBonus-patientDanger*76-combatCost-planCost-distanceCost;
+      consider({patient,need:buddy.need,self:false},score);
+    }
+
+    return best?{patient:best.patient,need:best.need,self:best.self}:null;
   }
 
   startTreatment(actor,patient,need){
@@ -355,7 +385,7 @@ export class MedicalSystem{
 
     actor.medicalDecisionCooldown=Math.max(0,(actor.medicalDecisionCooldown??0)-delta);
     if(actor.medicalDecisionCooldown>0)return;
-    actor.medicalDecisionCooldown=.7+Math.random()*.7;
+    actor.medicalDecisionCooldown=1.8+Math.random()*1.8;
     const choice=this.chooseAction(actor);
     if(choice)this.startTreatment(actor,choice.patient,choice.need);
   }

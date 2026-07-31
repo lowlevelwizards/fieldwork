@@ -1,5 +1,5 @@
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating } from "./actor-state.js?v=11d-engagement-fronts-action-locks-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11d-engagement-fronts-action-locks-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating } from "./actor-state.js?v=11e-combat-authority-team-response-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11e-combat-authority-team-response-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -99,15 +99,23 @@ export class AICombatSystem{
 
   getEncounterTarget(actor){
     const encounter=this.game.encounters?.getActorEncounter?.(actor.id);
-    if(!encounter||encounter.state!=="threatening")return null;
-    let nearest=null,nearestDistance=Infinity;
-    for(const id of encounter.participantIds??[]){
-      const candidate=this.game.actors.find(a=>a.id===id);
-      if(!candidate||candidate.id===actor.id||candidate.factionId===actor.factionId||!canBeTargeted(candidate))continue;
+    if(!encounter||(!encounter.combatEngaged&&encounter.state!=="threatening"))return null;
+    const candidates=[this.game.operator,...this.game.actors].filter(candidate=>
+      candidate&&candidate.id!==actor.id&&candidate.factionId!==actor.factionId&&canBeTargeted(candidate)
+    );
+    let best=null;
+    for(const candidate of candidates){
+      const sameEncounter=candidate.id===this.game.operator.id
+        ?encounter.participantIds?.has?.("player")
+        :encounter.participantIds?.has?.(candidate.id);
+      const known=this.game.perception?.getDetection?.(actor.id,candidate.id);
+      const shared=this.game.perception?.getTeamContact?.(actor.teamId,candidate.teamId??candidate.factionId);
+      if(!sameEncounter&&!known&&!shared)continue;
       const d=distance(actor,candidate);
-      if(d<nearestDistance){nearest=candidate;nearestDistance=d;}
+      const score=d+(candidate.suppression??0)*-.4+(candidate.medical?.condition==="wounded"?30:0);
+      if(!best||score<best.score)best={candidate,score};
     }
-    return nearest;
+    return best?.candidate??null;
   }
 
   getTarget(actor){
@@ -270,6 +278,19 @@ export class AICombatSystem{
       return;
     }
 
+    const support=actor.supportAssignment;
+    if(support&&(support.until??0)>performance.now()/1000&&!this.getTarget(actor)){
+      const d=Math.hypot(support.destination.x-actor.x,support.destination.y-actor.y);
+      if(d>70){
+        moveActorToward(actor,support.destination,delta,{
+          game:this.game,speedMultiplier:1.05,arrivalRadius:55,
+          task:support.plan==="support"?"Reinforcing friendly team":"Moving to support flank",pose:"walk"
+        });
+        actor.locomotionMode="run";
+        return;
+      }
+    }
+
     const target=this.getTarget(actor);
     if(!target){
       actor.aimReadiness=Math.max(0,actor.aimReadiness-delta*2.2);
@@ -306,44 +327,42 @@ export class AICombatSystem{
     const now=performance.now()/1000;
     const plan=(actor.tacticalPlanUntil??0)>now?actor.tacticalPlan:"hold";
     const slot=(actor.tacticalSlotUntil??0)>now?actor.tacticalSlot:null;
+    let repositioning=false;
     if(slot&&actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"){
       const slotDistance=Math.hypot(slot.x-actor.x,slot.y-actor.y);
-      if(slotDistance>58){
+      if(slotDistance>82){
         const urgent=plan==="withdraw"||plan==="flank_left"||plan==="flank_right";
         moveActorToward(actor,slot,delta,{
           game:this.game,
-          speedMultiplier:urgent?1.2:.78,
-          arrivalRadius:42,
+          speedMultiplier:urgent?1.05:.64,
+          arrivalRadius:60,
           task:plan==="withdraw"?"Falling back to rally line":
             plan.startsWith("flank")?"Moving to flank position":
-            plan==="push"?"Advancing the firing line":"Taking assigned firing position",
+            plan==="push"?"Advancing the firing line":"Taking firing position",
           pose:"walk"
         });
         actor.locomotionMode=urgent?"run":"jog";
-        actor.aimReadiness=Math.max(.2,actor.aimReadiness-delta*.5);
-        return;
+        actor.aimReadiness=Math.max(.35,actor.aimReadiness-delta*.28);
+        repositioning=true;
       }
     }
 
-    // Execute a persistent squad plan instead of independently wandering after each burst.
-    if(actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"){
-      if(plan==="withdraw"||targetDistance<340){
-        const fallback={x:actor.x-Math.cos(desired)*(plan==="withdraw"?250:145),y:actor.y-Math.sin(desired)*(plan==="withdraw"?250:145)};
-        moveActorToward(actor,fallback,delta,{game:this.game,speedMultiplier:plan==="withdraw"?1.55:.9,arrivalRadius:14,task:plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire",pose:"walk"});
-        actor.currentTask=plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire";
-        actor.aimReadiness=Math.max(.25,actor.aimReadiness-delta*.45);
-      }else if(plan==="push"&&targetDistance>430&&
-        (actor.suppression??0)<28&&
-        (target.suppression??0)>46){
-        moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:1.05,arrivalRadius:340,task:"Pushing under covering fire",pose:"walk"});
-        actor.currentTask="Pushing under covering fire";
-      }else if((plan==="flank_left"||plan==="flank_right")&&actor.tacticalRole==="maneuver"&&targetDistance>300){
-        const side=plan==="flank_left"?-1:1;
-        const flank={x:actor.x-Math.sin(desired)*side*180+Math.cos(desired)*75,y:actor.y+Math.cos(desired)*side*180+Math.sin(desired)*75};
-        moveActorToward(actor,flank,delta,{game:this.game,speedMultiplier:1.25,arrivalRadius:24,task:"Moving on the flank",pose:"walk"});
-        actor.currentTask="Moving on the flank";
-      }else if(plan!=="hold"&&targetDistance>CONFIG.preferredMaxRange&&targetDistance<800&&actor.aimReadiness<.62){
-        moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:.7,arrivalRadius:CONFIG.preferredMaxRange,task:"Advancing under observation",pose:"walk"});
+    // The squad slot is the normal movement authority. Only emergency
+    // distance correction and morale can override it.
+    if(actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"&&!repositioning){
+      if(plan==="withdraw"||targetDistance<285){
+        const fallback=actor.tacticalRallyPoint??{
+          x:actor.x-Math.cos(desired)*(plan==="withdraw"?260:120),
+          y:actor.y-Math.sin(desired)*(plan==="withdraw"?260:120)
+        };
+        moveActorToward(actor,fallback,delta,{
+          game:this.game,speedMultiplier:plan==="withdraw"?1.25:.72,
+          arrivalRadius:28,
+          task:plan==="withdraw"?"Withdrawing to rally point":"Opening distance",
+          pose:"walk"
+        });
+        actor.currentTask=plan==="withdraw"?"Withdrawing to rally point":"Opening distance";
+        repositioning=true;
       }
     }
 
@@ -361,7 +380,8 @@ export class AICombatSystem{
       return;
     }
 
-    if(targetDistance>CONFIG.range||actor.aimReadiness<.72||actor.fireCooldown>0||actor.burstPause>0)return;
+    const requiredReadiness=repositioning?.86:.72;
+    if(targetDistance>CONFIG.range||actor.aimReadiness<requiredReadiness||actor.fireCooldown>0||actor.burstPause>0)return;
     if(actor.burstRemaining<=0){
       actor.burstRemaining=CONFIG.burstMin+Math.floor(Math.random()*(CONFIG.burstMax-CONFIG.burstMin+1));
     }
