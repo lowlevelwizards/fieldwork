@@ -148,3 +148,13 @@
 .interact-button:active { background:#c9772a; color:#101711; }
 .combat-controls { bottom:calc(84px + env(safe-area-inset-bottom)); }
 .message-stack,.search-status { bottom:calc(226px + env(safe-area-inset-bottom)); }
+
+
+/* 1.0A: Safari must never interpret rapid fire taps as page navigation/zoom. */
+#fire-button,#aim-button,#combat-controls{
+  touch-action:none!important;
+  -webkit-user-select:none!important;
+  user-select:none!important;
+  -webkit-touch-callout:none!important;
+  -webkit-tap-highlight-color:transparent!important;
+}
