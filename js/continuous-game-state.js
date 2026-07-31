@@ -1,8 +1,8 @@
-import { GameState } from "./game.js?v=090-player-weapon-handling-20260730";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=090-player-weapon-handling-20260730";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=090-player-weapon-handling-20260730";
-import { PerceptionSystem } from "./perception.js?v=090-player-weapon-handling-20260730";
-import { CombatSystem } from "./combat.js?v=090-player-weapon-handling-20260730";
+import { GameState } from "./game.js?v=095-interaction-trust-combat-state-20260730";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=095-interaction-trust-combat-state-20260730";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=095-interaction-trust-combat-state-20260730";
+import { PerceptionSystem } from "./perception.js?v=095-interaction-trust-combat-state-20260730";
+import { CombatSystem } from "./combat.js?v=095-interaction-trust-combat-state-20260730";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -63,31 +63,54 @@ export class ContinuousGameState extends GameState {
     const originalSpeed=this.operator.moveSpeed;
     const inputLength=Math.min(1,Math.hypot(move?.x??0,move?.y??0));
     const walkThreshold=.56;
-    const pace=inputLength<=walkThreshold ? (inputLength/walkThreshold)*.52 : .52+((inputLength-walkThreshold)/(1-walkThreshold))*.48;
-    const aimCap=this.combat.movementSpeedCap??1;
-    this.operator.moveSpeed=originalSpeed*this.getEnvironmentSpeedMultiplier()*Math.min(pace||0,aimCap);
-    this.operator.motionPace=pace;
-    this.operator.aimMovementCap=aimCap;
+    const pace=inputLength<=walkThreshold
+      ? (inputLength/walkThreshold)*.52
+      : .52+((inputLength-walkThreshold)/(1-walkThreshold))*.48;
 
-    if(inputLength>0.08&&!this.combat.lookInputActive){
+    if(inputLength>0.08&&!this.combat.lookInputActive&&this.combat.weaponAvailable){
       this.combat.setAimAngle(Math.atan2(move.y,move.x));
     }
-    this.operator.targetLookAngle=this.combat.aimAngle;
-    const current = this.operator.lookAngle ?? this.operator.targetLookAngle ?? 0;
-    const target = this.operator.targetLookAngle ?? current;
-    const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
-    const smoothing=1-Math.exp(-delta*(this.combat.aiming?7.5:9.5));
-    this.operator.lookAngle=current+difference*smoothing;
-    this.operator.perceptionLookAngle=this.combat.aimAngle;
+    if(this.combat.weaponAvailable){
+      this.operator.targetLookAngle=this.combat.aimAngle;
+      this.operator.perceptionLookAngle=this.combat.aimAngle;
+    }
 
-    const normalizedMove=inputLength>.001?{x:(move?.x??0)/inputLength,y:(move?.y??0)/inputLength}:{x:0,y:0};
+    const current=this.operator.lookAngle??this.operator.targetLookAngle??0;
+    const target=this.operator.targetLookAngle??current;
+    const difference=Math.atan2(Math.sin(target-current),Math.cos(target-current));
+    this.operator.lookAngle=current+difference*(1-Math.exp(-delta*13));
+
+    const normalizedMove=inputLength>.001
+      ? {x:(move?.x??0)/inputLength,y:(move?.y??0)/inputLength}
+      : {x:0,y:0};
+
+    const moveAngle=inputLength>.001?Math.atan2(normalizedMove.y,normalizedMove.x):this.operator.lookAngle;
+    const relative=Math.abs(Math.atan2(
+      Math.sin(moveAngle-this.operator.lookAngle),
+      Math.cos(moveAngle-this.operator.lookAngle)
+    ));
+    const directionalMultiplier=relative<Math.PI/4
+      ? 1
+      : relative<Math.PI*3/4
+        ? .74
+        : .58;
+
+    const aimCap=this.combat.movementSpeedCap??1;
+    this.operator.moveSpeed=originalSpeed
+      *this.getEnvironmentSpeedMultiplier()
+      *Math.min(pace||0,aimCap)
+      *directionalMultiplier;
+    this.operator.motionPace=pace;
+    this.operator.aimMovementCap=aimCap;
+    this.operator.directionalMovementMultiplier=directionalMultiplier;
+
     try {
       super.update(delta, normalizedMove);
       this.combat.update(delta, move);
       this.perception.update(delta);
       this.encounters.update(delta);
     } finally {
-      this.operator.moveSpeed = originalSpeed;
+      this.operator.moveSpeed=originalSpeed;
     }
   }
 

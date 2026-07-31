@@ -55,13 +55,22 @@ export class CombatSystem{
   this.lastHit=null;
   this.lookInputActive=false;
  }
+ get weaponAvailable(){
+  return !this.game.operator.carriedItemInstanceId;
+ }
  setAimAngle(angle){
-  if(Number.isFinite(angle))this.aimAngle=angle;
+  if(Number.isFinite(angle)&&this.weaponAvailable)this.aimAngle=angle;
  }
  toggleAim(force=null){
-  if(this.reloading&&force!==false)return;
+  if(!this.weaponAvailable){
+   this.aiming=false;
+   this.fireHeld=false;
+   return false;
+  }
+  if(this.reloading&&force!==false)return false;
   this.aiming=force===null?!this.aiming:Boolean(force);
   this.#updateBodyTarget();
+  return true;
  }
  #updateBodyTarget(){
   const operator=this.game.operator;
@@ -79,6 +88,9 @@ export class CombatSystem{
  }
  setFireHeld(held){
   this.fireHeld=Boolean(held);
+ }
+ get movementSpeedCap(){
+  return this.aiming ? 0.42 : 1;
  }
  get movementRatio(){
   const operator=this.game.operator;
@@ -118,6 +130,11 @@ export class CombatSystem{
  }
  update(delta,move){
   const operator=this.game.operator;
+  if(!this.weaponAvailable){
+   this.aiming=false;
+   this.fireHeld=false;
+   this.aimReadiness+=(0-this.aimReadiness)*(1-Math.exp(-delta*7));
+  }
   for(const actor of this.game.actors){
    if(actor.factionId&&actor.operationId&&actor.ammoInMagazine===undefined){
     actor.ammoInMagazine=20;
@@ -170,7 +187,7 @@ export class CombatSystem{
   this.decals=this.decals.filter(decal=>decal.life>0).slice(-80);
  }
  tryFire(){
-  if(this.reloading||this.fireCooldown>0)return false;
+  if(!this.weaponAvailable||this.reloading||this.fireCooldown>0)return false;
   if(this.ammoInMagazine<=0){
    this.startReload();
    return false;

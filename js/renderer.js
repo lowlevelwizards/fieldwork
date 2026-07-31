@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=094-physical-controls-minimal-hud-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=094-physical-controls-minimal-hud-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=094-physical-controls-minimal-hud-20260730";
-import { findEntity } from "./world-entities.js?v=094-physical-controls-minimal-hud-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=095-interaction-trust-combat-state-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=095-interaction-trust-combat-state-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=095-interaction-trust-combat-state-20260730";
+import { findEntity } from "./world-entities.js?v=095-interaction-trust-combat-state-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -344,7 +344,7 @@ export class Renderer{
  }
 
  #drawCombatWorld(ctx,game){
-  const combat=game.combat;if(!combat)return;
+  const combat=game.combat;if(!combat?.weaponAvailable)return;
   ctx.save();
   try{
    for(const decal of combat.decals){
@@ -376,7 +376,7 @@ export class Renderer{
  }
 
  #drawCombatAimScreen(ctx,game){
-  const combat=game.combat;if(!combat?.aiming)return;
+  const combat=game.combat;if(!combat?.weaponAvailable||!combat.aiming)return;
   const x=game.operator.x-this.camera.x,y=game.operator.y-this.camera.y;
   const angle=combat.aimAngle??combat.weaponAngle??0;
   const distance=combat.reticleDistance??300;

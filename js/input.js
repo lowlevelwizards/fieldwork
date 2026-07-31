@@ -74,59 +74,141 @@ export class InputController {
 }
 
 export class CombatInputController {
-  constructor({ touchSurface, aimButton, fireButton, canvas, combat, movementInput, getAimAngle, onWorldTap = null, isBlocked = () => false, isStarted = () => true }) {
-    this.touchSurface=touchSurface; this.aimButton=aimButton; this.fireButton=fireButton; this.canvas=canvas;
-    this.combat=combat; this.movementInput=movementInput; this.getAimAngle=getAimAngle; this.onWorldTap=onWorldTap;
-    this.isBlocked=isBlocked; this.isStarted=isStarted; this.lookPointerId=null; this.lookStart=null; this.dragThreshold=8;
+  constructor({
+    touchSurface, aimButton, fireButton, canvas, combat, movementInput,
+    getAimAngle, tryWorldInteraction = null, isBlocked = () => false,
+    isStarted = () => true, canUseCombat = () => true
+  }) {
+    this.touchSurface=touchSurface;
+    this.aimButton=aimButton;
+    this.fireButton=fireButton;
+    this.canvas=canvas;
+    this.combat=combat;
+    this.movementInput=movementInput;
+    this.getAimAngle=getAimAngle;
+    this.tryWorldInteraction=tryWorldInteraction;
+    this.isBlocked=isBlocked;
+    this.isStarted=isStarted;
+    this.canUseCombat=canUseCombat;
+    this.lookPointerId=null;
     this.#bind();
   }
+
   #available(){return this.isStarted()&&!this.isBlocked();}
+  #combatAvailable(){return this.#available()&&this.canUseCombat();}
   #isUi(event){return Boolean(event.target.closest('button,.inventory-overlay,.inspect-overlay,.dialogue-overlay,.debug-panel'));}
-  #setAngle(event){this.combat.setAimAngle(this.getAimAngle(event.clientX,event.clientY));}
+  #setAngle(event){if(this.#combatAvailable())this.combat.setAimAngle(this.getAimAngle(event.clientX,event.clientY));}
+
   #bind(){
     this.touchSurface.addEventListener('pointerdown',event=>{
       if(!this.#available()||event.pointerType!=='touch'||this.#isUi(event))return;
+
+      if(this.tryWorldInteraction?.(event.clientX,event.clientY)){
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       const leftSide=event.clientX<window.innerWidth*.5;
       if(leftSide&&this.movementInput.pointerId===null){
-        event.preventDefault(); this.movementInput.beginPointer(event);
+        event.preventDefault();
+        this.movementInput.beginPointer(event);
         try{this.touchSurface.setPointerCapture(event.pointerId)}catch{}
         return;
       }
-      if(!leftSide&&this.lookPointerId===null){
-        event.preventDefault(); this.lookPointerId=event.pointerId; this.combat.lookInputActive=true;
-        this.lookStart={x:event.clientX,y:event.clientY,time:performance.now(),moved:false};
-        this.#setAngle(event); try{this.touchSurface.setPointerCapture(event.pointerId)}catch{}
+
+      if(!leftSide&&this.lookPointerId===null&&this.#combatAvailable()){
+        event.preventDefault();
+        this.lookPointerId=event.pointerId;
+        this.combat.lookInputActive=true;
+        this.#setAngle(event);
+        try{this.touchSurface.setPointerCapture(event.pointerId)}catch{}
       }
     },{passive:false,capture:true});
+
     this.touchSurface.addEventListener('pointermove',event=>{
-      if(event.pointerId===this.movementInput.pointerId){event.preventDefault();this.movementInput.updatePointer(event);return;}
+      if(event.pointerId===this.movementInput.pointerId){
+        event.preventDefault();
+        this.movementInput.updatePointer(event);
+        return;
+      }
       if(event.pointerId===this.lookPointerId){
         event.preventDefault();
-        if(Math.hypot(event.clientX-this.lookStart.x,event.clientY-this.lookStart.y)>this.dragThreshold)this.lookStart.moved=true;
         this.#setAngle(event);
       }
     },{passive:false,capture:true});
+
     const finish=event=>{
-      if(event.pointerId===this.movementInput.pointerId){event.preventDefault();this.movementInput.endPointer(event);}
+      if(event.pointerId===this.movementInput.pointerId){
+        event.preventDefault();
+        this.movementInput.endPointer(event);
+      }
       if(event.pointerId===this.lookPointerId){
-        event.preventDefault(); this.#setAngle(event);
-        const tap=this.lookStart&&!this.lookStart.moved&&performance.now()-this.lookStart.time<330;
-        if(tap)this.onWorldTap?.(event.clientX,event.clientY);
-        this.lookPointerId=null;this.lookStart=null;this.combat.lookInputActive=false;
+        event.preventDefault();
+        this.#setAngle(event);
+        this.lookPointerId=null;
+        this.combat.lookInputActive=false;
       }
       try{this.touchSurface.releasePointerCapture(event.pointerId)}catch{}
     };
     this.touchSurface.addEventListener('pointerup',finish,{passive:false,capture:true});
     this.touchSurface.addEventListener('pointercancel',finish,{passive:false,capture:true});
-    this.aimButton.addEventListener('pointerdown',event=>{if(!this.#available())return;event.preventDefault();event.stopPropagation();this.combat.toggleAim();},{passive:false});
-    const fireStart=event=>{if(!this.#available())return;event.preventDefault();event.stopPropagation();this.combat.setFireHeld(true);this.combat.tryFire();try{this.fireButton.setPointerCapture(event.pointerId)}catch{}};
-    const fireStop=event=>{this.combat.setFireHeld(false);try{this.fireButton.releasePointerCapture(event.pointerId)}catch{}};
-    this.fireButton.addEventListener('pointerdown',fireStart,{passive:false}); this.fireButton.addEventListener('pointerup',fireStop); this.fireButton.addEventListener('pointercancel',fireStop);
-    this.canvas.addEventListener('pointermove',event=>{if(this.#available()&&event.pointerType!=='touch')this.#setAngle(event)});
+
+    this.aimButton.addEventListener('pointerdown',event=>{
+      if(!this.#combatAvailable())return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.combat.toggleAim();
+    },{passive:false});
+
+    const fireStart=event=>{
+      if(!this.#combatAvailable())return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.combat.setFireHeld(true);
+      this.combat.tryFire();
+      try{this.fireButton.setPointerCapture(event.pointerId)}catch{}
+    };
+    const fireStop=event=>{
+      this.combat.setFireHeld(false);
+      try{this.fireButton.releasePointerCapture(event.pointerId)}catch{}
+    };
+    this.fireButton.addEventListener('pointerdown',fireStart,{passive:false});
+    this.fireButton.addEventListener('pointerup',fireStop);
+    this.fireButton.addEventListener('pointercancel',fireStop);
+
+    this.canvas.addEventListener('pointermove',event=>{
+      if(this.#combatAvailable()&&event.pointerType!=='touch')this.#setAngle(event);
+    });
     this.canvas.addEventListener('contextmenu',event=>event.preventDefault());
-    this.canvas.addEventListener('pointerdown',event=>{if(!this.#available()||event.pointerType==='touch')return;if(event.button===2){event.preventDefault();this.combat.toggleAim()}else if(event.button===0){event.preventDefault();this.combat.setFireHeld(true);this.combat.tryFire()}});
-    window.addEventListener('pointerup',event=>{if(event.pointerType!=='touch')this.combat.setFireHeld(false)});
-    window.addEventListener('keydown',event=>{if(!this.#available())return;const key=event.key.toLowerCase();if(key==='f'){event.preventDefault();this.combat.toggleAim()}else if(key===' '&&!event.repeat){event.preventDefault();this.combat.setFireHeld(true);this.combat.tryFire()}});
-    window.addEventListener('keyup',event=>{if(event.key===' ')this.combat.setFireHeld(false)});
+    this.canvas.addEventListener('pointerdown',event=>{
+      if(!this.#combatAvailable()||event.pointerType==='touch')return;
+      if(event.button===2){
+        event.preventDefault();
+        this.combat.toggleAim();
+      }else if(event.button===0){
+        event.preventDefault();
+        this.combat.setFireHeld(true);
+        this.combat.tryFire();
+      }
+    });
+    window.addEventListener('pointerup',event=>{
+      if(event.pointerType!=='touch')this.combat.setFireHeld(false);
+    });
+    window.addEventListener('keydown',event=>{
+      if(!this.#combatAvailable())return;
+      const key=event.key.toLowerCase();
+      if(key==='f'){
+        event.preventDefault();
+        this.combat.toggleAim();
+      }else if(key===' '&&!event.repeat){
+        event.preventDefault();
+        this.combat.setFireHeld(true);
+        this.combat.tryFire();
+      }
+    });
+    window.addEventListener('keyup',event=>{
+      if(event.key===' ')this.combat.setFireHeld(false);
+    });
   }
 }

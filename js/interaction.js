@@ -1,5 +1,5 @@
-import { findEntity, getAvailableAction } from "./world-entities.js?v=081-perception-presentation-20260730";
-import { transferItem } from "./item-locations.js?v=081-perception-presentation-20260730";
+import { findEntity, getAvailableAction } from "./world-entities.js?v=095-interaction-trust-combat-state-20260730";
+import { transferItem } from "./item-locations.js?v=095-interaction-trust-combat-state-20260730";
 
 function distanceToEntity(operator, entity) {
   const cx = entity.x + entity.width / 2;
@@ -144,8 +144,10 @@ export class InteractionSystem {
       return true;
     }
     if (action === "open_container") {
-      entity.state = "opening";
+      entity.state = "open";
+      entity.animation = 1;
       this.game.emitEvent("containerOpened", entity);
+      if (!entity.searched) this.beginSearch(entity);
       return true;
     }
     if (action === "close_container") {
@@ -154,13 +156,7 @@ export class InteractionSystem {
       return true;
     }
     if (action === "search") {
-      this.searchingEntityId = entity.id;
-      entity.state = "searching";
-      entity.searchProgress = 0;
-      this.game.operator.lockedByInteraction = true;
-      this.game.operator.searchTargetId = entity.id;
-      this.game.emitEvent("searchStarted", entity);
-      return true;
+      return this.beginSearch(entity);
     }
     if (action === "read" || action === "examine" || action === "debris") {
       this.game.openWorldText(entity, action);
@@ -174,6 +170,18 @@ export class InteractionSystem {
       return result.ok;
     }
     return false;
+  }
+
+  beginSearch(entity) {
+    if (!entity || this.searchingEntityId) return false;
+    this.searchingEntityId = entity.id;
+    entity.state = "searching";
+    entity.searchProgress = 0;
+    this.game.operator.lockedByInteraction = true;
+    this.game.operator.searchTargetId = entity.id;
+    this.game.emitEvent("searchStarted", entity);
+    this.game.pushMessage(`Searching ${entity.name ?? "container"}…`, 1.1);
+    return true;
   }
 
   dropCarriedItem() {

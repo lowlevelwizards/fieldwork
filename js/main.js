@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=094-physical-controls-minimal-hud-20260730";
-import { ContinuousGameState } from "./continuous-game-state.js?v=094-physical-controls-minimal-hud-20260730";
-import { InputController, CombatInputController } from "./input.js?v=094-physical-controls-minimal-hud-20260730";
-import { Renderer } from "./renderer.js?v=094-physical-controls-minimal-hud-20260730";
-import { getItemDefinition } from "../data/items.js?v=094-physical-controls-minimal-hud-20260730";
-import { findEntity } from "./world-entities.js?v=094-physical-controls-minimal-hud-20260730";
-import { validateItemLocations } from "./item-locations.js?v=094-physical-controls-minimal-hud-20260730";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=094-physical-controls-minimal-hud-20260730";
+import { Camera } from "./camera.js?v=095-interaction-trust-combat-state-20260730";
+import { ContinuousGameState } from "./continuous-game-state.js?v=095-interaction-trust-combat-state-20260730";
+import { InputController, CombatInputController } from "./input.js?v=095-interaction-trust-combat-state-20260730";
+import { Renderer } from "./renderer.js?v=095-interaction-trust-combat-state-20260730";
+import { getItemDefinition } from "../data/items.js?v=095-interaction-trust-combat-state-20260730";
+import { findEntity } from "./world-entities.js?v=095-interaction-trust-combat-state-20260730";
+import { validateItemLocations } from "./item-locations.js?v=095-interaction-trust-combat-state-20260730";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=095-interaction-trust-combat-state-20260730";
 
-const BUILD_ID="0.9A.4";
+const BUILD_ID="0.9A.5";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -17,7 +17,7 @@ if(declaredBuild!==BUILD_ID){console.error("Fieldwork build mismatch",{html:decl
 console.info(`Fieldwork ${BUILD_ID} loaded`,{href:location.href,time:new Date().toISOString()});
 
 const camera=new Camera(),game=new ContinuousGameState(),renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
-const aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill");
+const aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
 let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
 function resizeAndCenter(reason="viewport"){
   renderer.resize();
@@ -33,10 +33,46 @@ function startGame(){
   objectiveTimer=setTimeout(()=>$("#objective-card").classList.add("objective-card--collapsed"),5200);
 }
 function modalOpen(){return inventoryOpen||operationsOpen||worldTextOpen||dialogueOpen||!reportOverlay.hidden;}
-function triggerContextAction(){if(modalOpen())return;const a=game.interaction.activeAction;if(a&&!a.disabled&&!["pack","take"].includes(a.id))game.interaction.trigger();else if(game.operator.carriedItemInstanceId)game.interaction.dropCarriedItem();else game.interaction.trigger();}
+function triggerContextAction(){
+ if(modalOpen())return false;
+ const action=game.interaction.activeAction;
+ if(action&&!action.disabled)return game.interaction.trigger();
+ if(game.operator.carriedItemInstanceId)return game.interaction.dropCarriedItem();
+ return false;
+}
 function updateInteractionUI(){
- const stack=$("#message-stack");stack.replaceChildren(...game.messages.map(m=>{const n=document.createElement("div");n.className="message-toast";n.textContent=m.text;n.style.opacity=String(Math.min(1,m.time/.25));return n;}));
+ const stack=$("#message-stack");
+ stack.replaceChildren(...game.messages.map(m=>{
+  const n=document.createElement("div");
+  n.className="message-toast";
+  n.textContent=m.text;
+  n.style.opacity=String(Math.min(1,m.time/.25));
+  return n;
+ }));
  $("#pack-usage-compact").textContent=`${game.inventory.getUsedPips()}/8`;
+
+ const action=game.interaction.activeAction;
+ const held=game.getHeldItem();
+ const searching=Boolean(game.interaction.searchingEntityId);
+ if(searching){
+  const entity=findEntity(game.entities,game.interaction.searchingEntityId);
+  searchStatus.hidden=false;
+  searchLabel.textContent=`Searching ${entity?.name??"container"}…`;
+  searchFill.style.width=`${Math.round((entity?.searchProgress??0)*100)}%`;
+ }else{
+  searchStatus.hidden=true;
+  searchFill.style.width="0%";
+ }
+
+ if(action&&!action.disabled&&!searching){
+  interactButton.hidden=false;
+  interactButton.textContent=action.label.toUpperCase();
+ }else if(held&&!searching){
+  interactButton.hidden=false;
+  interactButton.textContent=`DROP ${held.name}`.toUpperCase();
+ }else{
+  interactButton.hidden=true;
+ }
 }
 function buildInventory(){const used=game.inventory.getUsedPips();$("#pack-usage").textContent=`${used} / ${game.backpack.capacityPips} pips`;const pips=$("#capacity-pips");pips.replaceChildren();for(let i=0;i<game.backpack.capacityPips;i++){const p=document.createElement("span");p.className=i<used?"capacity-pip capacity-pip--used":"capacity-pip";pips.append(p);}inventoryList.replaceChildren();const items=game.inventory.getItems();if(!items.length){const e=document.createElement("p");e.className="inventory-empty";e.textContent="The pack is empty.";inventoryList.append(e);return;}for(const item of items){const def=getItemDefinition(item.definitionId),row=document.createElement("article");row.className="inventory-row";const summary=document.createElement("div");summary.className="item-summary";const icon=document.createElement("canvas");icon.className="item-icon";const copy=document.createElement("div"),name=document.createElement("strong"),meta=document.createElement("span");name.textContent=def.name;meta.textContent=`${def.category} · ${def.sizePips} ${def.sizePips===1?"pip":"pips"}${item.condition==="wet"?" · WET":""}`;copy.append(name,meta);summary.append(icon,copy);row.append(summary);renderItemThumbnail(icon,item.definitionId,item.condition);const actions=document.createElement("div");actions.className="item-actions";for(const [label,handler] of [["Inspect",()=>inspectItem(item)],["Hold",()=>{if(game.inventory.hold(item.id))closeInventory();}],["Drop",()=>{game.inventory.drop(item.id);buildInventory();}]]){const b=document.createElement("button");b.textContent=label;b.addEventListener("click",handler);actions.append(b);}row.append(actions);inventoryList.append(row);}}
 function openInventory(){if(!started||game.interaction.searchingEntityId)return;inventoryOpen=true;game.operator.lockedByInteraction=true;inventoryOverlay.hidden=false;buildInventory();}function closeInventory(){inventoryOpen=false;inventoryOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
@@ -48,7 +84,16 @@ function closeInspect(){inspectOverlay.hidden=true;worldTextOpen=false;if(!modal
 function openDialogue(request){if(!request)return;dialogueOpen=true;game.operator.lockedByInteraction=true;$("#dialogue-role").textContent=request.actor.role;$("#dialogue-name").textContent=request.actor.name;$("#dialogue-text").textContent=request.text;$("#dialogue-overlay").hidden=false;game.dialogueRequest=null;}function closeDialogue(){dialogueOpen=false;$("#dialogue-overlay").hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function openReport(report){if(!report)return;$("#report-title").textContent=report.title;const lines=$("#report-lines");lines.replaceChildren(...report.lines.map(text=>{const p=document.createElement("p");p.textContent=text;return p;}));reportOverlay.hidden=false;game.operator.lockedByInteraction=true;game.excursion.reportRequest=null;}function closeReport(){reportOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.incident.state!=="resolved"){if(game.incident.bandageUsed&&game.incident.waterUsed){strong.textContent="Ada is stabilized";copy.textContent="Assist her to shelter and restore the field radio.";}return;}if(selected&&selected.status!=="completed"){strong.textContent=selected.title;copy.textContent=`Current task: ${selected.tasks.find(t=>["in_progress","blocked"].includes(t.status))?.label??"Respond to conditions"}.`;}else if(game.excursion.state==="available"){strong.textContent="Follow the north trail";copy.textContent="Leave the pull-off on foot and follow the marked trail east toward the culvert.";}else if(game.excursion.state==="outbound"){strong.textContent="Continue to the north culvert";copy.textContent="Stay on the trail. Other field teams are already working ahead.";}else if(game.excursion.state==="at_destination"){strong.textContent="Work is overlapping at the culvert";copy.textContent="Hold rope and rig the debris, mark the hazard, or assist another team.";}else if(game.excursion.state==="returning"){strong.textContent="Return to the pull-off";copy.textContent="Bring recovered cargo into the RETURN marker.";}else{strong.textContent="Safe return";copy.textContent="The field report records what every team accomplished.";}}
-function updateCompass(){const has=game.inventory.getItems().some(i=>i.definitionId==="compass")||game.getHeldItem()?.definitionId==="compass";$("#compass-chip").hidden=!has;if(has){const labels={up:"NORTH",right:"EAST",down:"SOUTH",left:"WEST"};$("#compass-heading").textContent=labels[game.operator.facing];}}
+function updateCompass(){
+ const chip=$("#compass-chip"),heading=$("#compass-heading");
+ if(!chip||!heading)return;
+ const has=game.inventory.getItems().some(i=>i.definitionId==="compass")||game.getHeldItem()?.definitionId==="compass";
+ chip.hidden=!has;
+ if(has){
+  const labels={up:"NORTH",right:"EAST",down:"SOUTH",left:"WEST"};
+  heading.textContent=labels[game.operator.facing];
+ }
+}
 function updateDebug(delta){fpsAccumulator+=delta;fpsFrames++;if(fpsAccumulator>=.5){fpsValue=Math.round(fpsFrames/fpsAccumulator);fpsAccumulator=0;fpsFrames=0;}$("#debug-build").textContent=declaredBuild===BUILD_ID?BUILD_ID:`HTML ${declaredBuild} / JS ${BUILD_ID}`;$("#debug-fps").textContent=fpsValue;$("#debug-position").textContent=`${Math.round(game.operator.x)}, ${Math.round(game.operator.y)}`;
 $("#debug-camera").textContent=`${Math.round(camera.x)}, ${Math.round(camera.y)}`;
 $("#debug-viewport").textContent=`${Math.round(camera.width)}×${Math.round(camera.height)}`;
@@ -58,6 +103,12 @@ $("#debug-operator-visible").textContent=camera.contains(game.operator,0)?"yes":
 $("#debug-render").textContent=renderer.lastOperatorRenderError?"ERROR":"OK";$("#debug-facing").textContent=game.operator.facing;$("#debug-target").textContent=game.interaction.getTarget()?.id??"—";$("#debug-incident").textContent=game.incident.state;$("#debug-excursion").textContent=game.excursion.state;$("#debug-operations").textContent=game.operations.started?`${game.operations.operations.filter(o=>o.status==="completed").length}/3 complete · ${game.perception?.identifiedContactCount??0} contact(s) · ${game.encounters?.activeCount??0} encounter(s)`:"inactive";$("#debug-obstruction").textContent=game.excursion.obstructionState;$("#debug-water").textContent=game.isInWater()?`${game.waterExposure.toFixed(1)}s`:findEntity(game.entities,"culvert_water_01")?.depth??"dry";$("#debug-weather").textContent=`${game.weather} · light ${Math.round((game.getLightLevel?.()??1)*100)}%`;$("#debug-collision").textContent=game.getCollisionReason?.()??"clear";const r=game.lastCollisionRecovery;$("#debug-recovery").textContent=r?`${r.context}: ${Math.round(r.to.x)},${Math.round(r.to.y)}`:"none";const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
 function updateCombatUI(){
  const combat=game.combat;
+ const available=combat.weaponAvailable;
+ combatControls.hidden=!available;
+ if(!available){
+  combat.toggleAim(false);
+  return;
+ }
  ammoCount.textContent=combat.reloading?"RELOAD":`${combat.ammoInMagazine}/${combat.magazineSize}`;
  aimMode.textContent=combat.aiming?"AIM":"LOW";
  aimButton.classList.toggle("aim-button--active",combat.aiming);
@@ -75,16 +126,28 @@ function worldAimAngleFromPointer(clientX,clientY){
  return Math.atan2(clientY-rect.top-operatorScreenY,clientX-rect.left-operatorScreenX);
 }
 
+function tryWorldInteraction(screenX,screenY){
+ const target=game.interaction.getTarget();
+ if(!target||!game.interaction.activeAction||game.interaction.activeAction.disabled)return false;
+ const cx=target.x+(target.width??0)/2-camera.x;
+ const cy=target.y+(target.height??0)/2-camera.y;
+ const radius=Math.max(58,(target.radius??0)+42,Math.max(target.width??0,target.height??0)*.65);
+ if(Math.hypot(screenX-cx,screenY-cy)>radius)return false;
+ return Boolean(triggerContextAction());
+}
+
 const combatInput=new CombatInputController({
- touchSurface:gameScreen, aimButton, fireButton, canvas, combat:game.combat, movementInput:input,
+ touchSurface:gameScreen,
+ aimButton,
+ fireButton,
+ canvas,
+ combat:game.combat,
+ movementInput:input,
  getAimAngle:worldAimAngleFromPointer,
+ tryWorldInteraction,
  isBlocked:modalOpen,
  isStarted:()=>started,
- onWorldTap:(screenX,screenY)=>{
-  const target=game.interaction.getTarget();if(!target)return;
-  const cx=target.x+(target.width??0)/2-camera.x,cy=target.y+(target.height??0)/2-camera.y;
-  if(Math.hypot(screenX-cx,screenY-cy)<Math.max(52,(target.radius??0)+38))triggerContextAction();
- }
+ canUseCombat:()=>game.combat.weaponAvailable
 });
 
 
@@ -93,5 +156,12 @@ function recoverPosition(source){const before={x:game.operator.x,y:game.operator
 
 
 beginButton.addEventListener("click",startGame);
+$("#backpack-button").addEventListener("click",event=>{event.preventDefault();event.stopPropagation();inventoryOpen?closeInventory():openInventory();});
+$("#inventory-close").addEventListener("click",closeInventory);
+$("#operations-close").addEventListener("click",closeOperations);
+$("#inspect-close").addEventListener("click",closeInspect);
+$("#dialogue-close").addEventListener("click",closeDialogue);
+$("#report-close").addEventListener("click",closeReport);
+interactButton.addEventListener("pointerdown",event=>{event.preventDefault();event.stopPropagation();triggerContextAction();},{passive:false});
 window.addEventListener("keydown",event=>{const key=event.key.toLowerCase();if(key==="e"&&started){event.preventDefault();triggerContextAction();}if(key==="b"&&started){event.preventDefault();inventoryOpen?closeInventory():openInventory();}if(key==="o"&&started){event.preventDefault();operationsOpen?closeOperations():openOperations();}if(key==="escape"){if(dialogueOpen)closeDialogue();else if(operationsOpen)closeOperations();else if(!reportOverlay.hidden)closeReport();else if(!inspectOverlay.hidden)closeInspect();else if(inventoryOpen)closeInventory();}});
 $("#reset-position-button").addEventListener("click",()=>recoverPosition("debug reset button"));$("#debug-button").addEventListener("click",()=>{const active=$("#debug-button").getAttribute("aria-pressed")==="true";$("#debug-button").setAttribute("aria-pressed",String(!active));$("#debug-panel").hidden=active;$("#reset-position-button").hidden=active;});$("#objective-card").addEventListener("click",()=>{$("#objective-card").classList.toggle("objective-card--collapsed");if(objectiveTimer)clearTimeout(objectiveTimer);});window.addEventListener("resize",()=>{if(started)resizeAndCenter("window resize");});window.visualViewport?.addEventListener("resize",()=>{if(started)resizeAndCenter("visual viewport resize");});window.addEventListener("orientationchange",()=>{if(started)setTimeout(()=>resizeAndCenter("orientation change"),120);});requestAnimationFrame(frame);
