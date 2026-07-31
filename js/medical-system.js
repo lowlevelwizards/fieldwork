@@ -1,4 +1,4 @@
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11b-tactical-persistence-clarity-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -138,6 +138,7 @@ export class MedicalSystem{
     actor.vx=0;actor.vy=0;
     actor.workPose="medical";
     actor.workProp="medical_bag";
+    actor.workMedicalItem=need.type;
     actor.currentAction=patient.id===actor.id?"Treating self":`Treating ${patient.name}`;
     actor.currentTask=actor.currentAction;
     return true;
@@ -149,6 +150,7 @@ export class MedicalSystem{
     if(action.patientId!==actor.id)this.reservations.delete(action.patientId);
     actor.medicalAction=null;
     actor.workProp=null;
+    actor.workMedicalItem=null;
     if(reason)actor.currentTask=reason;
   }
 
@@ -206,6 +208,7 @@ export class MedicalSystem{
       actor.vx=0;actor.vy=0;
       actor.workPose="medical";
       actor.workProp="medical_bag";
+      actor.workMedicalItem=action.itemType;
       action.progress=clamp(action.progress+delta/action.duration,0,1);
       if(action.progress>=1)this.completeTreatment(actor);
       return;
@@ -360,9 +363,26 @@ export class MedicalSystem{
     const patient=this.game.actors.find(actor=>actor.id===this.playerDraggingId);
     if(!patient){this.playerDraggingId=null;return;}
     const operator=this.game.operator;
-    const angle=operator.lookAngle??0;
-    const anchor={x:operator.x-Math.cos(angle)*48,y:operator.y-Math.sin(angle)*48+8};
-    trailActorToward(patient,anchor,delta,{maximumSpeed:Math.max(80,operator.moveSpeed*.72),pose:"dragged"});
+    const speed=Math.hypot(operator.vx??0,operator.vy??0);
+    const movementAngle=speed>3?Math.atan2(operator.vy,operator.vx):(operator.lookAngle??0);
+    const trailerAngle=movementAngle+Math.PI;
+    const headAnchor={
+      x:operator.x+Math.cos(trailerAngle)*30,
+      y:operator.y+Math.sin(trailerAngle)*30+6
+    };
+    const bodyCenter={
+      x:headAnchor.x+Math.cos(trailerAngle)*24,
+      y:headAnchor.y+Math.sin(trailerAngle)*24
+    };
+
+    // The shoulders remain physically clamped to Mara; the rest of the body
+    // rotates and trails behind like a short towed load.
+    const separation=Math.hypot(patient.x-bodyCenter.x,patient.y-bodyCenter.y);
+    const towSpeed=Math.max(150,operator.moveSpeed*1.3,separation*8);
+    trailActorToward(patient,bodyCenter,delta,{maximumSpeed:towSpeed,arrivalRadius:2,pose:"dragged"});
+    const angleDiff=Math.atan2(Math.sin(trailerAngle-(patient.collapseAngle??trailerAngle)),Math.cos(trailerAngle-(patient.collapseAngle??trailerAngle)));
+    patient.collapseAngle=(patient.collapseAngle??trailerAngle)+angleDiff*(1-Math.exp(-delta*12));
+    patient.dragHeadAnchor=headAnchor;
     patient.beingDragged=true;
     patient.operationPausedByEncounter=true;
     patient.vx=0;patient.vy=0;

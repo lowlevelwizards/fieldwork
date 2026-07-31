@@ -1,12 +1,12 @@
-import { GameState } from "./game.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { PerceptionSystem } from "./perception.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { CombatSystem } from "./combat.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { WoundSystem } from "./wound-system.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { MedicalSystem } from "./medical-system.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { GameState } from "./game.js?v=11b-tactical-persistence-clarity-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=11b-tactical-persistence-clarity-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=11b-tactical-persistence-clarity-20260731";
+import { PerceptionSystem } from "./perception.js?v=11b-tactical-persistence-clarity-20260731";
+import { CombatSystem } from "./combat.js?v=11b-tactical-persistence-clarity-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=11b-tactical-persistence-clarity-20260731";
+import { WoundSystem } from "./wound-system.js?v=11b-tactical-persistence-clarity-20260731";
+import { MedicalSystem } from "./medical-system.js?v=11b-tactical-persistence-clarity-20260731";
+import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=11b-tactical-persistence-clarity-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor({scenario="operations"}={}) {

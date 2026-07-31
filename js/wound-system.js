@@ -135,8 +135,9 @@ export class WoundSystem{
     target.woundPoseRegion=dominant?.region??null;
     target.woundPoseSeverity=dominant?.severity??null;
     if((m.unconscious||m.dead)&&!Number.isFinite(target.collapseAngle)){
-      const facingAngle={right:0,down:Math.PI/2,left:Math.PI,up:-Math.PI/2}[target.facing]??0;
-      target.collapseAngle=facingAngle+(Math.random()-.5)*.28;
+      // Resting bodies settle horizontally across the isometric screen.
+      // Dragging temporarily overrides this with a tow-aligned angle.
+      target.collapseAngle=(Math.random()<.5?0:Math.PI)+(Math.random()-.5)*.28;
     }
     if(!m.unconscious&&!m.dead)target.collapseAngle=null;
     if(m.dead){

@@ -1,4 +1,5 @@
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=11b-tactical-persistence-clarity-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11b-tactical-persistence-clarity-20260731";
 const RELATIONSHIPS = {
   "commune:northline": -22,
   "commune:freelancers": -34,
@@ -19,7 +20,7 @@ function opposite(f){return f==="left"?"right":f==="right"?"left":f==="up"?"down
 function groupActors(actors){
   const groups=new Map();
   for(const actor of actors){
-    if(!actor.factionId||!actor.operationId)continue;
+    if(!actor.factionId||!actor.operationId||!isAlive(actor))continue;
     const key=actor.teamId??actor.factionId;
     if(!groups.has(key))groups.set(key,{id:key,factionId:actor.factionId,actors:[]});
     groups.get(key).actors.push(actor);
@@ -28,16 +29,17 @@ function groupActors(actors){
 }
 
 function center(group){
-  const count=Math.max(1,group.actors.length);
+  const active=group.actors.filter(isAlive);
+  const count=Math.max(1,active.length);
   return {
-    x:group.actors.reduce((sum,a)=>sum+a.x,0)/count,
-    y:group.actors.reduce((sum,a)=>sum+a.y,0)/count
+    x:active.reduce((sum,a)=>sum+a.x,0)/count,
+    y:active.reduce((sum,a)=>sum+a.y,0)/count
   };
 }
 
 function nearestPair(a,b){
   let best=null;
-  for(const actorA of a.actors)for(const actorB of b.actors){
+  for(const actorA of a.actors.filter(isAlive))for(const actorB of b.actors.filter(isAlive)){
     const d=distance(actorA,actorB);
     if(!best||d<best.distance)best={actorA,actorB,distance:d};
   }
@@ -144,13 +146,18 @@ export class FactionEncounterSystem{
           challengerId:null,targetId:null,
           reason:null,line:null,
           yieldedFaction:null,
-          repeatCount:0
+          repeatCount:0,
+          combatEngaged:false,
+          violenceAt:-999,
+          lastPlanAt:-999,
+          planA:"observe",
+          planB:"observe"
         };
         this.encounters.set(key,encounter);
       }
 
       encounter.elapsed+=delta;
-      encounter.participantIds=new Set([...a.actors,...b.actors].map(actor=>actor.id));
+      encounter.participantIds=new Set([...a.actors,...b.actors].filter(isAlive).map(actor=>actor.id));
       const rel=relation(a.factionId,b.factionId);
       const d=nearest.distance;
       const disposition=this.getDisposition(key);
@@ -158,8 +165,11 @@ export class FactionEncounterSystem{
       else disposition.quietTime+=delta;
       if(disposition.level!=="clear"&&d>900&&disposition.quietTime>42)this.easeDisposition(disposition);
 
-      if(d>900){
+      const now=performance.now()/1000;
+      if(d>(encounter.combatEngaged?1180:900)){
         if(encounter.state!=="unaware"){
+          if(encounter.combatEngaged&&now-encounter.violenceAt<32)continue;
+          encounter.combatEngaged=false;
           encounter.state="disengaging";
           encounter.cooldown+=delta;
           this.releaseActors(encounter);
@@ -177,6 +187,12 @@ export class FactionEncounterSystem{
       encounter.contactCertainty=contact?.certainty??0;
 
       if(!hasContact){
+        if(encounter.combatEngaged&&now-encounter.violenceAt<28){
+          encounter.state="threatening";
+          this.assignCombatPlans(encounter,a,b,nearest,delta);
+          this.applyEncounterBehavior(encounter,a,b,nearest);
+          continue;
+        }
         if(disposition.level!=="clear"&&d<760){
           this.applyWaryBehavior(a,b,disposition);
           continue;
@@ -211,9 +227,14 @@ export class FactionEncounterSystem{
         this.raiseDisposition(key,encounter.reason,22);
       }
       if(encounter.state==="threatening"&&hasContact){
-        encounter.lastHostileContactAt=performance.now()/1000;
+        encounter.lastHostileContactAt=now;
+        if(disposition.level==="hostile"||rel<=-40)encounter.combatEngaged=true;
       }
 
+      if(encounter.combatEngaged){
+        encounter.state="threatening";
+        this.assignCombatPlans(encounter,a,b,nearest,delta);
+      }
       this.applyEncounterBehavior(encounter,a,b,nearest);
     }
 
@@ -387,7 +408,7 @@ export class FactionEncounterSystem{
       target.workPose="scan";
     }
 
-    if(encounter.elapsed>12&&["challenging","blocking"].includes(encounter.state)){
+    if(!encounter.combatEngaged&&encounter.elapsed>12&&["challenging","blocking"].includes(encounter.state)){
       const yieldFaction=this.chooseYield(encounter,a,b);
       encounter.yieldedFaction=yieldFaction;
       this.raiseDisposition(encounter.key,encounter.reason,12);
@@ -405,6 +426,58 @@ export class FactionEncounterSystem{
       speedMultiplier:.5,arrivalRadius:12,task:"Moving to block the route",pose:"walk"
     });
     if(arrived){challenger.workPose="brace";challenger.currentTask="Blocking the route";}
+  }
+
+  markViolence(actor,target){
+    if(!actor||!target)return;
+    const actorTeam=actor.teamId??actor.factionId;
+    const targetTeam=target.teamId??target.factionId;
+    const encounter=this.encounters.get(pairKey(actorTeam,targetTeam));
+    if(!encounter)return;
+    encounter.combatEngaged=true;
+    encounter.state="threatening";
+    encounter.violenceAt=performance.now()/1000;
+    encounter.elapsed=0;
+    this.raiseDisposition(encounter.key,"shots exchanged",28);
+  }
+
+  teamStatus(group){
+    const alive=group.actors.filter(isAlive);
+    const capable=alive.filter(isCombatCapable);
+    const casualties=group.actors.length-capable.length;
+    const suppression=capable.length
+      ?capable.reduce((sum,actor)=>sum+(actor.suppression??0),0)/capable.length
+      :100;
+    return {alive,capable,casualties,suppression};
+  }
+
+  chooseSquadPlan(ours,theirs,encounter,side){
+    const own=this.teamStatus(ours),enemy=this.teamStatus(theirs);
+    if(!own.capable.length)return "withdraw";
+    if(own.casualties>0&&own.capable.some(actor=>/medic|shelter worker/i.test(actor.role??"")))return "rescue";
+    if(own.suppression>62||own.capable.length<Math.max(1,enemy.capable.length-1))return "withdraw";
+    if(own.capable.length>enemy.capable.length+1&&own.suppression<34)return "push";
+    if(encounter.repeatCount%3===1)return side==="A"?"flank_left":"flank_right";
+    if(encounter.repeatCount%3===2)return side==="A"?"flank_right":"flank_left";
+    return "hold";
+  }
+
+  assignCombatPlans(encounter,a,b,nearest,delta){
+    const now=performance.now()/1000;
+    if(now-encounter.lastPlanAt<6)return;
+    encounter.lastPlanAt=now;
+    encounter.planA=this.chooseSquadPlan(a,b,encounter,"A");
+    encounter.planB=this.chooseSquadPlan(b,a,encounter,"B");
+    for(const [group,plan,enemy] of [[a,encounter.planA,b],[b,encounter.planB,a]]){
+      const enemyCenter=center(enemy);
+      const capable=group.actors.filter(canReceiveOrders);
+      capable.forEach((actor,index)=>{
+        actor.tacticalPlan=plan;
+        actor.tacticalRole=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
+        actor.tacticalEnemyCenter={...enemyCenter};
+        actor.tacticalPlanUntil=now+9;
+      });
+    }
   }
 
   chooseYield(encounter,a,b){

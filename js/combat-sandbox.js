@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=11b-tactical-persistence-clarity-20260731";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -139,7 +139,7 @@ export class CombatSandboxDirector{
   return true;
  }
  updatePatrol(actor,delta){
-  if(isImmobileCasualty(actor)||actor.beingDragged||actor.operationPausedByEncounter||actor.medicalAction)return;
+  if(isImmobileCasualty(actor)||actor.beingDragged||actor.operationPausedByEncounter||actor.medicalAction||(actor.tacticalPlanUntil??0)>performance.now()/1000)return;
   if(!actor.patrolTarget||Math.hypot(actor.x-actor.patrolTarget.x,actor.y-actor.patrolTarget.y)<70){
     const base=PATROLS[Math.floor(Math.random()*PATROLS.length)];
     actor.patrolTarget=projectOutsideObstacles(this.game,base.x+(Math.random()-.5)*170,base.y+(Math.random()-.5)*170,actor.radius);

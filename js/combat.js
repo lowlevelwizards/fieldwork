@@ -1,3 +1,4 @@
+import { canBeTargeted, isAlive } from "./actor-state.js?v=11b-tactical-persistence-clarity-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const shortestAngle=(from,to)=>Math.atan2(Math.sin(to-from),Math.cos(to-from));
 const pointDistance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);

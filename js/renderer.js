@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { drawOperator } from "./presentation/operator-renderer.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
-import { findEntity } from "./world-entities.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=11b-tactical-persistence-clarity-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=11b-tactical-persistence-clarity-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=11b-tactical-persistence-clarity-20260731";
+import { findEntity } from "./world-entities.js?v=11b-tactical-persistence-clarity-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -17,7 +17,7 @@ export class Renderer{
   ctx.save();
   try{
     ctx.scale(this.camera.zoom,this.camera.zoom);
-    ctx.translate(-this.camera.x,-this.camera.y);this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawCombatWorld(ctx,game);this.#drawMapBorder(ctx);
+    ctx.translate(-this.camera.x,-this.camera.y);this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);if(game.debugEncounterZones)this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawCombatWorld(ctx,game);this.#drawMapBorder(ctx);
   }finally{
     ctx.restore();
   }
@@ -247,7 +247,24 @@ export class Renderer{
    }else if(prop==="rope"){
     ctx.strokeStyle="#b19862";ctx.lineWidth=5;ctx.beginPath();ctx.arc(x+side*30,y+18,13,0,Math.PI*2);ctx.stroke();
    }else if(prop==="medical_bag"){
-    ctx.fillStyle="#694a3d";ctx.beginPath();ctx.roundRect(x+side*28-13,y+19,26,19,5);ctx.fill();ctx.fillStyle="#d6c2a1";ctx.fillRect(x+side*28-2,y+22,4,12);ctx.fillRect(x+side*28-6,y+26,12,4);
+    const bagX=x+side*30,bagY=y+25;
+    ctx.fillStyle="#694a3d";ctx.beginPath();ctx.roundRect(bagX-13,bagY-9,26,19,5);ctx.fill();
+    ctx.fillStyle="#d6c2a1";ctx.fillRect(bagX-2,bagY-6,4,12);ctx.fillRect(bagX-6,bagY-2,12,4);
+    const item=actor.workMedicalItem;
+    if(item){
+      const itemX=x+side*15,itemY=y+4;
+      if(item==="tourniquet"){
+        ctx.strokeStyle="#252b28";ctx.lineWidth=5;ctx.beginPath();ctx.arc(itemX,itemY,9,0,Math.PI*2);ctx.stroke();
+        ctx.strokeStyle="#df9846";ctx.lineWidth=2;ctx.beginPath();ctx.arc(itemX,itemY,9,0,Math.PI*1.4);ctx.stroke();
+      }else if(item==="painkillers"){
+        ctx.fillStyle="#8b775e";ctx.beginPath();ctx.roundRect(itemX-7,itemY-5,14,10,4);ctx.fill();
+        ctx.fillStyle="#d8c38f";ctx.fillRect(itemX-4,itemY-1,8,2);
+      }else{
+        ctx.fillStyle=item==="pressure_dressing"?"#d3c8ad":"#e1ddcf";
+        ctx.beginPath();ctx.roundRect(itemX-10,itemY-5,20,10,4);ctx.fill();
+        ctx.strokeStyle="#9c5f56";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(itemX-7,itemY);ctx.lineTo(itemX+7,itemY);ctx.stroke();
+      }
+    }
    }else if(prop==="blanket"||prop==="supply_stack"){
     ctx.fillStyle=prop==="blanket"?"#83624c":"#77684e";ctx.beginPath();ctx.roundRect(x+side*30-17,y+22,34,14,4);ctx.fill();
    }else if(prop==="radio"){
@@ -283,6 +300,7 @@ export class Renderer{
 
 
  #drawEncounterIndicator(ctx,actor){
+  if(actor.medical?.dead||actor.medical?.unconscious||actor.medical?.condition==="critical")return;
   const perception=actor===undefined?null:null;
   const state=actor.encounterState;
   const knowledge=this._currentGame?.perception?.getKnowledgePresentation?.(actor);
@@ -318,29 +336,28 @@ export class Renderer{
  }
 
  #drawCasualtyState(ctx,actor){
-  const medical=actor.medical;if(!medical||medical.condition==="healthy")return;
+  const medical=actor.medical;if(!medical||medical.condition==="healthy"||medical.dead)return;
   ctx.save();
   try{
-    const x=actor.x,y=actor.y-98;
-    const state=medical.dead?"DEAD":medical.unconscious?"UNCONSCIOUS":medical.condition.toUpperCase();
-    const color=medical.dead?"#747873":medical.unconscious?"#b9b6a9":medical.condition==="critical"?"#d94f42":medical.condition==="serious"?"#df8c3d":"#d5bc58";
-    ctx.font="800 9px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillStyle="rgba(18,25,21,.88)";
-    const width=Math.max(58,ctx.measureText(state).width+18);
-    ctx.beginPath();ctx.roundRect(x-width/2,y-8,width,16,8);ctx.fill();
-    ctx.fillStyle=color;ctx.fillText(state,x,y);
-    if(medical.bleedingRate>.05&&!medical.dead){
+    if(!medical.unconscious){
+      const x=actor.x,y=actor.y-92;
+      const state=medical.condition.toUpperCase();
+      const color=medical.condition==="critical"?"#d94f42":medical.condition==="serious"?"#df8c3d":"#d5bc58";
+      ctx.font="800 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillStyle="rgba(18,25,21,.82)";
+      const width=Math.max(48,ctx.measureText(state).width+14);
+      ctx.beginPath();ctx.roundRect(x-width/2,y-7,width,14,7);ctx.fill();
+      ctx.fillStyle=color;ctx.fillText(state,x,y);
+    }
+    if(medical.bleedingRate>.05){
       ctx.fillStyle="#b84138";
       ctx.beginPath();ctx.arc(actor.x+13,actor.y+22,3+Math.sin((actor.workPhase??0)*4)*.5,0,Math.PI*2);ctx.fill();
       ctx.beginPath();ctx.moveTo(actor.x+13,actor.y+25);ctx.lineTo(actor.x+10,actor.y+32);ctx.lineTo(actor.x+16,actor.y+32);ctx.closePath();ctx.fill();
     }
-    if(medical.unconscious&&!medical.dead){
-      ctx.strokeStyle="rgba(220,225,211,.55)";ctx.lineWidth=2;
-      const breath=8+Math.sin(performance.now()*.003)*2;
+    if(medical.unconscious){
+      ctx.strokeStyle="rgba(220,225,211,.5)";ctx.lineWidth=2;
+      const breath=7+Math.sin(performance.now()*.003)*1.5;
       ctx.beginPath();ctx.arc(actor.x,actor.y+18,breath,0,Math.PI);ctx.stroke();
-    }
-    if(actor.beingDragged){
-      ctx.fillStyle="#e59a47";ctx.font="800 8px system-ui";ctx.fillText("DRAGGED",actor.x,actor.y+48);
     }
   }finally{ctx.restore();}
  }
@@ -348,13 +365,7 @@ export class Renderer{
  #drawAICombatIndicator(ctx,actor){
   if(!actor.operationId)return;
   const medical=actor.medical;
-  if(medical&&medical.condition!=="healthy"){
-    ctx.save();
-    ctx.font="700 10px system-ui";ctx.textAlign="center";
-    ctx.fillStyle=medical.condition==="critical"||medical.unconscious?"#ff8b72":"#d7a47d";
-    ctx.fillText(`${medical.condition.toUpperCase()} · ${Math.round(medical.blood)}%`,actor.x,actor.y-96);
-    ctx.restore();
-  }
+  if(medical?.dead||medical?.unconscious)return;
   ctx.save();
   try{
     const x=actor.x,y=actor.y-82;

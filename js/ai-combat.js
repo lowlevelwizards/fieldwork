@@ -1,4 +1,5 @@
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11a-combat-sandbox-cover-pose-hotfix-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating } from "./actor-state.js?v=11b-tactical-persistence-clarity-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=11b-tactical-persistence-clarity-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -102,7 +103,7 @@ export class AICombatSystem{
     let nearest=null,nearestDistance=Infinity;
     for(const id of encounter.participantIds??[]){
       const candidate=this.game.actors.find(a=>a.id===id);
-      if(!candidate||candidate.id===actor.id||candidate.factionId===actor.factionId||candidate.condition==="incapacitated")continue;
+      if(!candidate||candidate.id===actor.id||candidate.factionId===actor.factionId||!canBeTargeted(candidate))continue;
       const d=distance(actor,candidate);
       if(d<nearestDistance){nearest=candidate;nearestDistance=d;}
     }
@@ -112,7 +113,7 @@ export class AICombatSystem{
   getTarget(actor){
     const now=performance.now()/1000;
     let target=null;
-    if(actor.threatenedByPlayerUntil>now&&actor.factionId!=="commune"){
+    if(actor.threatenedByPlayerUntil>now&&actor.factionId!=="commune"&&canBeTargeted(this.game.operator)){
       target=this.game.operator;
     }else{
       target=this.getEncounterTarget(actor);
@@ -126,7 +127,7 @@ export class AICombatSystem{
 
   hasFriendlyInLine(actor,target,origin,end){
     for(const friendly of this.game.actors){
-      if(friendly.id===actor.id||friendly.id===target.id||friendly.factionId!==actor.factionId||friendly.condition==="incapacitated")continue;
+      if(friendly.id===actor.id||friendly.id===target.id||friendly.factionId!==actor.factionId||!isAlive(friendly))continue;
       const hit=segmentCircleHit(origin,end,{x:friendly.x,y:friendly.y,radius:(friendly.radius??18)+6});
       if(hit)return true;
     }
@@ -136,7 +137,7 @@ export class AICombatSystem{
   resolveShot(actor,origin,end,target){
     let nearest={t:1,point:{...end},actor:null,obstacle:null};
     for(const candidate of [this.game.operator,...this.game.actors]){
-      if(candidate.id===actor.id||candidate.condition==="incapacitated")continue;
+      if(candidate.id===actor.id||!canBeTargeted(candidate))continue;
       const hit=segmentCircleHit(origin,end,{x:candidate.x,y:candidate.y,radius:candidate.radius??18});
       if(hit&&hit.t<nearest.t)nearest={t:hit.t,point:{x:hit.x,y:hit.y},actor:candidate,obstacle:null};
     }
@@ -155,7 +156,7 @@ export class AICombatSystem{
       this.game.combat.addSuppression(amount,angleTo(point,player));
     }
     for(const actor of this.game.actors){
-      if(actor.id===shooter.id||actor.condition==="incapacitated")continue;
+      if(actor.id===shooter.id||!isAlive(actor))continue;
       const d=distance(actor,point);
       if(d<CONFIG.suppressionRadius){
         this.ensureActor(actor);
@@ -196,6 +197,7 @@ export class AICombatSystem{
     const result=this.resolveShot(actor,origin,intended,target);
     const end=result.point;
     actor.ammoInMagazine--;
+    this.game.encounters?.markViolence?.(actor,target);
     actor.fireCooldown=CONFIG.shotInterval*(1+suppressionPenalty*.9);
     actor.burstRemaining=Math.max(0,actor.burstRemaining-1);
 
@@ -297,17 +299,25 @@ export class AICombatSystem{
     actor.facing=facingFromAngle(actor.combatAimAngle);
     const targetDistance=distance(actor,target);
     actor.aimReadiness=clamp(actor.aimReadiness+delta*(actor.moraleState==="pinned"?.75:2.4),0,1);
+    const plan=(actor.tacticalPlanUntil??0)>performance.now()/1000?actor.tacticalPlan:"hold";
 
-    // Preserve a useful rifle engagement distance instead of collapsing into CQB.
+    // Execute a persistent squad plan instead of independently wandering after each burst.
     if(actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"){
-      if(targetDistance<CONFIG.preferredMinRange){
-        const fallback={x:actor.x-Math.cos(desired)*145,y:actor.y-Math.sin(desired)*145};
-        moveActorToward(actor,fallback,delta,{game:this.game,speedMultiplier:.34,arrivalRadius:12,task:"Opening distance under fire",pose:"walk"});
-        actor.currentTask="Opening distance under fire";
-        actor.aimReadiness=Math.max(.35,actor.aimReadiness-delta*.4);
-      }else if(targetDistance>CONFIG.preferredMaxRange&&targetDistance<760&&actor.aimReadiness<.62){
+      if(plan==="withdraw"||targetDistance<CONFIG.preferredMinRange){
+        const fallback={x:actor.x-Math.cos(desired)*(plan==="withdraw"?250:145),y:actor.y-Math.sin(desired)*(plan==="withdraw"?250:145)};
+        moveActorToward(actor,fallback,delta,{game:this.game,speedMultiplier:plan==="withdraw"?.52:.34,arrivalRadius:14,task:plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire",pose:"walk"});
+        actor.currentTask=plan==="withdraw"?"Withdrawing to regroup":"Opening distance under fire";
+        actor.aimReadiness=Math.max(.25,actor.aimReadiness-delta*.45);
+      }else if(plan==="push"&&targetDistance>310){
+        moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:.25,arrivalRadius:300,task:"Pushing under covering fire",pose:"walk"});
+        actor.currentTask="Pushing under covering fire";
+      }else if((plan==="flank_left"||plan==="flank_right")&&actor.tacticalRole==="maneuver"){
+        const side=plan==="flank_left"?-1:1;
+        const flank={x:actor.x-Math.sin(desired)*side*180+Math.cos(desired)*75,y:actor.y+Math.cos(desired)*side*180+Math.sin(desired)*75};
+        moveActorToward(actor,flank,delta,{game:this.game,speedMultiplier:.34,arrivalRadius:24,task:"Moving on the flank",pose:"walk"});
+        actor.currentTask="Moving on the flank";
+      }else if(plan!=="hold"&&targetDistance>CONFIG.preferredMaxRange&&targetDistance<800&&actor.aimReadiness<.62){
         moveActorToward(actor,target,delta,{game:this.game,speedMultiplier:.12,arrivalRadius:CONFIG.preferredMaxRange,task:"Advancing under observation",pose:"walk"});
-        actor.currentTask="Advancing under observation";
       }
     }
 
@@ -319,7 +329,9 @@ export class AICombatSystem{
     }
 
     if(actor.moraleState==="pinned"){
-      actor.vx=0;actor.vy=0;
+      const cover=this.game.encounters?.findCover?.(actor,target);
+      if(cover)moveActorToward(actor,cover,delta,{game:this.game,speedMultiplier:.22,arrivalRadius:18,task:"Crawling into cover",pose:"walk"});
+      else{actor.vx=0;actor.vy=0;}
       return;
     }
 

@@ -1,3 +1,4 @@
+import { canBePerceived, isActiveThreat, isConscious } from "./actor-state.js?v=11b-tactical-persistence-clarity-20260731";
 const DEG=Math.PI/180;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -22,6 +23,7 @@ export class PerceptionSystem{
   this.detections=new Map();
   this.teamKnowledge=new Map();
   this.relayQueue=[];
+  this.initialContactRelays=new Set();
   this.identifiedContactCount=0;
  }
  getObserverProfile(observer){
@@ -65,7 +67,7 @@ export class PerceptionSystem{
  }
  update(delta){
   for(const actor of this.game.actors){
-   if(!actor.factionId||!actor.operationId)continue;
+   if(!actor.factionId||!actor.operationId||!isConscious(actor))continue;
    let targetAngle=actor.lookAngle;
    if(Math.hypot(actor.vx??0,actor.vy??0)>.1)targetAngle=Math.atan2(actor.vy,actor.vx);
    else if(actor.encounterId){
@@ -81,8 +83,8 @@ export class PerceptionSystem{
    }
   }
 
-  const observers=[this.game.operator,...this.game.actors.filter(actor=>actor.factionId&&actor.operationId)];
-  const targets=[this.game.operator,...this.game.actors.filter(actor=>actor.factionId&&actor.operationId)];
+  const observers=[this.game.operator,...this.game.actors.filter(actor=>actor.factionId&&actor.operationId&&isConscious(actor))].filter(isConscious);
+  const targets=[this.game.operator,...this.game.actors.filter(actor=>actor.factionId&&actor.operationId&&canBePerceived(actor))].filter(canBePerceived);
   const seenKeys=new Set();
 
   for(const observer of observers){
@@ -137,36 +139,43 @@ export class PerceptionSystem{
  onDetectionLevel(observer,target,record){
   const observerTeam=observer.teamId??(observer.id===this.game.operator.id?"player":observer.factionId);
   const targetTeam=target.teamId??(target.id===this.game.operator.id?"player":target.factionId);
+  const contactKey=`${observerTeam}>${targetTeam}`;
+  const alreadyKnown=this.teamHasContact(observerTeam,targetTeam,"suspected");
   this.writeKnowledge(observerTeam,targetTeam,record.level,record.progress,record.lastPosition,observer.id);
 
-  if(observer.id!==this.game.operator.id){
-   const teammates=this.game.actors.filter(actor=>actor.teamId===observer.teamId&&actor.id!==observer.id);
-   for(const teammate of teammates){
+  // Relay presentation represents the first discovery of a new group only.
+  // Certainty upgrades refresh shared knowledge silently.
+  if(observer.id===this.game.operator.id||alreadyKnown||this.initialContactRelays.has(contactKey))return;
+  this.initialContactRelays.add(contactKey);
+
+  const teammates=this.game.actors.filter(actor=>
+    actor.teamId===observer.teamId&&actor.id!==observer.id&&isConscious(actor)
+  );
+  for(const teammate of teammates){
     const spacing=distance(observer,teammate);
     const base=.45+spacing/230;
     const weather=this.game.weather==="Heavy Rain"?1.8:this.game.weather==="Rain"?1.35:1;
     const light=(this.game.getLightLevel?.()??1)<.3?1.35:1;
     this.queueRelay({
-     fromTeam:observerTeam,toTeam:observerTeam,targetTeam,
-     level:record.level,certainty:record.progress,
-     position:record.lastPosition,sourceId:observer.id,
-     delay:base*weather*light
+      fromTeam:observerTeam,toTeam:observerTeam,targetTeam,
+      level:"suspected",certainty:Math.max(24,record.progress),
+      position:record.lastPosition,sourceId:observer.id,
+      delay:base*weather*light
     });
-   }
+  }
 
-   const sameFactionTeams=new Set(
+  const sameFactionTeams=new Set(
     this.game.actors
-     .filter(actor=>actor.factionId===observer.factionId&&actor.teamId!==observer.teamId)
-     .map(actor=>actor.teamId)
-   );
-   for(const teamId of sameFactionTeams){
+      .filter(actor=>actor.factionId===observer.factionId&&actor.teamId!==observer.teamId&&isConscious(actor))
+      .map(actor=>actor.teamId)
+  );
+  for(const teamId of sameFactionTeams){
     this.queueRelay({
-     fromTeam:observerTeam,toTeam:teamId,targetTeam,
-     level:record.level,certainty:record.progress*.85,
-     position:record.lastPosition,sourceId:observer.id,
-     delay:2.4+(this.game.weather==="Rain"?1.2:0)+(this.game.getLightLevel?.()<.3?1:0)
+      fromTeam:observerTeam,toTeam:teamId,targetTeam,
+      level:"suspected",certainty:Math.max(20,record.progress*.75),
+      position:record.lastPosition,sourceId:observer.id,
+      delay:2.4+(this.game.weather==="Rain"?1.2:0)+(this.game.getLightLevel?.()<.3?1:0)
     });
-   }
   }
  }
  queueRelay(relay){
