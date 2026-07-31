@@ -64,7 +64,7 @@ export class CombatSystem{
   if(Number.isFinite(angle)&&this.weaponAvailable)this.aimAngle=angle;
  }
  toggleAim(force=null){
-  if(!this.weaponAvailable){
+  if(!this.weaponAvailable||!this.game.wounds?.canAct?.(operator)){
    this.aiming=false;
    this.fireHeld=false;
    return false;
@@ -99,7 +99,8 @@ export class CombatSystem{
  }
  get currentSpread(){
   const suppressionSpread=(this.suppression/100)*7*Math.PI/180;
-  return clamp(this.spread+this.recoilSpread+this.turnPenalty+suppressionSpread,WEAPON.baseSpread,WEAPON.maximumSpread);
+  const woundSpread=this.game.wounds?.getAimPenalty?.(this.game.operator)??0;
+  return clamp(this.spread+this.recoilSpread+this.turnPenalty+suppressionSpread+woundSpread,WEAPON.baseSpread,WEAPON.maximumSpread);
  }
  addSuppression(amount,direction=null){
   this.suppression=clamp(this.suppression+Math.max(0,amount),0,100);
@@ -202,7 +203,7 @@ export class CombatSystem{
   this.decals=this.decals.filter(decal=>decal.life>0).slice(-80);
  }
  tryFire(){
-  if(!this.weaponAvailable||this.reloading||this.fireCooldown>0)return false;
+  if(!this.weaponAvailable||!this.game.wounds?.canAct?.(this.game.operator)||this.reloading||this.fireCooldown>0)return false;
   if(this.ammoInMagazine<=0){
    this.startReload();
    return false;

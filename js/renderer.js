@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=09c-contact-camera-engagement-20260731";
-import { drawOperator } from "./presentation/operator-renderer.js?v=09c-contact-camera-engagement-20260731";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=09c-contact-camera-engagement-20260731";
-import { findEntity } from "./world-entities.js?v=09c-contact-camera-engagement-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10a-wound-core-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=10a-wound-core-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=10a-wound-core-20260731";
+import { findEntity } from "./world-entities.js?v=10a-wound-core-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -25,6 +25,7 @@ export class Renderer{
   this.#drawInteractionPromptScreen(ctx,game);
   this.#drawCombatAimScreen(ctx,game);
   this.#drawSuppressionScreen(ctx,game);
+  this.#drawWoundScreen(ctx,game);
   if(game.weather==="Rain"||game.weather==="Heavy Rain")this.#drawRain(ctx,w,h,game.weather==="Heavy Rain"?1.65:1);
   this.#drawEnvironmentOverlay(ctx,w,h,game);
  }
@@ -86,6 +87,23 @@ export class Renderer{
   }finally{ctx.restore();}
  }
 
+ #drawWoundScreen(ctx,game){
+  const medical=game.operator.medical;if(!medical||medical.condition==="healthy")return;
+  const w=this.canvas.clientWidth,h=this.canvas.clientHeight;
+  const bloodLoss=Math.max(0,1-medical.blood/100);
+  const shock=Math.min(1,medical.shock/100);
+  ctx.save();try{
+   ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
+   const gradient=ctx.createRadialGradient(w*.5,h*.5,Math.min(w,h)*.28,w*.5,h*.5,Math.max(w,h)*.72);
+   gradient.addColorStop(0,"rgba(91,20,20,0)");
+   gradient.addColorStop(1,`rgba(90,18,20,${Math.min(.42,bloodLoss*.34+shock*.18)})`);
+   ctx.fillStyle=gradient;ctx.fillRect(0,0,w,h);
+   if(medical.condition==="critical"||medical.unconscious){
+    ctx.fillStyle=`rgba(230,225,205,${.05+Math.sin(performance.now()*.004)*.025})`;ctx.fillRect(0,0,w,h);
+   }
+  }finally{ctx.restore();}
+ }
+
  #drawRain(ctx,w,h,intensity=1){ctx.save();try{ctx.strokeStyle=`rgba(215,225,220,${.28+.08*Math.min(1,intensity-1)})`;ctx.lineWidth=1.4;const t=performance.now()*.22,count=Math.round(95*intensity);for(let i=0;i<count;i++){const x=(i*73+t)%w,y=(i*127+t*1.7)%h;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-8,y+18);ctx.stroke();}}finally{ctx.restore();}}
 
  #drawEnvironmentOverlay(ctx,w,h,game){
@@ -128,7 +146,7 @@ export class Renderer{
       y:actor.groundY-1,
       id:`actor:${actor.id}`,
       draw:()=>{
-        if(actor.condition==="bleeding"){
+        if(actor.condition==="bleeding"||((actor.medical?.bleedingRate??0)>.05)){
           ctx.save();
           try{
             ctx.fillStyle="rgba(111,45,40,.52)";
@@ -280,6 +298,14 @@ export class Renderer{
 
  #drawAICombatIndicator(ctx,actor){
   if(!actor.operationId)return;
+  const medical=actor.medical;
+  if(medical&&medical.condition!=="healthy"){
+    ctx.save();
+    ctx.font="700 10px system-ui";ctx.textAlign="center";
+    ctx.fillStyle=medical.condition==="critical"||medical.unconscious?"#ff8b72":"#d7a47d";
+    ctx.fillText(`${medical.condition.toUpperCase()} · ${Math.round(medical.blood)}%`,actor.x,actor.y-96);
+    ctx.restore();
+  }
   ctx.save();
   try{
     const x=actor.x,y=actor.y-82;

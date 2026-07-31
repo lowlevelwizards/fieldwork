@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=09c-contact-camera-engagement-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10a-wound-core-20260731";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -79,13 +79,13 @@ export class Camera {
 
     let desiredZoom=1;
     if(speedRatio>.68)desiredZoom=.9;
-    if(aiming)desiredZoom=.78;
+    if(aiming)desiredZoom=.70;
     if(engagement) {
       const distanceFactor=clamp((engagement.d-220)/620,0,1);
-      desiredZoom=Math.min(desiredZoom,lerp(.84,.66,distanceFactor));
+      desiredZoom=Math.min(desiredZoom,lerp(.78,.60,distanceFactor));
     }
     if(suppressed)desiredZoom=Math.min(desiredZoom,.76);
-    desiredZoom=clamp(desiredZoom,.64,1);
+    desiredZoom=clamp(desiredZoom,.58,1);
 
     const zoomEase=1-Math.exp(-delta*4.2);
     this.targetZoom=desiredZoom;
@@ -94,7 +94,7 @@ export class Camera {
 
     let focusX=operator.x;
     let focusY=operator.y;
-    const leadStrength=aiming?.22:speedRatio>.15?.12:0;
+    const leadStrength=aiming?.31:speedRatio>.15?.12:0;
     const leadAngle=aiming
       ?(game.combat?.aimAngle??operator.lookAngle??0)
       :Math.atan2(operator.vy??0,operator.vx??0);
@@ -104,7 +104,7 @@ export class Camera {
     }
 
     if(engagement){
-      const blend=aiming?.46:.34;
+      const blend=aiming?.56:.34;
       focusX=lerp(focusX,(operator.x+engagement.actor.x)/2,blend);
       focusY=lerp(focusY,(operator.y+engagement.actor.y)/2,blend);
     }

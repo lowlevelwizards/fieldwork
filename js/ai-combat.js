@@ -83,16 +83,10 @@ export class AICombatSystem{
       const missDistance=pointSegmentDistance(actor,origin,end);
       if(result.actor===actor){
         actor.suppression=clamp(actor.suppression+CONFIG.actorHitSuppression,0,100);
-        actor.combatHits++;
         actor.threatenedByPlayerUntil=performance.now()/1000+18;
         actor.currentTask="Under fire from Mara";
-        if(actor.combatHits>=3){
-          actor.condition="incapacitated";
-          actor.currentAction="Incapacitated";
-          actor.workPose="kneel";
-          actor.vx=0;actor.vy=0;
-          this.game.pushMessage(`${actor.name} is down`,2.1);
-        }
+        const shotDistance=Math.hypot(origin.x-actor.x,origin.y-actor.y);
+        this.game.wounds?.applyGunshot?.(actor,result.point,{source:this.game.operator,distance:shotDistance});
       }else if(missDistance<CONFIG.suppressionRadius){
         const amount=CONFIG.nearMissSuppression*(1-missDistance/CONFIG.suppressionRadius);
         actor.suppression=clamp(actor.suppression+amount,0,100);
@@ -210,16 +204,11 @@ export class AICombatSystem{
       this.game.combat.effects.push({type:"hit",x:end.x,y:end.y,life:.16,maxLife:.16,source:"ai"});
       if(result.actor.id===this.game.operator.id){
         this.game.combat.addSuppression(34,angleTo(origin,this.game.operator));
-        this.game.pushMessage("Incoming fire",1.05);
+        this.game.wounds?.applyGunshot?.(this.game.operator,end,{source:actor,distance:targetDistance});
       }else{
         this.ensureActor(result.actor);
         result.actor.suppression=clamp(result.actor.suppression+36,0,100);
-        result.actor.combatHits=(result.actor.combatHits??0)+1;
-        if(result.actor.combatHits>=3){
-          result.actor.condition="incapacitated";
-          result.actor.currentAction="Incapacitated";
-          result.actor.workPose="kneel";
-        }
+        this.game.wounds?.applyGunshot?.(result.actor,end,{source:actor,distance:targetDistance});
       }
     }else{
       this.game.combat.decals.push({type:"impact",x:end.x,y:end.y,angle:Math.random()*Math.PI,life:46,maxLife:46});

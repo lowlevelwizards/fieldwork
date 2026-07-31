@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=09c-contact-camera-engagement-20260731";
-import { ContinuousGameState } from "./continuous-game-state.js?v=09c-contact-camera-engagement-20260731";
-import { InputController, CombatInputController } from "./input.js?v=09c-contact-camera-engagement-20260731";
-import { Renderer } from "./renderer.js?v=09c-contact-camera-engagement-20260731";
-import { getItemDefinition } from "../data/items.js?v=09c-contact-camera-engagement-20260731";
-import { findEntity } from "./world-entities.js?v=09c-contact-camera-engagement-20260731";
-import { validateItemLocations } from "./item-locations.js?v=09c-contact-camera-engagement-20260731";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=09c-contact-camera-engagement-20260731";
+import { Camera } from "./camera.js?v=10a-wound-core-20260731";
+import { ContinuousGameState } from "./continuous-game-state.js?v=10a-wound-core-20260731";
+import { InputController, CombatInputController } from "./input.js?v=10a-wound-core-20260731";
+import { Renderer } from "./renderer.js?v=10a-wound-core-20260731";
+import { getItemDefinition } from "../data/items.js?v=10a-wound-core-20260731";
+import { findEntity } from "./world-entities.js?v=10a-wound-core-20260731";
+import { validateItemLocations } from "./item-locations.js?v=10a-wound-core-20260731";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=10a-wound-core-20260731";
 
-const BUILD_ID="0.9C";
+const BUILD_ID="1.0A";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -120,6 +120,15 @@ function updateCombatUI(){
  reloadFill.style.width=`${Math.round(Math.max(0,combat.reloadProgress)*100)}%`;
 }
 
+function updateMedicalUI(){
+ const status=$("#medical-status"),condition=$("#medical-condition"),detail=$("#medical-detail");
+ const summary=game.wounds?.getSummary?.(game.operator);
+ if(!status||!summary)return;
+ status.hidden=summary.condition==="healthy";
+ condition.textContent=summary.condition.toUpperCase();
+ detail.textContent=`Blood ${summary.blood}% · Shock ${summary.shock}%${summary.bleeding>.05?` · Bleeding ${summary.bleeding.toFixed(1)}`:""}`;
+}
+
 function worldAimAngleFromPointer(clientX,clientY){
  const rect=canvas.getBoundingClientRect();
  const pointer= camera.screenToWorld(clientX-rect.left,clientY-rect.top);
@@ -152,10 +161,15 @@ const combatInput=new CombatInputController({
 });
 
 
-function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.update(game,delta);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;$("#weather-icon").textContent=game.isNight?.()?"☾":game.weather==="Rain"||game.weather==="Heavy Rain"?"☂":game.weather==="Cloudy"?"☁":game.weather==="Fog"?"≋":"☀";updateObjective();updateCompass();updateCombatUI();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
+function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.update(game,delta);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;$("#weather-icon").textContent=game.isNight?.()?"☾":game.weather==="Rain"||game.weather==="Heavy Rain"?"☂":game.weather==="Cloudy"?"☁":game.weather==="Fog"?"≋":"☀";updateObjective();updateCompass();updateCombatUI();updateMedicalUI();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
 function recoverPosition(source){const before={x:game.operator.x,y:game.operator.y};game.resetPosition();camera.snapTo(game.operator);console.info("Fieldwork position recovery",{build:BUILD_ID,source,before,after:{x:game.operator.x,y:game.operator.y}});}
 
 
+// Prevent Safari gesture zoom from stealing rapid combat taps.
+document.addEventListener("dblclick",event=>event.preventDefault(),{passive:false});
+document.addEventListener("gesturestart",event=>event.preventDefault(),{passive:false});
+document.addEventListener("gesturechange",event=>event.preventDefault(),{passive:false});
+document.addEventListener("gestureend",event=>event.preventDefault(),{passive:false});
 beginButton.addEventListener("click",startGame);
 $("#backpack-button").addEventListener("click",event=>{event.preventDefault();event.stopPropagation();inventoryOpen?closeInventory():openInventory();});
 $("#inventory-close").addEventListener("click",closeInventory);

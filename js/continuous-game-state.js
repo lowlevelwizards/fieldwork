@@ -1,9 +1,10 @@
-import { GameState } from "./game.js?v=09c-contact-camera-engagement-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=09c-contact-camera-engagement-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=09c-contact-camera-engagement-20260731";
-import { PerceptionSystem } from "./perception.js?v=09c-contact-camera-engagement-20260731";
-import { CombatSystem } from "./combat.js?v=09c-contact-camera-engagement-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=09c-contact-camera-engagement-20260731";
+import { GameState } from "./game.js?v=10a-wound-core-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=10a-wound-core-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=10a-wound-core-20260731";
+import { PerceptionSystem } from "./perception.js?v=10a-wound-core-20260731";
+import { CombatSystem } from "./combat.js?v=10a-wound-core-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=10a-wound-core-20260731";
+import { WoundSystem } from "./wound-system.js?v=10a-wound-core-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -12,6 +13,7 @@ export class ContinuousGameState extends GameState {
     this.operator.lookAngle = 0;
     this.operator.targetLookAngle = 0;
     this.combat = new CombatSystem(this);
+    this.wounds = new WoundSystem(this);
     this.aiCombat = new AICombatSystem(this);
     this.perception = new PerceptionSystem(this);
     this.encounters = new FactionEncounterSystem(this);
@@ -103,6 +105,7 @@ export class ContinuousGameState extends GameState {
     const aimCap=this.combat.movementSpeedCap??1;
     this.operator.moveSpeed=originalSpeed
       *this.getEnvironmentSpeedMultiplier()
+      *this.wounds.getMovementMultiplier(this.operator)
       *Math.min(pace||0,aimCap)
       *directionalMultiplier;
     this.operator.motionPace=pace;
@@ -149,6 +152,7 @@ export class ContinuousGameState extends GameState {
         :2.7;
       if(speed>4)this.operator.walkingPhase+=delta*cadence*this.operator.motionSpeedRatio;
 
+      this.wounds.update(delta);
       this.combat.update(delta, move);
       this.perception.update(delta);
       this.encounters.update(delta);

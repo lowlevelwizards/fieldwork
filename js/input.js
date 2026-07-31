@@ -91,6 +91,7 @@ export class CombatInputController {
     this.isStarted=isStarted;
     this.canUseCombat=canUseCombat;
     this.lookPointerId=null;
+    this.lastFireTouchAt=0;
     this.#bind();
   }
 
@@ -164,6 +165,8 @@ export class CombatInputController {
     const fireStart=event=>{
       if(!this.#combatAvailable())return;
       event.preventDefault();
+      // Consume rapid taps before Safari can reinterpret them as page zoom.
+      if(event.pointerType==="touch")this.lastFireTouchAt=performance.now();
       event.stopPropagation();
       this.combat.setFireHeld(true);
       this.combat.tryFire();
@@ -176,6 +179,9 @@ export class CombatInputController {
     this.fireButton.addEventListener('pointerdown',fireStart,{passive:false});
     this.fireButton.addEventListener('pointerup',fireStop);
     this.fireButton.addEventListener('pointercancel',fireStop);
+    this.fireButton.addEventListener('click',event=>event.preventDefault(),{passive:false});
+    this.fireButton.addEventListener('dblclick',event=>{event.preventDefault();event.stopPropagation();},{passive:false});
+    this.fireButton.addEventListener('touchend',event=>event.preventDefault(),{passive:false});
 
     this.canvas.addEventListener('pointermove',event=>{
       if(this.#combatAvailable()&&event.pointerType!=='touch')this.#setAngle(event);
