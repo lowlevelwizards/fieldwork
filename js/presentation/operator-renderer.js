@@ -236,13 +236,19 @@ export function drawOperator(ctx, operator, carriedItem = null) {
   const kit = getOperatorKit(operator.kitId);
   const palette = kit.palette;
   const facing = VALID_FACINGS.has(operator.facing) ? operator.facing : "up";
-  const moving = Math.hypot(operator.vx, operator.vy) > 5;
+  const speed = Math.hypot(operator.vx??0, operator.vy??0);
+  const moving = speed > 5;
   const phase = operator.walkingPhase;
   const carrying = Boolean(operator.carriedItemInstanceId);
+  const mode=operator.locomotionMode??"idle";
+  const pace=Math.min(1,operator.motionPace??speed/260);
+  const amplitude=mode==="run"?3.5:mode==="strafe"?2.35:mode==="backpedal"?1.65:2.15;
+  const sideStep=mode==="strafe"?Math.sin(phase)*1.7:0;
   const motion = {
-    step: moving ? Math.sin(phase) * 1.7 : 0,
-    sway: moving ? Math.sin(phase * 0.5) * 1.0 : 0,
-    packBounce: (moving ? Math.abs(Math.sin(phase)) * 0.9 : 0) - (operator.packPulse || 0) * 1.5,
+    step: moving ? Math.sin(phase) * amplitude : 0,
+    sideStep,
+    sway: moving ? Math.sin(phase * 0.5) * (mode==="run"?1.8:1.05) : 0,
+    packBounce: (moving ? Math.abs(Math.sin(phase)) * (mode==="run"?1.8:.9) : 0) - (operator.packPulse || 0) * 1.5,
     packScale: (operator.backpackLoadRatio || 0) * 2,
     carrying,
     carriedDefinitionId: carriedItem?.definitionId || null,
@@ -252,8 +258,16 @@ export function drawOperator(ctx, operator, carriedItem = null) {
 
   ctx.save();
   ctx.translate(operator.x, operator.y);
-  const speed=Math.hypot(operator.vx??0,operator.vy??0),pace=Math.min(1,operator.motionPace??speed/260);
-  if(speed>5){const nx=(operator.vx??0)/speed,ny=(operator.vy??0)/speed;const lean=pace*4.5;ctx.translate(nx*lean,ny*lean);ctx.rotate(nx*0.018*pace);}
+  if(speed>5){
+    const nx=(operator.vx??0)/speed,ny=(operator.vy??0)/speed;
+    const forwardX=Math.cos(operator.lookAngle??0),forwardY=Math.sin(operator.lookAngle??0);
+    const forwardDot=nx*forwardX+ny*forwardY;
+    const sideDot=nx*(-forwardY)+ny*forwardX;
+    const runLean=mode==="run"?7.2:mode==="forward"?3.7:mode==="backpedal"?-2.2:2.4;
+    const braking=-(operator.motionAcceleration??0)*2.2;
+    ctx.translate(nx*(pace*runLean+braking),ny*(pace*runLean+braking));
+    ctx.rotate(sideDot*.045*pace + forwardDot*.012*pace);
+  }
   if (motion.searching) {
     const leanX = facing === "left" ? -4 : facing === "right" ? 4 : 0;
     ctx.translate(leanX, 3 + motion.searchPose * 1.5);
@@ -262,8 +276,8 @@ export function drawOperator(ctx, operator, carriedItem = null) {
 
   drawShadow(ctx, moving, phase);
 
-  // Body bob is subtle; feet do most of the animation work.
-  ctx.translate(0, moving ? Math.sin(phase) * 0.8 : 0);
+  const bobAmount=mode==="run"?1.8:mode==="strafe"?.7:mode==="backpedal"?.45:.9;
+  ctx.translate(motion.sideStep*.32, moving ? Math.abs(Math.sin(phase))*-bobAmount : 0);
 
   if (facing === "up") drawUp(ctx, palette, motion);
   else if (facing === "down") drawDown(ctx, palette, motion);
