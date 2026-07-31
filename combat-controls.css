@@ -1,94 +1,69 @@
-/* Fieldwork 0.9A.2 — combat controls and twin-stick surface */
-#game-screen { position: relative; overflow: hidden; }
-
-.aim-zone {
-  position: absolute;
-  z-index: 14;
-  top: 0;
-  right: 0;
-  width: 52%;
-  height: 100%;
-  pointer-events: auto;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.aim-zone--active::after {
-  content: "";
-  position: absolute;
-  right: max(18px, env(safe-area-inset-right));
-  bottom: calc(156px + env(safe-area-inset-bottom));
-  width: 52px;
-  height: 52px;
-  border: 1px solid rgba(238, 242, 235, .22);
-  border-radius: 50%;
-  pointer-events: none;
-}
+/* Fieldwork 0.9A.3 — compact combat HUD and whole-field touch ownership */
+#game-screen { position: relative; overflow: hidden; touch-action: none; }
+.aim-zone { display:none; }
 
 .combat-controls {
-  position: absolute;
-  z-index: 28;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: calc(102px + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  pointer-events: none;
+  position:absolute;
+  z-index:34;
+  right:max(14px,env(safe-area-inset-right));
+  bottom:calc(16px + env(safe-area-inset-bottom));
+  display:grid;
+  grid-template-columns:auto auto;
+  grid-template-areas:"readout readout" "aim fire";
+  justify-items:end;
+  gap:7px 8px;
+  pointer-events:none;
 }
-
 .combat-readout {
-  min-width: 132px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 4px 12px;
-  padding: 8px 11px;
-  border: 1px solid rgba(220, 229, 216, .2);
-  border-radius: 12px;
-  background: rgba(19, 27, 23, .94);
-  color: #eef2eb;
-  box-shadow: 0 8px 18px rgba(0,0,0,.2);
+  grid-area:readout;
+  min-width:118px;
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:3px 10px;
+  padding:6px 9px;
+  border:1px solid rgba(220,229,216,.18);
+  border-radius:11px;
+  background:rgba(19,27,23,.88);
+  color:#eef2eb;
+  box-shadow:0 6px 14px rgba(0,0,0,.18);
+  backdrop-filter:blur(8px);
 }
-.combat-readout span { font-size: .7rem; font-weight: 800; letter-spacing: .12em; color: #bcc8bb; }
-.combat-readout strong { font-size: .82rem; font-variant-numeric: tabular-nums; }
-.reload-progress { grid-column: 1 / -1; height: 3px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.1); }
-#reload-progress-fill { width: 0; height: 100%; background: #e59a47; transition: width .08s linear; }
-
-.combat-button-row { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
-.aim-button, .fire-button {
-  width: 70px;
-  height: 58px;
-  border: 1px solid rgba(226, 235, 223, .28);
-  border-radius: 18px;
-  background: rgba(25, 34, 29, .96);
-  color: #edf2ea;
-  font: 800 .78rem/1 system-ui, sans-serif;
-  letter-spacing: .08em;
-  box-shadow: 0 8px 18px rgba(0,0,0,.25);
-  touch-action: none;
-  -webkit-tap-highlight-color: transparent;
+.combat-readout span{font-size:.62rem;font-weight:800;letter-spacing:.12em;color:#bcc8bb}
+.combat-readout strong{font-size:.76rem;font-variant-numeric:tabular-nums}
+.reload-progress{grid-column:1/-1;height:2px;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.09)}
+#reload-progress-fill{width:0;height:100%;background:#e59a47;transition:width .08s linear}
+.combat-button-row{display:contents}
+.aim-button,.fire-button{
+  pointer-events:auto;
+  width:64px;height:52px;
+  border:1px solid rgba(226,235,223,.25);
+  border-radius:16px;
+  background:rgba(25,34,29,.92);
+  color:#edf2ea;
+  font:800 .72rem/1 system-ui,sans-serif;
+  letter-spacing:.08em;
+  box-shadow:0 6px 14px rgba(0,0,0,.22);
+  touch-action:none;
+  -webkit-tap-highlight-color:transparent;
 }
-.aim-button--active, .aim-button[aria-pressed="true"] { border-color: #e59a47; color: #ffc06f; background: rgba(72, 49, 27, .97); }
-.fire-button { width: 78px; border-color: rgba(229, 154, 71, .5); }
-.fire-button--aiming:not(:disabled) { background: rgba(125, 62, 35, .97); border-color: #ffae55; color: #fff3df; }
-.fire-button:disabled { opacity: .42; }
-.fire-button--reloading { opacity: .65; }
-.aim-button:active, .fire-button:active { transform: scale(.96); }
+.aim-button{grid-area:aim}.fire-button{grid-area:fire;width:72px;border-color:rgba(229,154,71,.45)}
+.aim-button--active,.aim-button[aria-pressed="true"]{border-color:#e59a47;color:#ffc06f;background:rgba(72,49,27,.94)}
+.fire-button--aiming:not(:disabled){background:rgba(125,62,35,.94);border-color:#ffae55;color:#fff3df}
+.fire-button:disabled{opacity:.38}.fire-button--reloading{opacity:.62}
+.aim-button:active,.fire-button:active{transform:scale(.96)}
 
-/* UI must remain above the invisible right-stick surface. */
-.hud, .objective-card, .joystick-zone, .field-controls, .utility-button, .debug-panel { z-index: 30; }
-.inventory-overlay, .inspect-overlay, .dialogue-overlay { z-index: 60; }
-.joystick-zone { touch-action: none; }
+/* Three functional regions: information at top, pack bottom-left, action/combat bottom-right. */
+.hud,.objective-card,.joystick-base,.field-controls,.utility-button,.debug-panel{z-index:36}
+.inventory-overlay,.inspect-overlay,.dialogue-overlay{z-index:60}
+.joystick-zone{position:absolute;inset:0;width:auto!important;height:auto!important;pointer-events:none}
+.joystick-base{position:fixed;pointer-events:none}
 
-@media (max-width: 600px) {
-  .combat-controls { right: max(12px, env(safe-area-inset-right)); bottom: calc(104px + env(safe-area-inset-bottom)); }
-  .combat-readout { min-width: 122px; }
-  .aim-button, .fire-button { height: 56px; }
+@media (max-width:600px){
+ .combat-controls{right:max(12px,env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom))}
+ .aim-button,.fire-button{height:50px}
 }
-
-@media (orientation: landscape) and (max-height: 520px) {
-  .combat-controls { bottom: calc(84px + env(safe-area-inset-bottom)); }
-  .combat-readout { padding: 6px 10px; }
-  .aim-button, .fire-button { height: 50px; }
+@media (orientation:landscape) and (max-height:520px){
+ .combat-controls{bottom:calc(10px + env(safe-area-inset-bottom))}
+ .combat-readout{padding:5px 8px}
+ .aim-button,.fire-button{height:46px}
 }

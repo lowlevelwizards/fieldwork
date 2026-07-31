@@ -436,3 +436,41 @@ h1 {
 .dialogue-card p:not(.eyebrow) { color: var(--ink); line-height: 1.5; min-height: 48px; }
 /* 0.5A care incident: keep the existing quiet HUD while making urgent state legible. */
 .dialogue-card p#dialogue-text { white-space: pre-line; }
+
+
+/* 0.9A.3 streamlined field HUD */
+.hud--top{
+  top:calc(8px + var(--safe-top));
+  left:8px;right:8px;padding:0;
+  justify-content:flex-start;align-items:stretch;gap:7px;
+}
+.hud-chip{min-width:118px;padding:7px 10px;border-radius:12px}
+.hud-label{font-size:.58rem}.hud-chip strong{font-size:.86rem}
+.world-status{margin:0;padding:6px 9px;min-width:82px;align-items:flex-start;border:1px solid var(--line);background:var(--panel);border-radius:12px}
+.world-status strong{font-size:.84rem}.world-status span{font-size:.68rem;line-height:1.15}
+.hud-button{min-height:38px;padding:0 11px;border-radius:12px;font-size:.76rem}
+#operations-button{margin-left:auto}
+#debug-button{font-size:0;width:38px;padding:0}
+#debug-button::after{content:"DBG";font-size:.6rem;letter-spacing:.08em}
+.compass-chip{position:absolute;top:46px;left:50%;transform:translateX(-50%);min-width:0;padding:4px 10px;border-radius:10px;background:rgba(19,27,23,.82)}
+.compass-chip strong{display:none}.compass-chip span{font-size:.62rem;letter-spacing:.14em}
+.objective-card{top:calc(58px + var(--safe-top));left:8px;width:min(66vw,270px);padding:9px 11px;border-radius:12px}
+.objective-card--collapsed{width:auto;min-width:48px;min-height:36px;padding:8px 9px}
+
+.field-controls{position:absolute;inset:0;width:auto!important;z-index:35;pointer-events:none}
+.message-stack{position:absolute;right:14px;bottom:calc(138px + var(--safe-bottom));width:min(62vw,300px);align-items:flex-end}
+.field-control-row{display:contents}
+.backpack-button{position:absolute;left:14px;bottom:calc(14px + var(--safe-bottom));width:66px;min-height:54px;pointer-events:auto;border-radius:15px}
+.action-panel{position:absolute!important;right:14px!important;bottom:calc(132px + var(--safe-bottom))!important;width:min(70vw,260px)!important;min-width:0!important;display:grid!important;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:8px 9px!important;border-radius:14px!important;pointer-events:auto}
+.action-panel[hidden]{display:none!important}
+.action-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.76rem}
+.action-button{min-width:92px;min-height:44px;padding:0 14px;border-radius:12px;font-size:.9rem}
+.action-progress{grid-column:1/-1}
+.utility-button{left:14px;bottom:calc(80px + var(--safe-bottom))}
+
+@media (max-width:600px){
+ .hud--top{gap:5px}.hud-chip{min-width:104px}.world-status{min-width:76px}
+ #operations-button{padding:0 9px;font-size:.7rem}
+ .action-panel{bottom:calc(126px + var(--safe-bottom))!important}
+ .message-stack{bottom:calc(188px + var(--safe-bottom))}
+}
