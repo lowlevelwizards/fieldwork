@@ -1,8 +1,8 @@
-import { GameState } from "./game.js?v=097-pose-aim-retention-correction-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=097-pose-aim-retention-correction-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=097-pose-aim-retention-correction-20260731";
-import { PerceptionSystem } from "./perception.js?v=097-pose-aim-retention-correction-20260731";
-import { CombatSystem } from "./combat.js?v=097-pose-aim-retention-correction-20260731";
+import { GameState } from "./game.js?v=09b-ai-fire-suppression-reactions-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=09b-ai-fire-suppression-reactions-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=09b-ai-fire-suppression-reactions-20260731";
+import { PerceptionSystem } from "./perception.js?v=09b-ai-fire-suppression-reactions-20260731";
+import { CombatSystem } from "./combat.js?v=09b-ai-fire-suppression-reactions-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -11,6 +11,7 @@ export class ContinuousGameState extends GameState {
     this.operator.lookAngle = 0;
     this.operator.targetLookAngle = 0;
     this.combat = new CombatSystem(this);
+    this.aiCombat = new AICombatSystem(this);
     this.perception = new PerceptionSystem(this);
     this.encounters = new FactionEncounterSystem(this);
     const phases = [
@@ -143,6 +144,7 @@ export class ContinuousGameState extends GameState {
       this.combat.update(delta, move);
       this.perception.update(delta);
       this.encounters.update(delta);
+      this.aiCombat.update(delta);
     } finally {
       this.operator.moveSpeed=originalSpeed;
     }

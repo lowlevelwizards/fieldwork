@@ -33,12 +33,13 @@ export class PerceptionSystem{
   const light=clamp(this.game.getLightLevel?.()??1,.06,1);
   const lightAngle=(light-1)*30;
   const lightRange=.32+.68*Math.sqrt(light);
+  const playerSuppression=observer.id===this.game.operator.id?(this.game.combat?.suppression??0)/100:0;
   const baseAngle=observer.id===this.game.operator.id?120:112;
   const baseRange=observer.id===this.game.operator.id?720:650;
   return{
    tier,
-   angle:clamp(baseAngle+movementAngle+weatherAngle+lightAngle,48,132),
-   range:clamp(baseRange*movementRange*weatherRange*lightRange,170,760),
+   angle:clamp(baseAngle+movementAngle+weatherAngle+lightAngle-playerSuppression*34,42,132),
+   range:clamp(baseRange*movementRange*weatherRange*lightRange*(1-playerSuppression*.36),150,760),
    light
   };
  }

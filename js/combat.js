@@ -54,6 +54,8 @@ export class CombatSystem{
   this.lastShotAt=-999;
   this.lastHit=null;
   this.lookInputActive=false;
+  this.suppression=0;
+  this.suppressionDirection=null;
  }
  get weaponAvailable(){
   return !this.game.operator.carriedItemInstanceId;
@@ -96,7 +98,12 @@ export class CombatSystem{
   return (weatherPenalty+darknessPenalty)*Math.PI/180;
  }
  get currentSpread(){
-  return clamp(this.spread+this.recoilSpread+this.turnPenalty,WEAPON.baseSpread,WEAPON.maximumSpread);
+  const suppressionSpread=(this.suppression/100)*7*Math.PI/180;
+  return clamp(this.spread+this.recoilSpread+this.turnPenalty+suppressionSpread,WEAPON.baseSpread,WEAPON.maximumSpread);
+ }
+ addSuppression(amount,direction=null){
+  this.suppression=clamp(this.suppression+Math.max(0,amount),0,100);
+  if(Number.isFinite(direction))this.suppressionDirection=direction;
  }
  get aimingLineVisible(){
   return this.aiming&&!this.reloading&&this.aimReadiness>.18;
@@ -174,6 +181,8 @@ export class CombatSystem{
   this.spread+=(targetSpread-this.spread)*(1-Math.exp(-delta*settleRate));
   this.recoilSpread=Math.max(0,this.recoilSpread-WEAPON.recoilRecovery*delta*Math.PI/180);
   this.fireCooldown=Math.max(0,this.fireCooldown-delta);
+  this.suppression=Math.max(0,this.suppression-delta*9.5);
+  if(this.suppression<=.5)this.suppressionDirection=null;
 
   if(this.reloading){
    this.reloadProgress=clamp(this.reloadProgress+delta/this.reloadDuration,0,1);
@@ -213,6 +222,7 @@ export class CombatSystem{
   };
   const result=this.resolveShot(muzzle,intended);
   const end=result.point;
+  this.game.aiCombat?.onPlayerShot?.(muzzle,end,result);
 
   this.effects.push({type:"muzzle",x:muzzle.x,y:muzzle.y,angle:shotAngle,life:.085,maxLife:.085});
   this.effects.push({type:"tracer",x1:muzzle.x,y1:muzzle.y,x2:end.x,y2:end.y,life:.13,maxLife:.13});
