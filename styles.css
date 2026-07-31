@@ -516,3 +516,11 @@ h1 {
  color:#f0d8cc;box-shadow:0 5px 18px rgba(14,8,7,.28)
 }
 .medical-status[hidden]{display:none}.medical-status strong{font-size:11px;letter-spacing:.12em}.medical-status span{font-size:10px;opacity:.8}
+
+
+/* 1.0B — medical treatment readability */
+.medical-status strong { letter-spacing:.09em; }
+.medical-status[data-critical="true"] {
+  border-color:rgba(212,78,62,.72);
+  box-shadow:0 0 0 2px rgba(212,78,62,.12),0 8px 22px rgba(0,0,0,.22);
+}
