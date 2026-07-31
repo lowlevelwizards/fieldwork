@@ -395,16 +395,16 @@ export function drawOperator(ctx, operator, carriedItem = null) {
   ctx.translate(operator.x, operator.y);
 
   const casualtyPhase=performance.now()/1000;
+  if(operator.beingDragged||operator.workPose==="dragged"){
+    drawFlatCasualty(ctx,palette,{dead:Boolean(operator.medical?.dead),dragged:true,phase:casualtyPhase,angle:operator.collapseAngle??0});
+    ctx.restore();return;
+  }
   if(operator.medical?.dead){
     drawFlatCasualty(ctx,palette,{dead:true,phase:casualtyPhase,angle:operator.collapseAngle??0});
     ctx.restore();return;
   }
   if(operator.medical?.unconscious||operator.workPose==="downed"){
     drawFlatCasualty(ctx,palette,{dead:false,phase:casualtyPhase,angle:operator.collapseAngle??0});
-    ctx.restore();return;
-  }
-  if(operator.beingDragged||operator.workPose==="dragged"){
-    drawFlatCasualty(ctx,palette,{dead:Boolean(operator.medical?.dead),dragged:true,phase:casualtyPhase,angle:operator.collapseAngle??0});
     ctx.restore();return;
   }
   if(operator.medical?.condition==="critical"||operator.workPose==="crawl"){
