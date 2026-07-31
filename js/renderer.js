@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=093-combat-feel-ui-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=093-combat-feel-ui-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=093-combat-feel-ui-20260730";
-import { findEntity } from "./world-entities.js?v=093-combat-feel-ui-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=094-physical-controls-minimal-hud-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=094-physical-controls-minimal-hud-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=094-physical-controls-minimal-hud-20260730";
+import { findEntity } from "./world-entities.js?v=094-physical-controls-minimal-hud-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -21,6 +21,7 @@ export class Renderer{
     ctx.restore();
   }
   this.#drawPlayerVisionConeScreen(ctx,game);
+  this.#drawInteractionPromptScreen(ctx,game);
   this.#drawCombatAimScreen(ctx,game);
   if(game.weather==="Rain"||game.weather==="Heavy Rain")this.#drawRain(ctx,w,h,game.weather==="Heavy Rain"?1.65:1);
   this.#drawEnvironmentOverlay(ctx,w,h,game);
@@ -43,6 +44,16 @@ export class Renderer{
   }finally{ctx.restore();}
  }
 
+
+ #drawInteractionPromptScreen(ctx,game){
+  const target=game.interaction?.getTarget?.(),action=game.interaction?.activeAction;if(!target||!action)return;
+  const x=target.x+(target.width??0)/2-this.camera.x,y=target.y-this.camera.y-18;
+  ctx.save();try{ctx.setTransform(this.dpr,0,0,this.dpr,0,0);ctx.font='700 13px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+   const label=action.disabled?action.label:`${action.label}`;const width=Math.max(48,ctx.measureText(label).width+20);
+   ctx.fillStyle='rgba(18,27,22,.86)';ctx.beginPath();ctx.roundRect(x-width/2,y-14,width,28,12);ctx.fill();
+   ctx.strokeStyle='rgba(229,154,71,.72)';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle='#f0efe4';ctx.fillText(label,x,y);
+  }finally{ctx.restore();}
+ }
 
  #drawTrail(ctx,trail){ctx.save();ctx.strokeStyle="rgba(112,97,70,.42)";ctx.lineWidth=86;ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();ctx.moveTo(trail[0].x,trail[0].y);for(const p of trail.slice(1))ctx.lineTo(p.x,p.y);ctx.stroke();ctx.strokeStyle="rgba(188,169,126,.22)";ctx.lineWidth=58;ctx.stroke();ctx.restore();}
  #drawCulvert(ctx,game){const c=game.map.culvert,water=findEntity(game.entities,"culvert_water_01");ctx.save();ctx.fillStyle=game.weather==="Rain"?"rgba(67,102,108,.72)":"rgba(76,113,116,.62)";const grow=water?.depth==="rising"?38:0;ctx.beginPath();ctx.roundRect(c.water.x-grow,c.water.y-grow/2,c.water.width+grow*2,c.water.height+grow,45);ctx.fill();ctx.strokeStyle="rgba(210,225,213,.22)";ctx.lineWidth=3;for(let y=c.water.y+24;y<c.water.y+c.water.height;y+=35){ctx.beginPath();ctx.moveTo(c.water.x+25,y);ctx.quadraticCurveTo(c.water.x+180,y-10,c.water.x+320,y);ctx.quadraticCurveTo(c.water.x+460,y+10,c.water.x+c.water.width-25,y);ctx.stroke();}ctx.fillStyle="#66685d";ctx.fillRect(c.x,c.y,180,80);ctx.fillRect(c.x,c.y+c.height-80,180,80);ctx.fillStyle="#353d38";ctx.beginPath();ctx.arc(c.x+180,c.y+c.height/2,92,-Math.PI/2,Math.PI/2);ctx.lineTo(c.x+180,c.y+c.height/2-92);ctx.fill();ctx.fillStyle="rgba(35,43,38,.75)";ctx.font="700 22px system-ui";ctx.fillText("NORTH CULVERT",c.x-80,c.y-28);ctx.restore();}
@@ -367,7 +378,7 @@ export class Renderer{
  #drawCombatAimScreen(ctx,game){
   const combat=game.combat;if(!combat?.aiming)return;
   const x=game.operator.x-this.camera.x,y=game.operator.y-this.camera.y;
-  const angle=combat.weaponAngle??0;
+  const angle=combat.aimAngle??combat.weaponAngle??0;
   const distance=combat.reticleDistance??300;
   const spread=combat.currentSpread??.04;
   const targetX=x+Math.cos(angle)*distance,targetY=y+Math.sin(angle)*distance;
@@ -386,10 +397,10 @@ export class Renderer{
     // Iron-sight brackets sit on either side of the aim axis and collapse
     // inward as the weapon settles. Their long edges remain perpendicular
     // to the shot line instead of stacking along it.
-    const gap=Math.max(7,bracketGap*.62),halfWidth=12,hook=6;
+    const gap=Math.max(8,bracketGap*.54),halfHeight=12,hook=6;
     ctx.beginPath();
-    ctx.moveTo(-halfWidth,-gap-hook);ctx.lineTo(-halfWidth,-gap);ctx.lineTo(halfWidth,-gap);ctx.lineTo(halfWidth,-gap-hook);
-    ctx.moveTo(-halfWidth,gap+hook);ctx.lineTo(-halfWidth,gap);ctx.lineTo(halfWidth,gap);ctx.lineTo(halfWidth,gap+hook);
+    ctx.moveTo(-gap-hook,-halfHeight);ctx.lineTo(-gap,-halfHeight);ctx.lineTo(-gap,halfHeight);ctx.lineTo(-gap-hook,halfHeight);
+    ctx.moveTo(gap+hook,-halfHeight);ctx.lineTo(gap,-halfHeight);ctx.lineTo(gap,halfHeight);ctx.lineTo(gap+hook,halfHeight);
     ctx.stroke();
    }
   }finally{ctx.restore();}

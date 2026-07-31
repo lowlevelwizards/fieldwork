@@ -53,6 +53,7 @@ export class CombatSystem{
   this.shotCount=0;
   this.lastShotAt=-999;
   this.lastHit=null;
+  this.lookInputActive=false;
  }
  setAimAngle(angle){
   if(Number.isFinite(angle))this.aimAngle=angle;
@@ -60,7 +61,7 @@ export class CombatSystem{
  toggleAim(force=null){
   if(this.reloading&&force!==false)return;
   this.aiming=force===null?!this.aiming:Boolean(force);
-  if(this.aiming)this.#updateBodyTarget();
+  this.#updateBodyTarget();
  }
  #updateBodyTarget(){
   const operator=this.game.operator;
@@ -137,16 +138,15 @@ export class CombatSystem{
 
   const lowCarryAngle=(operator.lookAngle??0)+.62;
   const activeAngle=this.aimAngle;
-  const desiredWeaponAngle=this.aiming
-   ? activeAngle
-   : lowCarryAngle;
-  const weaponFollowRate=this.aiming?10.5:15;
+  const desiredWeaponAngle=this.aiming ? activeAngle : this.aimAngle;
+  const weaponFollowRate=this.aiming?12.5:9.5;
   this.weaponAngle+=shortestAngle(this.weaponAngle,desiredWeaponAngle)*(1-Math.exp(-delta*weaponFollowRate));
 
-  if(this.aiming)this.#updateBodyTarget();
+  this.#updateBodyTarget();
 
   const movementTarget=this.movementRatio*WEAPON.movementSpread;
-  const targetSpread=WEAPON.baseSpread+movementTarget+this.weatherMinimum;
+  const lowReadyPenalty=this.aiming?0:3.4*Math.PI/180;
+  const targetSpread=WEAPON.baseSpread+lowReadyPenalty+movementTarget+this.weatherMinimum;
   const settleRate=WEAPON.settleRate*(this.game.weather==="Heavy Rain"?.65:this.game.weather==="Rain"?.78:1);
   this.spread+=(targetSpread-this.spread)*(1-Math.exp(-delta*settleRate));
   this.recoilSpread=Math.max(0,this.recoilSpread-WEAPON.recoilRecovery*delta*Math.PI/180);
@@ -160,7 +160,7 @@ export class CombatSystem{
     this.ammoInMagazine=this.magazineSize;
     this.game.pushMessage("Reload complete",1.35);
    }
-  }else if(this.fireHeld&&this.aiming&&this.aimReadiness>.72){
+  }else if(this.fireHeld&&(!this.aiming||this.aimReadiness>.72)){
    this.tryFire();
   }
 

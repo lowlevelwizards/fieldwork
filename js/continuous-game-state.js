@@ -60,21 +60,29 @@ export class ContinuousGameState extends GameState {
   }
 
   update(delta, move) {
-    const originalSpeed = this.operator.moveSpeed;
-    this.operator.moveSpeed = originalSpeed * this.getEnvironmentSpeedMultiplier();
+    const originalSpeed=this.operator.moveSpeed;
+    const inputLength=Math.min(1,Math.hypot(move?.x??0,move?.y??0));
+    const walkThreshold=.56;
+    const pace=inputLength<=walkThreshold ? (inputLength/walkThreshold)*.52 : .52+((inputLength-walkThreshold)/(1-walkThreshold))*.48;
+    const aimCap=this.combat.movementSpeedCap??1;
+    this.operator.moveSpeed=originalSpeed*this.getEnvironmentSpeedMultiplier()*Math.min(pace||0,aimCap);
+    this.operator.motionPace=pace;
+    this.operator.aimMovementCap=aimCap;
 
-    const inputLength = Math.hypot(move?.x ?? 0, move?.y ?? 0);
-    if (inputLength > 0.08 && !this.combat.aiming) {
-      this.operator.targetLookAngle = Math.atan2(move.y, move.x);
+    if(inputLength>0.08&&!this.combat.lookInputActive){
+      this.combat.setAimAngle(Math.atan2(move.y,move.x));
     }
+    this.operator.targetLookAngle=this.combat.aimAngle;
     const current = this.operator.lookAngle ?? this.operator.targetLookAngle ?? 0;
     const target = this.operator.targetLookAngle ?? current;
     const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
-    const smoothing = 1 - Math.exp(-delta * (this.combat.aiming ? 6.2 : 10));
-    this.operator.lookAngle = current + difference * smoothing;
+    const smoothing=1-Math.exp(-delta*(this.combat.aiming?7.5:9.5));
+    this.operator.lookAngle=current+difference*smoothing;
+    this.operator.perceptionLookAngle=this.combat.aimAngle;
 
+    const normalizedMove=inputLength>.001?{x:(move?.x??0)/inputLength,y:(move?.y??0)/inputLength}:{x:0,y:0};
     try {
-      super.update(delta, move);
+      super.update(delta, normalizedMove);
       this.combat.update(delta, move);
       this.perception.update(delta);
       this.encounters.update(delta);
