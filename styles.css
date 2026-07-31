@@ -490,3 +490,19 @@ h1 {
 /* 0.9A.5: keep utility controls independently tappable. */
 .minimal-tools,.minimal-tools button{pointer-events:auto}
 #backpack-button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+
+/* 0.9A.6 — pack returns to the active thumb cluster. */
+#backpack-button {
+  position:fixed;
+  z-index:41;
+  top:auto;
+  left:auto;
+  right:calc(168px + env(safe-area-inset-right));
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  width:64px;
+  min-width:64px;
+  height:56px;
+  border-radius:17px;
+  background:rgba(24,34,29,.96);
+  box-shadow:0 7px 18px rgba(0,0,0,.24);
+}
