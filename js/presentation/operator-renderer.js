@@ -151,7 +151,7 @@ function drawUp(ctx, palette, motion) {
 
   // Carried objects and their hands sit behind the operator when facing north.
   if (motion.carrying) drawHeldItem(ctx, motion.carriedDefinitionId, "up", palette);
-  if (!motion.carrying) drawWeapon(ctx, {
+  if (!motion.carrying && !motion.hideWeapon) drawWeapon(ctx, {
     x1: -10 + sway, y1: 1,
     x2: 1 + sway, y2: -47,
     palette,
@@ -201,7 +201,7 @@ function drawDown(ctx, palette, motion) {
 
   drawHelmet(ctx, 0, -31, palette, { facing: "down" });
 
-  if (!motion.carrying) drawWeapon(ctx, {
+  if (!motion.carrying && !motion.hideWeapon) drawWeapon(ctx, {
     x1: -17 + sway, y1: -2,
     x2: 22 + sway, y2: 28,
     palette,
@@ -237,7 +237,7 @@ function drawSide(ctx, palette, motion, direction) {
 
   drawHelmet(ctx, sign * 4, -31, palette, { facing: direction, sideSign: sign });
 
-  if (!motion.carrying) drawWeapon(ctx, {
+  if (!motion.carrying && !motion.hideWeapon) drawWeapon(ctx, {
     x1: sign * (-7 + sway), y1: 0,
     x2: sign * (47 + sway), y2: -7,
     palette,
@@ -247,6 +247,103 @@ function drawSide(ctx, palette, motion, direction) {
   else drawHeldItem(ctx, motion.carriedDefinitionId, direction, palette);
   ctx.restore();
 }
+
+
+function desaturateHex(hex, amount=.55, darken=.18) {
+  const value=hex?.replace("#","")??"777777";
+  const full=value.length===3?value.split("").map(c=>c+c).join(""):value;
+  const r=parseInt(full.slice(0,2),16),g=parseInt(full.slice(2,4),16),b=parseInt(full.slice(4,6),16);
+  const gray=(r+g+b)/3;
+  const mix=channel=>Math.max(0,Math.min(255,Math.round((channel*(1-amount)+gray*amount)*(1-darken))));
+  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
+}
+
+function casualtyPalette(palette, dead=false) {
+  if(!dead)return palette;
+  return Object.fromEntries(Object.entries(palette).map(([key,value])=>[
+    key,typeof value==="string"&&value.startsWith("#")?desaturateHex(value):value
+  ]));
+}
+
+function drawFlatCasualty(ctx,palette,{dead=false,dragged=false,phase=0,angle=0}={}) {
+  const p=casualtyPalette(palette,dead);
+  ctx.save();
+  ctx.rotate(angle);
+  const breath=dead?0:Math.sin(phase*.9)*.65;
+  ctx.translate(0,breath);
+
+  ctx.fillStyle="rgba(20,27,23,.22)";
+  ctx.beginPath();ctx.ellipse(0,10,49,17,0,0,Math.PI*2);ctx.fill();
+
+  // Horizontal, readable silhouette. No standing-body transforms are reused.
+  roundedRect(ctx,-21,-12,46,24,9,p.backpack);
+  roundedRect(ctx,-17,-16,36,10,5,p.backpackFlap);
+  roundedRect(ctx,-25,-9,48,23,9,p.torso);
+  roundedRect(ctx,-13,-5,30,10,4,p.webbing);
+
+  // Head turned slightly to one side.
+  drawCircle(ctx,-31,-1,15.5,p.skin);
+  ctx.fillStyle=p.headwear;
+  ctx.beginPath();ctx.arc(-31,-5,19,Math.PI,Math.PI*2);ctx.lineTo(-12,-2);ctx.lineTo(-50,-2);ctx.closePath();ctx.fill();
+
+  // Relaxed arms and extended legs.
+  roundedRect(ctx,-12,8,28,8,4,p.skin);
+  roundedRect(ctx,12,10,29,9,4,p.trousers);
+  roundedRect(ctx,34,9,16,11,5,p.boots);
+  roundedRect(ctx,8,-15,33,9,4,p.trousers);
+  roundedRect(ctx,34,-17,16,11,5,p.boots);
+  roundedRect(ctx,-11,-18,29,8,4,p.skin);
+
+  if(dragged){
+    ctx.strokeStyle="rgba(229,154,71,.7)";ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(43,0);ctx.lineTo(58,0);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawCriticalCrawl(ctx,palette,{phase=0,moving=false,facing="down"}={}) {
+  const sign=facing==="left"?-1:1;
+  const crawl=moving?Math.sin(phase)*4:0;
+  ctx.save();
+  if(facing==="left"||facing==="right")ctx.scale(sign,1);
+
+  ctx.fillStyle="rgba(20,27,23,.22)";
+  ctx.beginPath();ctx.ellipse(0,20,39,14,0,0,Math.PI*2);ctx.fill();
+
+  // Pack and torso are nearly horizontal.
+  roundedRect(ctx,-19,-5,38,22,9,palette.backpack);
+  roundedRect(ctx,-17,-11,34,10,5,palette.backpackFlap);
+  roundedRect(ctx,-23,-8,43,22,10,palette.torso);
+  roundedRect(ctx,-13,-4,28,9,4,palette.webbing);
+
+  // Head low and forward.
+  drawHelmet(ctx,24,-9,palette,{facing:"right",sideSign:1});
+
+  // Alternating hands and knees — a real all-fours crawl pose.
+  roundedRect(ctx,15+crawl,-1,25,8,4,palette.skin);
+  roundedRect(ctx,32+crawl,0,12,9,4,palette.gloves??palette.skin);
+  roundedRect(ctx,8-crawl,10,27,8,4,palette.skin);
+  roundedRect(ctx,27-crawl,11,12,9,4,palette.gloves??palette.skin);
+  roundedRect(ctx,-13+crawl,10,24,10,5,palette.trousers);
+  roundedRect(ctx,-23+crawl,17,20,10,5,palette.boots);
+  roundedRect(ctx,-16-crawl,-1,24,10,5,palette.trousers);
+  roundedRect(ctx,-29-crawl,3,20,10,5,palette.boots);
+  ctx.restore();
+}
+
+function woundPoseData(operator) {
+  const wounds=operator.medical?.wounds??[];
+  const active=wounds.filter(w=>!w.controlled);
+  const all=active.length?active:wounds;
+  const rank={minor:1,moderate:2,severe:3,catastrophic:4};
+  const dominant=[...all].sort((a,b)=>(rank[b.severity]??0)-(rank[a.severity]??0))[0];
+  return {
+    region:operator.woundPoseRegion??dominant?.region??null,
+    severity:operator.woundPoseSeverity??dominant?.severity??null,
+    wounded:Boolean(dominant)&&!operator.medical?.unconscious&&!operator.medical?.dead
+  };
+}
+
 
 
 export function drawOperator(ctx, operator, carriedItem = null) {
@@ -271,11 +368,47 @@ export function drawOperator(ctx, operator, carriedItem = null) {
     carriedDefinitionId: carriedItem?.definitionId || null,
     searching: Boolean(operator.searchTargetId),
     searchPose: operator.searchPose || 0,
-    torsoLean: operator.torsoLean || 0
+    torsoLean: operator.torsoLean || 0,
+    hideWeapon:false,
+    woundRegion:null
   };
+
+  const wound=woundPoseData(operator);
+  motion.woundRegion=wound.region;
+  if(wound.wounded){
+    if(wound.region==="torso")motion.torsoLean+=(facing==="left"?-.16:.16);
+    if(wound.region==="legs"){
+      motion.step=moving
+        ?(Math.sin(phase)>0?Math.sin(phase)*1.8:Math.sin(phase)*.35)
+        :0;
+      motion.sideStep*=.45;
+    }
+    if(wound.region==="arms"){
+      motion.hideWeapon=true;
+      motion.sway*=.35;
+    }
+  }
 
   ctx.save();
   ctx.translate(operator.x, operator.y);
+
+  const casualtyPhase=performance.now()/1000;
+  if(operator.medical?.dead){
+    drawFlatCasualty(ctx,palette,{dead:true,phase:casualtyPhase,angle:operator.collapseAngle??0});
+    ctx.restore();return;
+  }
+  if(operator.medical?.unconscious||operator.workPose==="downed"){
+    drawFlatCasualty(ctx,palette,{dead:false,phase:casualtyPhase,angle:operator.collapseAngle??0});
+    ctx.restore();return;
+  }
+  if(operator.beingDragged||operator.workPose==="dragged"){
+    drawFlatCasualty(ctx,palette,{dead:Boolean(operator.medical?.dead),dragged:true,phase:casualtyPhase,angle:operator.collapseAngle??0});
+    ctx.restore();return;
+  }
+  if(operator.medical?.condition==="critical"||operator.workPose==="crawl"){
+    drawCriticalCrawl(ctx,palette,{phase,moving,facing});
+    ctx.restore();return;
+  }
   if(speed>5){
     const nx=(operator.vx??0)/speed,ny=(operator.vy??0)/speed;
     const forwardX=Math.cos(operator.lookAngle??0),forwardY=Math.sin(operator.lookAngle??0);
@@ -290,6 +423,18 @@ export function drawOperator(ctx, operator, carriedItem = null) {
     const leanX = facing === "left" ? -4 : facing === "right" ? 4 : 0;
     ctx.translate(leanX, 3 + motion.searchPose * 1.5);
     ctx.rotate((facing === "left" ? -1 : facing === "right" ? 1 : 0) * 0.055);
+  }
+
+  if(wound.wounded){
+    if(wound.region==="torso"){
+      ctx.translate(0,3);
+      ctx.rotate((facing==="left"?-1:facing==="right"?1:.4)*.10);
+    }else if(wound.region==="head"){
+      const headRock=Math.sin(casualtyPhase*2.1)*.055;
+      ctx.rotate(headRock);
+    }else if(wound.region==="legs"&&moving){
+      ctx.translate(Math.sin(phase)<0?0:1.5,Math.sin(phase)<0?1.8:0);
+    }
   }
 
   drawShadow(ctx, moving, phase);
