@@ -1,8 +1,9 @@
-import { GameState } from "./game.js?v=09b-ai-fire-suppression-reactions-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=09b-ai-fire-suppression-reactions-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=09b-ai-fire-suppression-reactions-20260731";
-import { PerceptionSystem } from "./perception.js?v=09b-ai-fire-suppression-reactions-20260731";
-import { CombatSystem } from "./combat.js?v=09b-ai-fire-suppression-reactions-20260731";
+import { GameState } from "./game.js?v=09b1-startup-import-hotfix-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=09b1-startup-import-hotfix-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=09b1-startup-import-hotfix-20260731";
+import { PerceptionSystem } from "./perception.js?v=09b1-startup-import-hotfix-20260731";
+import { CombatSystem } from "./combat.js?v=09b1-startup-import-hotfix-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=09b1-startup-import-hotfix-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor() {
