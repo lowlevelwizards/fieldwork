@@ -269,34 +269,36 @@ function drawFlatCasualty(ctx,palette,{dead=false,dragged=false,phase=0,angle=0}
   const p=casualtyPalette(palette,dead);
   ctx.save();
   ctx.rotate(angle);
-  const breath=dead?0:Math.sin(phase*.9)*.65;
+  const breath=dead?0:Math.sin(phase*.9)*.5;
   ctx.translate(0,breath);
 
   ctx.fillStyle="rgba(20,27,23,.22)";
-  ctx.beginPath();ctx.ellipse(0,10,49,17,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(0,9,37,14,0,0,Math.PI*2);ctx.fill();
 
-  // Horizontal, readable silhouette. No standing-body transforms are reused.
-  roundedRect(ctx,-21,-12,46,24,9,p.backpack);
-  roundedRect(ctx,-17,-16,36,10,5,p.backpackFlap);
-  roundedRect(ctx,-25,-9,48,23,9,p.torso);
-  roundedRect(ctx,-13,-5,30,10,4,p.webbing);
+  // Compact curled silhouette matching the squat standing proportions.
+  roundedRect(ctx,-15,-10,32,21,8,p.backpack);
+  roundedRect(ctx,-14,-14,29,8,4,p.backpackFlap);
+  roundedRect(ctx,-20,-10,38,22,9,p.torso);
+  roundedRect(ctx,-10,-4,25,9,4,p.webbing);
 
-  // Head turned slightly to one side.
-  drawCircle(ctx,-31,-1,15.5,p.skin);
+  drawCircle(ctx,-24,-1,13.5,p.skin);
   ctx.fillStyle=p.headwear;
-  ctx.beginPath();ctx.arc(-31,-5,19,Math.PI,Math.PI*2);ctx.lineTo(-12,-2);ctx.lineTo(-50,-2);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.arc(-24,-5,16.5,Math.PI,Math.PI*2);
+  ctx.lineTo(-7,-2);ctx.lineTo(-41,-2);ctx.closePath();ctx.fill();
 
-  // Relaxed arms and extended legs.
-  roundedRect(ctx,-12,8,28,8,4,p.skin);
-  roundedRect(ctx,12,10,29,9,4,p.trousers);
-  roundedRect(ctx,34,9,16,11,5,p.boots);
-  roundedRect(ctx,8,-15,33,9,4,p.trousers);
-  roundedRect(ctx,34,-17,16,11,5,p.boots);
-  roundedRect(ctx,-11,-18,29,8,4,p.skin);
+  // One arm folded near chest, one resting forward.
+  roundedRect(ctx,-13,-15,23,7,3.5,p.skin);
+  roundedRect(ctx,-9,8,21,7,3.5,p.skin);
+
+  // Bent legs overlap the torso so the body remains connected and toy-like.
+  roundedRect(ctx,9,-10,23,9,4.5,p.trousers);
+  roundedRect(ctx,25,-7,14,10,5,p.boots);
+  roundedRect(ctx,7,5,21,10,5,p.trousers);
+  roundedRect(ctx,20,10,15,10,5,p.boots);
 
   if(dragged){
     ctx.strokeStyle="rgba(229,154,71,.7)";ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(43,0);ctx.lineTo(58,0);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(34,4);ctx.lineTo(47,4);ctx.stroke();
   }
   ctx.restore();
 }
