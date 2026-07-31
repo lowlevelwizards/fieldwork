@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=081-perception-presentation-20260730";
-import { ContinuousGameState } from "./continuous-game-state.js?v=081-perception-presentation-20260730";
-import { InputController } from "./input.js?v=081-perception-presentation-20260730";
-import { Renderer } from "./renderer.js?v=081-perception-presentation-20260730";
-import { getItemDefinition } from "../data/items.js?v=081-perception-presentation-20260730";
-import { findEntity } from "./world-entities.js?v=081-perception-presentation-20260730";
-import { validateItemLocations } from "./item-locations.js?v=081-perception-presentation-20260730";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=081-perception-presentation-20260730";
+import { Camera } from "./camera.js?v=090-player-weapon-handling-20260730";
+import { ContinuousGameState } from "./continuous-game-state.js?v=090-player-weapon-handling-20260730";
+import { InputController } from "./input.js?v=090-player-weapon-handling-20260730";
+import { Renderer } from "./renderer.js?v=090-player-weapon-handling-20260730";
+import { getItemDefinition } from "../data/items.js?v=090-player-weapon-handling-20260730";
+import { findEntity } from "./world-entities.js?v=090-player-weapon-handling-20260730";
+import { validateItemLocations } from "./item-locations.js?v=090-player-weapon-handling-20260730";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=090-player-weapon-handling-20260730";
 
-const BUILD_ID="0.8B";
+const BUILD_ID="0.9A";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),actionPanel=$("#action-panel"),actionName=$("#action-name"),actionButton=$("#action-button"),actionProgress=$("#action-progress-fill"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -17,6 +17,8 @@ if(declaredBuild!==BUILD_ID){console.error("Fieldwork build mismatch",{html:decl
 console.info(`Fieldwork ${BUILD_ID} loaded`,{href:location.href,time:new Date().toISOString()});
 
 const camera=new Camera(),game=new ContinuousGameState(),renderer=new Renderer(canvas,camera),input=new InputController({joystickZone:$("#joystick-zone"),joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
+const aimZone=$("#aim-zone"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill");
+let aimPointerId=null,aimPointerStart=null,aimPointerMoved=false;
 let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
 function resizeAndCenter(reason="viewport"){
   renderer.resize();
@@ -52,7 +54,72 @@ const screenX=game.operator.x-camera.x,screenY=game.operator.y-camera.y;
 $("#debug-screen-position").textContent=`${Math.round(screenX)}, ${Math.round(screenY)}`;
 $("#debug-operator-visible").textContent=camera.contains(game.operator,0)?"yes":"NO";
 $("#debug-render").textContent=renderer.lastOperatorRenderError?"ERROR":"OK";$("#debug-facing").textContent=game.operator.facing;$("#debug-target").textContent=game.interaction.getTarget()?.id??"—";$("#debug-incident").textContent=game.incident.state;$("#debug-excursion").textContent=game.excursion.state;$("#debug-operations").textContent=game.operations.started?`${game.operations.operations.filter(o=>o.status==="completed").length}/3 complete · ${game.perception?.identifiedContactCount??0} contact(s) · ${game.encounters?.activeCount??0} encounter(s)`:"inactive";$("#debug-obstruction").textContent=game.excursion.obstructionState;$("#debug-water").textContent=game.isInWater()?`${game.waterExposure.toFixed(1)}s`:findEntity(game.entities,"culvert_water_01")?.depth??"dry";$("#debug-weather").textContent=`${game.weather} · light ${Math.round((game.getLightLevel?.()??1)*100)}%`;$("#debug-collision").textContent=game.getCollisionReason?.()??"clear";const r=game.lastCollisionRecovery;$("#debug-recovery").textContent=r?`${r.context}: ${Math.round(r.to.x)},${Math.round(r.to.y)}`:"none";const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
-function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.lockTo(game.operator);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;updateObjective();updateCompass();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
+function updateCombatUI(){
+ const combat=game.combat;
+ ammoCount.textContent=combat.reloading?"RELOAD":`${combat.ammoInMagazine}/${combat.magazineSize}`;
+ aimMode.textContent=combat.aiming?"AIM":"LOW";
+ fireButton.classList.toggle("fire-button--aiming",combat.aiming);
+ fireButton.classList.toggle("fire-button--reloading",combat.reloading);
+ fireButton.disabled=combat.reloading||!combat.aiming;
+ reloadFill.style.width=`${Math.round(Math.max(0,combat.reloadProgress)*100)}%`;
+ aimZone.classList.toggle("aim-zone--active",combat.aiming);
+}
+
+function worldAimAngleFromPointer(clientX,clientY){
+ const rect=canvas.getBoundingClientRect();
+ const operatorScreenX=game.operator.x-camera.x;
+ const operatorScreenY=game.operator.y-camera.y;
+ return Math.atan2(clientY-rect.top-operatorScreenY,clientX-rect.left-operatorScreenX);
+}
+
+function updateAimPointer(event){
+ const angle=worldAimAngleFromPointer(event.clientX,event.clientY);
+ game.combat.setAimAngle(angle);
+ if(game.combat.aiming)game.operator.targetLookAngle=angle;
+}
+
+aimZone.addEventListener("pointerdown",event=>{
+ if(modalOpen()||event.target!==aimZone)return;
+ aimPointerId=event.pointerId;
+ aimPointerStart={x:event.clientX,y:event.clientY,time:performance.now()};
+ aimPointerMoved=false;
+ aimZone.setPointerCapture(event.pointerId);
+ updateAimPointer(event);
+});
+aimZone.addEventListener("pointermove",event=>{
+ if(event.pointerId!==aimPointerId)return;
+ if(Math.hypot(event.clientX-aimPointerStart.x,event.clientY-aimPointerStart.y)>8)aimPointerMoved=true;
+ updateAimPointer(event);
+});
+const finishAimPointer=event=>{
+ if(event.pointerId!==aimPointerId)return;
+ const shortTap=performance.now()-aimPointerStart.time<320&&!aimPointerMoved;
+ updateAimPointer(event);
+ if(shortTap)game.combat.toggleAim();
+ else if(!game.combat.aiming)game.combat.toggleAim(true);
+ aimPointerId=null;aimPointerStart=null;aimPointerMoved=false;
+};
+aimZone.addEventListener("pointerup",finishAimPointer);
+aimZone.addEventListener("pointercancel",event=>{if(event.pointerId===aimPointerId){aimPointerId=null;aimPointerStart=null;aimPointerMoved=false;}});
+
+const startFiring=event=>{
+ event.preventDefault();
+ if(modalOpen())return;
+ game.combat.setFireHeld(true);
+ game.combat.tryFire();
+ fireButton.setPointerCapture?.(event.pointerId);
+};
+const stopFiring=event=>{
+ game.combat.setFireHeld(false);
+ try{fireButton.releasePointerCapture?.(event.pointerId);}catch{}
+};
+fireButton.addEventListener("pointerdown",startFiring);
+fireButton.addEventListener("pointerup",stopFiring);
+fireButton.addEventListener("pointercancel",stopFiring);
+fireButton.addEventListener("pointerleave",event=>{if(event.buttons===0)stopFiring(event);});
+
+function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.lockTo(game.operator);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;updateObjective();updateCompass();updateCombatUI();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
 function recoverPosition(source){const before={x:game.operator.x,y:game.operator.y};game.resetPosition();camera.snapTo(game.operator);console.info("Fieldwork position recovery",{build:BUILD_ID,source,before,after:{x:game.operator.x,y:game.operator.y}});}
 beginButton.addEventListener("click",startGame);actionButton.addEventListener("click",triggerContextAction);$("#backpack-button").addEventListener("click",()=>inventoryOpen?closeInventory():openInventory());$("#inventory-close").addEventListener("click",closeInventory);$("#operations-button").addEventListener("click",()=>operationsOpen?closeOperations():openOperations());$("#operations-close").addEventListener("click",closeOperations);$("#operations-list").addEventListener("click",event=>{const button=event.target.closest("button[data-operation-id]");if(!button)return;if(game.operations.claim(button.dataset.operationId)){buildOperations();updateObjective();}});$("#inspect-close").addEventListener("click",closeInspect);$("#dialogue-close").addEventListener("click",closeDialogue);$("#report-close").addEventListener("click",closeReport);
-window.addEventListener("keydown",event=>{const key=event.key.toLowerCase();if(key==="e"&&started){event.preventDefault();triggerContextAction();}if(key==="b"&&started){event.preventDefault();inventoryOpen?closeInventory():openInventory();}if(key==="o"&&started){event.preventDefault();operationsOpen?closeOperations():openOperations();}if(key==="escape"){if(dialogueOpen)closeDialogue();else if(operationsOpen)closeOperations();else if(!reportOverlay.hidden)closeReport();else if(!inspectOverlay.hidden)closeInspect();else if(inventoryOpen)closeInventory();}});$("#reset-position-button").addEventListener("click",()=>recoverPosition("debug reset button"));$("#debug-button").addEventListener("click",()=>{const active=$("#debug-button").getAttribute("aria-pressed")==="true";$("#debug-button").setAttribute("aria-pressed",String(!active));$("#debug-panel").hidden=active;$("#reset-position-button").hidden=active;});$("#objective-card").addEventListener("click",()=>{$("#objective-card").classList.toggle("objective-card--collapsed");if(objectiveTimer)clearTimeout(objectiveTimer);});window.addEventListener("resize",()=>{if(started)resizeAndCenter("window resize");});window.visualViewport?.addEventListener("resize",()=>{if(started)resizeAndCenter("visual viewport resize");});window.addEventListener("orientationchange",()=>{if(started)setTimeout(()=>resizeAndCenter("orientation change"),120);});requestAnimationFrame(frame);
+window.addEventListener("keydown",event=>{const key=event.key.toLowerCase();if(key==="e"&&started){event.preventDefault();triggerContextAction();}if(key==="b"&&started){event.preventDefault();inventoryOpen?closeInventory():openInventory();}if(key==="o"&&started){event.preventDefault();operationsOpen?closeOperations():openOperations();}if(key==="f"&&started){event.preventDefault();game.combat.toggleAim();}if(key===" "&&started&&!event.repeat){event.preventDefault();game.combat.setFireHeld(true);game.combat.tryFire();}if(key==="escape"){if(dialogueOpen)closeDialogue();else if(operationsOpen)closeOperations();else if(!reportOverlay.hidden)closeReport();else if(!inspectOverlay.hidden)closeInspect();else if(inventoryOpen)closeInventory();}});window.addEventListener("keyup",event=>{if(event.key===" ")game.combat.setFireHeld(false);});
+$("#reset-position-button").addEventListener("click",()=>recoverPosition("debug reset button"));$("#debug-button").addEventListener("click",()=>{const active=$("#debug-button").getAttribute("aria-pressed")==="true";$("#debug-button").setAttribute("aria-pressed",String(!active));$("#debug-panel").hidden=active;$("#reset-position-button").hidden=active;});$("#objective-card").addEventListener("click",()=>{$("#objective-card").classList.toggle("objective-card--collapsed");if(objectiveTimer)clearTimeout(objectiveTimer);});window.addEventListener("resize",()=>{if(started)resizeAndCenter("window resize");});window.visualViewport?.addEventListener("resize",()=>{if(started)resizeAndCenter("visual viewport resize");});window.addEventListener("orientationchange",()=>{if(started)setTimeout(()=>resizeAndCenter("orientation change"),120);});requestAnimationFrame(frame);

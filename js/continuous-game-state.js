@@ -1,7 +1,8 @@
-import { GameState } from "./game.js?v=081-perception-presentation-20260730";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=081-perception-presentation-20260730";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=081-perception-presentation-20260730";
-import { PerceptionSystem } from "./perception.js?v=081-perception-presentation-20260730";
+import { GameState } from "./game.js?v=090-player-weapon-handling-20260730";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=090-player-weapon-handling-20260730";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=090-player-weapon-handling-20260730";
+import { PerceptionSystem } from "./perception.js?v=090-player-weapon-handling-20260730";
+import { CombatSystem } from "./combat.js?v=090-player-weapon-handling-20260730";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -9,6 +10,7 @@ export class ContinuousGameState extends GameState {
     this.excursion = new ContinuousExcursionController(this);
     this.operator.lookAngle = 0;
     this.operator.targetLookAngle = 0;
+    this.combat = new CombatSystem(this);
     this.perception = new PerceptionSystem(this);
     this.encounters = new FactionEncounterSystem(this);
     const phases = [
@@ -62,8 +64,10 @@ export class ContinuousGameState extends GameState {
     this.operator.moveSpeed = originalSpeed * this.getEnvironmentSpeedMultiplier();
 
     const inputLength = Math.hypot(move?.x ?? 0, move?.y ?? 0);
-    if (inputLength > 0.08) {
+    if (inputLength > 0.08 && !this.combat.aiming) {
       this.operator.targetLookAngle = Math.atan2(move.y, move.x);
+    } else if (this.combat.aiming) {
+      this.operator.targetLookAngle = this.combat.aimAngle;
     }
     const current = this.operator.lookAngle ?? this.operator.targetLookAngle ?? 0;
     const target = this.operator.targetLookAngle ?? current;
@@ -73,6 +77,7 @@ export class ContinuousGameState extends GameState {
 
     try {
       super.update(delta, move);
+      this.combat.update(delta, move);
       this.perception.update(delta);
       this.encounters.update(delta);
     } finally {

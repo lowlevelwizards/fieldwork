@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=081-perception-presentation-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=081-perception-presentation-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=081-perception-presentation-20260730";
-import { findEntity } from "./world-entities.js?v=081-perception-presentation-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=090-player-weapon-handling-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=090-player-weapon-handling-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=090-player-weapon-handling-20260730";
+import { findEntity } from "./world-entities.js?v=090-player-weapon-handling-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -16,11 +16,12 @@ export class Renderer{
   ctx.clearRect(0,0,w,h);
   ctx.save();
   try{
-    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawMapBorder(ctx);
+    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawCombatWorld(ctx,game);this.#drawMapBorder(ctx);
   }finally{
     ctx.restore();
   }
   this.#drawPlayerVisionConeScreen(ctx,game);
+  this.#drawCombatAimScreen(ctx,game);
   if(game.weather==="Rain"||game.weather==="Heavy Rain")this.#drawRain(ctx,w,h,game.weather==="Heavy Rain"?1.65:1);
   this.#drawEnvironmentOverlay(ctx,w,h,game);
  }
@@ -270,7 +271,10 @@ export class Renderer{
 
  #drawPlayer(ctx,operator,carried){
   try{
-    drawOperator(ctx,operator,carried);
+    const combat=this._currentGame?.combat;
+    const renderOperator=combat&&!carried?{...operator,carriedItemInstanceId:"combat-weapon-hidden"}:operator;
+    drawOperator(ctx,renderOperator,carried);
+    if(combat&&!carried)this.#drawCombatWeapon(ctx,operator,combat);
     this.lastOperatorRenderError=null;
   }catch(error){
     this.lastOperatorRenderError=String(error?.message||error);
@@ -293,6 +297,88 @@ export class Renderer{
       ctx.restore();
     }
   }
+ }
+
+ #drawCombatWeapon(ctx,operator,combat){
+  const readiness=combat.aimReadiness??0;
+  const angle=combat.weaponAngle??operator.lookAngle??0;
+  const shoulderX=operator.x+Math.cos(angle+Math.PI/2)*2;
+  const shoulderY=operator.y+Math.sin(angle+Math.PI/2)*2-1;
+  const stockLength=15,receiverLength=24,barrelLength=34;
+  const handReach=18+readiness*7;
+  ctx.save();
+  try{
+   ctx.translate(shoulderX,shoulderY);
+   ctx.rotate(angle);
+   ctx.translate(-4*(1-readiness),5*(1-readiness));
+   ctx.fillStyle="#503f31";ctx.beginPath();ctx.roundRect(-10,-5,stockLength+10,10,4);ctx.fill();
+   ctx.fillStyle="#252d2a";ctx.beginPath();ctx.roundRect(stockLength-4,-5,receiverLength,10,3);ctx.fill();
+   ctx.beginPath();ctx.roundRect(stockLength+receiverLength-6,-2.5,barrelLength,5,2.5);ctx.fill();
+   ctx.beginPath();ctx.roundRect(stockLength+7,3,7,9,2);ctx.fill();
+   ctx.fillStyle="#c3a58e";
+   ctx.beginPath();ctx.roundRect(1,-4,10,8,4);ctx.fill();
+   ctx.beginPath();ctx.roundRect(handReach,-4,10,8,4);ctx.fill();
+  }finally{ctx.restore();}
+ }
+
+ #drawCombatWorld(ctx,game){
+  const combat=game.combat;if(!combat)return;
+  ctx.save();
+  try{
+   for(const decal of combat.decals){
+    const alpha=Math.min(.55,decal.life/3*.55);
+    ctx.globalAlpha=alpha;
+    ctx.strokeStyle="#30362f";ctx.lineWidth=3;
+    ctx.translate(decal.x,decal.y);ctx.rotate(decal.angle);
+    ctx.beginPath();ctx.moveTo(-5,-3);ctx.lineTo(5,3);ctx.moveTo(-4,4);ctx.lineTo(4,-4);ctx.stroke();
+    ctx.rotate(-decal.angle);ctx.translate(-decal.x,-decal.y);
+   }
+   ctx.globalAlpha=1;
+   for(const effect of combat.effects){
+    const t=effect.life/effect.maxLife;
+    if(effect.type==="tracer"){
+     ctx.strokeStyle=`rgba(255,213,89,${.25+.7*t})`;ctx.lineWidth=1.4+1.2*t;
+     ctx.beginPath();ctx.moveTo(effect.x1,effect.y1);ctx.lineTo(effect.x2,effect.y2);ctx.stroke();
+    }else if(effect.type==="muzzle"){
+     ctx.save();ctx.translate(effect.x,effect.y);ctx.rotate(effect.angle);
+     ctx.fillStyle=`rgba(255,224,88,${t})`;ctx.beginPath();
+     for(let i=0;i<8;i++){const a=i*Math.PI/4,r=i%2?6:15*t;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}
+     ctx.closePath();ctx.fill();ctx.restore();
+    }else if(effect.type==="hit"){
+     ctx.save();ctx.translate(effect.x,effect.y);ctx.strokeStyle=`rgba(130,54,39,${t})`;ctx.lineWidth=3;
+     for(let i=0;i<4;i++){const a=i*Math.PI/2;ctx.beginPath();ctx.moveTo(Math.cos(a)*2,Math.sin(a)*2);ctx.lineTo(Math.cos(a)*12*t,Math.sin(a)*12*t);ctx.stroke();}
+     ctx.restore();
+    }
+   }
+  }finally{ctx.restore();}
+ }
+
+ #drawCombatAimScreen(ctx,game){
+  const combat=game.combat;if(!combat?.aiming)return;
+  const x=game.operator.x-this.camera.x,y=game.operator.y-this.camera.y;
+  const angle=combat.weaponAngle??0;
+  const distance=combat.reticleDistance??300;
+  const spread=combat.currentSpread??.04;
+  const targetX=x+Math.cos(angle)*distance,targetY=y+Math.sin(angle)*distance;
+  const bracketGap=16+Math.tan(spread)*distance;
+  ctx.save();
+  try{
+   ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
+   if(combat.aimingLineVisible){
+    const muzzle=combat.muzzle;
+    ctx.strokeStyle="rgba(246,246,231,.46)";ctx.lineWidth=1.15;
+    ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(muzzle.x-this.camera.x,muzzle.y-this.camera.y);ctx.lineTo(targetX,targetY);ctx.stroke();ctx.setLineDash([]);
+   }
+   if(!combat.reloading){
+    ctx.translate(targetX,targetY);ctx.rotate(angle);
+    ctx.strokeStyle="rgba(250,250,237,.82)";ctx.lineWidth=2.2;ctx.lineCap="round";
+    const height=15;
+    ctx.beginPath();
+    ctx.moveTo(-bracketGap,-height);ctx.lineTo(-bracketGap-8,-height);ctx.lineTo(-bracketGap-8,height);ctx.lineTo(-bracketGap,height);
+    ctx.moveTo(bracketGap,-height);ctx.lineTo(bracketGap+8,-height);ctx.lineTo(bracketGap+8,height);ctx.lineTo(bracketGap,height);
+    ctx.stroke();
+   }
+  }finally{ctx.restore();}
  }
 
  #drawGround(ctx,game){ctx.fillStyle=game.weather==="Fog"?"#7d8878":game.weather==="Cloudy"?"#6f7b68":game.weather==="Rain"?"#59685a":"#758467";ctx.fillRect(0,0,MAP_WIDTH,MAP_HEIGHT);ctx.fillStyle="rgba(49,62,48,.09)";for(let y=30;y<MAP_HEIGHT;y+=70)for(let x=20+((y/70)%2)*24;x<MAP_WIDTH;x+=86){ctx.beginPath();ctx.ellipse(x,y,3,8,.3,0,Math.PI*2);ctx.fill();}}
