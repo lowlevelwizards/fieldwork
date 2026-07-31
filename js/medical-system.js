@@ -1,4 +1,4 @@
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c-casualty-states-aid-movement-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c1-ada-progression-supply-hotfix-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -208,7 +208,28 @@ export class MedicalSystem{
   }
 
   getPlayerSupply(type){
+    const held=this.game.getHeldItem?.();
+    if(held?.definitionId===type&&held.condition!=="wet")return held;
     return this.game.inventory.getItems().find(item=>item.definitionId===type&&item.condition!=="wet")??null;
+  }
+
+  getPlayerSupplyCount(type){
+    const held=this.game.getHeldItem?.();
+    const heldCount=held?.definitionId===type&&held.condition!=="wet"?1:0;
+    return heldCount+this.game.inventory.getItems().filter(item=>item.definitionId===type&&item.condition!=="wet").length;
+  }
+
+  consumePlayerSupply(itemId){
+    const item=this.game.entities.find(entity=>entity.id===itemId);
+    if(!item)return false;
+    if(this.game.operator.carriedItemInstanceId===itemId){
+      this.game.operator.carriedItemInstanceId=null;
+    }
+    const index=this.game.backpack.itemInstanceIds.indexOf(itemId);
+    if(index>=0)this.game.backpack.itemInstanceIds.splice(index,1);
+    const entityIndex=this.game.entities.findIndex(entity=>entity.id===itemId);
+    if(entityIndex>=0)this.game.entities.splice(entityIndex,1);
+    return true;
   }
 
   getNearbyPatient(){
@@ -237,7 +258,7 @@ export class MedicalSystem{
       patientId:patient.id,
       type:need.type
     };
-    const count=this.game.inventory.getItems().filter(candidate=>candidate.definitionId===need.type&&candidate.condition!=="wet").length;
+    const count=this.getPlayerSupplyCount(need.type);
     return {
       label:`${need.label} · ${count}`,
       type:need.type,itemId:item.id,patientId:patient.id,
@@ -350,18 +371,17 @@ export class MedicalSystem{
     action.progress=clamp(action.progress+delta/action.duration,0,1);
     if(action.progress<1)return;
 
-    const item=this.game.entities.find(entity=>entity.id===action.itemId);
-    const index=this.game.backpack.itemInstanceIds.indexOf(action.itemId);
-    if(index>=0)this.game.backpack.itemInstanceIds.splice(index,1);
-    const entityIndex=this.game.entities.findIndex(entity=>entity.id===action.itemId);
-    if(entityIndex>=0)this.game.entities.splice(entityIndex,1);
+    this.consumePlayerSupply(action.itemId);
     const patient=action.patientId===this.game.operator.id
       ?this.game.operator
       :this.game.actors.find(actor=>actor.id===action.patientId);
     const result=patient
       ?this.game.wounds.applyTreatment(patient,action.itemType,{source:this.game.operator})
       :{ok:false,reason:"Patient unavailable"};
-    if(result.ok)this.game.pushMessage(`${result.label} — ${patient.id===this.game.operator.id?"self":patient.name}`,1.8);
+    if(result.ok){
+      this.game.pushMessage(`${result.label} — ${patient.id===this.game.operator.id?"self":patient.name}`,1.8);
+      if(patient.id==="worker_ada")this.game.incident?.onMedicalTreatment?.(action.itemType,result);
+    }
     this.playerAction=null;
     this.game.operator.lockedByInteraction=false;
     this.game.operator.workPose=null;
