@@ -1,8 +1,8 @@
-import { GameState } from "./game.js?v=095-interaction-trust-combat-state-20260730";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=095-interaction-trust-combat-state-20260730";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=095-interaction-trust-combat-state-20260730";
-import { PerceptionSystem } from "./perception.js?v=095-interaction-trust-combat-state-20260730";
-import { CombatSystem } from "./combat.js?v=095-interaction-trust-combat-state-20260730";
+import { GameState } from "./game.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { PerceptionSystem } from "./perception.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { CombatSystem } from "./combat.js?v=096-weapon-posture-targeting-locomotion-20260730";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -61,6 +61,8 @@ export class ContinuousGameState extends GameState {
 
   update(delta, move) {
     const originalSpeed=this.operator.moveSpeed;
+    const previousVx=this.operator.vx??0;
+    const previousVy=this.operator.vy??0;
     const inputLength=Math.min(1,Math.hypot(move?.x??0,move?.y??0));
     const walkThreshold=.56;
     const pace=inputLength<=walkThreshold
@@ -78,22 +80,16 @@ export class ContinuousGameState extends GameState {
     const current=this.operator.lookAngle??this.operator.targetLookAngle??0;
     const target=this.operator.targetLookAngle??current;
     const difference=Math.atan2(Math.sin(target-current),Math.cos(target-current));
-    this.operator.lookAngle=current+difference*(1-Math.exp(-delta*13));
+    this.operator.lookAngle=current+difference*(1-Math.exp(-delta*18));
 
     const normalizedMove=inputLength>.001
       ? {x:(move?.x??0)/inputLength,y:(move?.y??0)/inputLength}
       : {x:0,y:0};
 
     const moveAngle=inputLength>.001?Math.atan2(normalizedMove.y,normalizedMove.x):this.operator.lookAngle;
-    const relative=Math.abs(Math.atan2(
-      Math.sin(moveAngle-this.operator.lookAngle),
-      Math.cos(moveAngle-this.operator.lookAngle)
-    ));
-    const directionalMultiplier=relative<Math.PI/4
-      ? 1
-      : relative<Math.PI*3/4
-        ? .74
-        : .58;
+    const signedRelative=Math.atan2(Math.sin(moveAngle-this.operator.lookAngle),Math.cos(moveAngle-this.operator.lookAngle));
+    const relative=Math.abs(signedRelative);
+    const directionalMultiplier=relative<Math.PI/4?1:relative<Math.PI*3/4?.74:.58;
 
     const aimCap=this.combat.movementSpeedCap??1;
     this.operator.moveSpeed=originalSpeed
@@ -103,9 +99,36 @@ export class ContinuousGameState extends GameState {
     this.operator.motionPace=pace;
     this.operator.aimMovementCap=aimCap;
     this.operator.directionalMovementMultiplier=directionalMultiplier;
+    this.operator.motionRelativeAngle=signedRelative;
+    this.operator.locomotionMode=inputLength<.05
+      ?"idle"
+      :relative<Math.PI/4
+        ?(pace>.68&&!this.combat.aiming?"run":"forward")
+        :relative<Math.PI*3/4
+          ?"strafe"
+          :"backpedal";
+    this.operator.aimingPosture=this.combat.aiming;
 
     try {
       super.update(delta, normalizedMove);
+
+      const a=this.operator.lookAngle;
+      const ax=Math.cos(a),ay=Math.sin(a);
+      this.operator.facing=Math.abs(ax)>Math.abs(ay)
+        ?(ax>=0?"right":"left")
+        :(ay>=0?"down":"up");
+
+      const speed=Math.hypot(this.operator.vx??0,this.operator.vy??0);
+      const previousSpeed=Math.hypot(previousVx,previousVy);
+      const acceleration=(speed-previousSpeed)/Math.max(delta,.001);
+      this.operator.motionAcceleration=Math.max(-1,Math.min(1,acceleration/520));
+      this.operator.motionSpeedRatio=Math.max(0,Math.min(1,speed/Math.max(1,originalSpeed)));
+      const cadence=this.operator.locomotionMode==="run"?5.2
+        :this.operator.locomotionMode==="strafe"?2.2
+        :this.operator.locomotionMode==="backpedal"?1.6
+        :2.7;
+      if(speed>4)this.operator.walkingPhase+=delta*cadence*this.operator.motionSpeedRatio;
+
       this.combat.update(delta, move);
       this.perception.update(delta);
       this.encounters.update(delta);

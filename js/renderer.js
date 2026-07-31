@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=095-interaction-trust-combat-state-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=095-interaction-trust-combat-state-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=095-interaction-trust-combat-state-20260730";
-import { findEntity } from "./world-entities.js?v=095-interaction-trust-combat-state-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { findEntity } from "./world-entities.js?v=096-weapon-posture-targeting-locomotion-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -314,31 +314,30 @@ export class Renderer{
  #drawCombatWeapon(ctx,operator,combat){
   const readiness=combat.aimReadiness??0;
   const angle=combat.weaponAngle??operator.lookAngle??0;
-  const shoulderX=operator.x+Math.cos(angle+Math.PI/2)*2;
-  const shoulderY=operator.y+Math.sin(angle+Math.PI/2)*2-1;
-  const stockLength=15,receiverLength=24,barrelLength=34;
-  const handReach=18+readiness*7;
   const mirror=combat.pointingLeft?-1:1;
+  const stockLength=15,receiverLength=24,barrelLength=34;
+  const shoulderBack=8*(1-readiness);
+  const shoulderDrop=13*(1-readiness);
+  const shoulderX=operator.x-Math.cos(angle)*shoulderBack+Math.cos(angle+Math.PI/2)*2;
+  const shoulderY=operator.y-Math.sin(angle)*shoulderBack+Math.sin(angle+Math.PI/2)*2+shoulderDrop;
+  const handReach=12+readiness*15;
+  const localPitch=(1-readiness)*.12*mirror;
 
   ctx.save();
   try{
    ctx.translate(shoulderX,shoulderY);
    ctx.rotate(angle);
    ctx.scale(1,mirror);
-   ctx.translate(-4*(1-readiness),5*(1-readiness));
-
+   ctx.rotate(localPitch);
+   ctx.translate(-7*(1-readiness),3*(1-readiness));
    ctx.fillStyle="#503f31";
    ctx.beginPath();ctx.roundRect(-10,-5,stockLength+10,10,4);ctx.fill();
-
    ctx.fillStyle="#252d2a";
    ctx.beginPath();ctx.roundRect(stockLength-4,-5,receiverLength,10,3);ctx.fill();
    ctx.beginPath();ctx.roundRect(stockLength+receiverLength-6,-2.5,barrelLength,5,2.5);ctx.fill();
-
-   // Grip/magazine always hangs on the same physical underside after mirroring.
    ctx.beginPath();ctx.roundRect(stockLength+7,3,7,9,2);ctx.fill();
-
    ctx.fillStyle="#c3a58e";
-   ctx.beginPath();ctx.roundRect(1,-4,10,8,4);ctx.fill();
+   ctx.beginPath();ctx.roundRect(-1,-4,10,8,4);ctx.fill();
    ctx.beginPath();ctx.roundRect(handReach,-4,10,8,4);ctx.fill();
   }finally{ctx.restore();}
  }
@@ -377,31 +376,42 @@ export class Renderer{
 
  #drawCombatAimScreen(ctx,game){
   const combat=game.combat;if(!combat?.weaponAvailable||!combat.aiming)return;
-  const x=game.operator.x-this.camera.x,y=game.operator.y-this.camera.y;
-  const angle=combat.aimAngle??combat.weaponAngle??0;
-  const distance=combat.reticleDistance??300;
+  const angle=combat.aimAngle??0;
+  const trace=combat.aimTrace;
+  const end=trace?.point??combat.reticle;
+  const targetX=end.x-this.camera.x,targetY=end.y-this.camera.y;
+  const muzzle=combat.muzzle;
+  const startX=muzzle.x-this.camera.x,startY=muzzle.y-this.camera.y;
+  const distance=Math.max(1,Math.hypot(end.x-muzzle.x,end.y-muzzle.y));
   const spread=combat.currentSpread??.04;
-  const targetX=x+Math.cos(angle)*distance,targetY=y+Math.sin(angle)*distance;
-  const bracketGap=16+Math.tan(spread)*distance;
+  const bracketGap=16+Math.tan(spread)*Math.min(distance,340);
+  const targetKind=combat.getAimTargetKind(trace?.actor);
+  const lineColor=targetKind==="hostile"
+    ?"rgba(239,86,64,.88)"
+    :targetKind==="contact"
+      ?"rgba(245,190,64,.88)"
+      :targetKind==="friendly"
+        ?"rgba(160,199,204,.76)"
+        :"rgba(246,246,231,.46)";
+
   ctx.save();
   try{
    ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
    if(combat.aimingLineVisible){
-    const muzzle=combat.muzzle;
-    ctx.strokeStyle="rgba(246,246,231,.46)";ctx.lineWidth=1.15;
-    ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(muzzle.x-this.camera.x,muzzle.y-this.camera.y);ctx.lineTo(targetX,targetY);ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle=lineColor;ctx.lineWidth=1.35;
+    ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(startX,startY);ctx.lineTo(targetX,targetY);ctx.stroke();ctx.setLineDash([]);
    }
    if(!combat.reloading){
     ctx.translate(targetX,targetY);ctx.rotate(angle);
-    ctx.strokeStyle="rgba(250,250,237,.86)";ctx.lineWidth=2.2;ctx.lineCap="round";ctx.lineJoin="round";
-    // Iron-sight brackets sit on either side of the aim axis and collapse
-    // inward as the weapon settles. Their long edges remain perpendicular
-    // to the shot line instead of stacking along it.
+    ctx.strokeStyle=targetKind==="clear"?"rgba(250,250,237,.88)":lineColor;
+    ctx.fillStyle=lineColor;
+    ctx.lineWidth=2.2;ctx.lineCap="round";ctx.lineJoin="round";
     const gap=Math.max(8,bracketGap*.54),halfHeight=12,hook=6;
     ctx.beginPath();
     ctx.moveTo(-gap-hook,-halfHeight);ctx.lineTo(-gap,-halfHeight);ctx.lineTo(-gap,halfHeight);ctx.lineTo(-gap-hook,halfHeight);
     ctx.moveTo(gap+hook,-halfHeight);ctx.lineTo(gap,-halfHeight);ctx.lineTo(gap,halfHeight);ctx.lineTo(gap+hook,halfHeight);
     ctx.stroke();
+    ctx.beginPath();ctx.arc(0,0,trace?.actor?4.8:3.2,0,Math.PI*2);ctx.fill();
    }
   }finally{ctx.restore();}
  }

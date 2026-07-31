@@ -74,17 +74,9 @@ export class CombatSystem{
  }
  #updateBodyTarget(){
   const operator=this.game.operator;
-  const bodyAngle=operator.lookAngle??operator.targetLookAngle??this.aimAngle;
-  const difference=shortestAngle(bodyAngle,this.aimAngle);
-  const softLimit=38*Math.PI/180;
-  const hardLimit=58*Math.PI/180;
-  const magnitude=Math.abs(difference);
-  if(magnitude>softLimit){
-   const follow=Math.min(magnitude-softLimit,hardLimit-softLimit);
-   operator.targetLookAngle=bodyAngle+Math.sign(difference)*follow;
-  }else{
-   operator.targetLookAngle=operator.targetLookAngle??bodyAngle;
-  }
+  if(!this.weaponAvailable)return;
+  operator.targetLookAngle=this.aimAngle;
+  operator.perceptionLookAngle=this.aimAngle;
  }
  setFireHeld(held){
   this.fireHeld=Boolean(held);
@@ -114,6 +106,18 @@ export class CombatSystem{
  }
  get pointsBehindOperator(){
   return Math.sin(this.weaponAngle)<-0.18;
+ }
+ get aimTrace(){
+  const origin=this.muzzle;
+  const end={x:origin.x+Math.cos(this.aimAngle)*WEAPON.range,y:origin.y+Math.sin(this.aimAngle)*WEAPON.range};
+  return this.resolveShot(origin,end);
+ }
+ getAimTargetKind(actor){
+  if(!actor)return "clear";
+  if(actor.factionId==="commune"||actor.id==="worker_ada")return "friendly";
+  const encounter=this.game.encounters?.getActorEncounter?.(actor.id);
+  if(encounter?.state==="threatening")return "hostile";
+  return "contact";
  }
  get muzzle(){
   const operator=this.game.operator;
@@ -150,13 +154,14 @@ export class CombatSystem{
   this.turnPenalty+=(turnTarget-this.turnPenalty)*(1-Math.exp(-delta*12));
 
   const targetReadiness=this.aiming&&!this.reloading?1:0;
-  const readinessRate=targetReadiness>this.aimReadiness?4.1:5.6;
+  const readinessRate=targetReadiness>this.aimReadiness?6.2:7.4;
   this.aimReadiness+=(targetReadiness-this.aimReadiness)*(1-Math.exp(-delta*readinessRate));
 
-  const lowCarryAngle=(operator.lookAngle??0)+.62;
-  const activeAngle=this.aimAngle;
-  const desiredWeaponAngle=this.aiming ? activeAngle : this.aimAngle;
-  const weaponFollowRate=this.aiming?12.5:9.5;
+  const bodyAngle=operator.lookAngle??this.aimAngle;
+  const sideSign=Math.cos(bodyAngle)<0?-1:1;
+  const lowCarryAngle=bodyAngle+sideSign*.82;
+  const desiredWeaponAngle=this.aiming?this.aimAngle:lowCarryAngle;
+  const weaponFollowRate=this.aiming?15.5:8.2;
   this.weaponAngle+=shortestAngle(this.weaponAngle,desiredWeaponAngle)*(1-Math.exp(-delta*weaponFollowRate));
 
   this.#updateBodyTarget();

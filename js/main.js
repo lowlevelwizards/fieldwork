@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=095-interaction-trust-combat-state-20260730";
-import { ContinuousGameState } from "./continuous-game-state.js?v=095-interaction-trust-combat-state-20260730";
-import { InputController, CombatInputController } from "./input.js?v=095-interaction-trust-combat-state-20260730";
-import { Renderer } from "./renderer.js?v=095-interaction-trust-combat-state-20260730";
-import { getItemDefinition } from "../data/items.js?v=095-interaction-trust-combat-state-20260730";
-import { findEntity } from "./world-entities.js?v=095-interaction-trust-combat-state-20260730";
-import { validateItemLocations } from "./item-locations.js?v=095-interaction-trust-combat-state-20260730";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=095-interaction-trust-combat-state-20260730";
+import { Camera } from "./camera.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { ContinuousGameState } from "./continuous-game-state.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { InputController, CombatInputController } from "./input.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { Renderer } from "./renderer.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { getItemDefinition } from "../data/items.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { findEntity } from "./world-entities.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { validateItemLocations } from "./item-locations.js?v=096-weapon-posture-targeting-locomotion-20260730";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=096-weapon-posture-targeting-locomotion-20260730";
 
-const BUILD_ID="0.9A.5";
+const BUILD_ID="0.9A.6";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
