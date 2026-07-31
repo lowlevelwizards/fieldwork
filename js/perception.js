@@ -34,12 +34,12 @@ export class PerceptionSystem{
   const lightAngle=(light-1)*30;
   const lightRange=.32+.68*Math.sqrt(light);
   const playerSuppression=observer.id===this.game.operator.id?(this.game.combat?.suppression??0)/100:0;
-  const baseAngle=observer.id===this.game.operator.id?120:112;
-  const baseRange=observer.id===this.game.operator.id?720:650;
+  const baseAngle=observer.id===this.game.operator.id?124:118;
+  const baseRange=observer.id===this.game.operator.id?940:880;
   return{
    tier,
    angle:clamp(baseAngle+movementAngle+weatherAngle+lightAngle-playerSuppression*34,42,132),
-   range:clamp(baseRange*movementRange*weatherRange*lightRange*(1-playerSuppression*.36),150,760),
+   range:clamp(baseRange*movementRange*weatherRange*lightRange*(1-playerSuppression*.36),180,1020),
    light
   };
  }
@@ -108,13 +108,14 @@ export class PerceptionSystem{
      const targetTier=motionTier(target);
      const targetMovement={stationary:.55,walking:1,jogging:1.45,running:1.9}[targetTier];
      const observerFocus={stationary:1.35,walking:1,jogging:.72,running:.48}[profile.tier];
-     const closeBoost=d<95?5:d<180?2.4:1;
-     const gain=(5+26*closeness*closeness)*targetMovement*observerFocus*closeBoost;
+     const closeBoost=d<120?4.2:d<260?2.15:d<480?1.35:1;
+     const gain=(7+30*closeness*closeness)*targetMovement*observerFocus*closeBoost;
      record.progress=clamp(record.progress+gain*delta,0,100);
      record.lastSeen=this.game.clockMinutes;
      record.lastPosition={x:target.x,y:target.y};
     }else{
-     record.progress=clamp(record.progress-(record.level==="identified"?2.5:6)*delta,0,100);
+     // Contacts fade into remembered positions instead of disappearing at once.
+     record.progress=clamp(record.progress-(record.level==="identified"?.75:record.level==="located"?1.4:3.2)*delta,0,100);
     }
 
     const oldLevel=record.level;
@@ -192,7 +193,7 @@ export class PerceptionSystem{
  }
  decayKnowledge(delta){
   for(const map of this.teamKnowledge.values())for(const [targetTeam,contact] of map){
-   contact.certainty=clamp(contact.certainty-(contact.level==="identified"?.7:1.7)*delta,0,100);
+   contact.certainty=clamp(contact.certainty-(contact.level==="identified"?.24:contact.level==="located"?.55:1.05)*delta,0,100);
    if(contact.certainty<=0)map.delete(targetTeam);
    else if(contact.certainty<18)contact.level="suspected";
    else if(contact.certainty<55&&contact.level==="identified")contact.level="located";

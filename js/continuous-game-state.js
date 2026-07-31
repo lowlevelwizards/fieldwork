@@ -1,9 +1,9 @@
-import { GameState } from "./game.js?v=09b1-startup-import-hotfix-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=09b1-startup-import-hotfix-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=09b1-startup-import-hotfix-20260731";
-import { PerceptionSystem } from "./perception.js?v=09b1-startup-import-hotfix-20260731";
-import { CombatSystem } from "./combat.js?v=09b1-startup-import-hotfix-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=09b1-startup-import-hotfix-20260731";
+import { GameState } from "./game.js?v=09c-contact-camera-engagement-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=09c-contact-camera-engagement-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=09c-contact-camera-engagement-20260731";
+import { PerceptionSystem } from "./perception.js?v=09c-contact-camera-engagement-20260731";
+import { CombatSystem } from "./combat.js?v=09c-contact-camera-engagement-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=09c-contact-camera-engagement-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor() {
@@ -71,8 +71,15 @@ export class ContinuousGameState extends GameState {
       ? (inputLength/walkThreshold)*.52
       : .52+((inputLength-walkThreshold)/(1-walkThreshold))*.48;
 
-    if(inputLength>0.08&&!this.combat.lookInputActive&&!this.combat.aiming&&this.combat.weaponAvailable){
-      this.combat.setAimAngle(Math.atan2(move.y,move.x));
+    if(inputLength>0.08&&!this.combat.lookInputActive&&!this.combat.aiming){
+      const movementAngle=Math.atan2(move.y,move.x);
+      if(this.combat.weaponAvailable){
+        this.combat.setAimAngle(movementAngle);
+      }else{
+        // Carrying disables weapon aim, not body orientation.
+        this.operator.targetLookAngle=movementAngle;
+        this.operator.perceptionLookAngle=movementAngle;
+      }
     }
     if(this.combat.weaponAvailable){
       this.operator.targetLookAngle=this.combat.aimAngle;

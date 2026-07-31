@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=09b1-startup-import-hotfix-20260731";
-import { ContinuousGameState } from "./continuous-game-state.js?v=09b1-startup-import-hotfix-20260731";
-import { InputController, CombatInputController } from "./input.js?v=09b1-startup-import-hotfix-20260731";
-import { Renderer } from "./renderer.js?v=09b1-startup-import-hotfix-20260731";
-import { getItemDefinition } from "../data/items.js?v=09b1-startup-import-hotfix-20260731";
-import { findEntity } from "./world-entities.js?v=09b1-startup-import-hotfix-20260731";
-import { validateItemLocations } from "./item-locations.js?v=09b1-startup-import-hotfix-20260731";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=09b1-startup-import-hotfix-20260731";
+import { Camera } from "./camera.js?v=09c-contact-camera-engagement-20260731";
+import { ContinuousGameState } from "./continuous-game-state.js?v=09c-contact-camera-engagement-20260731";
+import { InputController, CombatInputController } from "./input.js?v=09c-contact-camera-engagement-20260731";
+import { Renderer } from "./renderer.js?v=09c-contact-camera-engagement-20260731";
+import { getItemDefinition } from "../data/items.js?v=09c-contact-camera-engagement-20260731";
+import { findEntity } from "./world-entities.js?v=09c-contact-camera-engagement-20260731";
+import { validateItemLocations } from "./item-locations.js?v=09c-contact-camera-engagement-20260731";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=09c-contact-camera-engagement-20260731";
 
-const BUILD_ID="0.9B.1";
+const BUILD_ID="0.9C";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -96,8 +96,9 @@ function updateCompass(){
 }
 function updateDebug(delta){fpsAccumulator+=delta;fpsFrames++;if(fpsAccumulator>=.5){fpsValue=Math.round(fpsFrames/fpsAccumulator);fpsAccumulator=0;fpsFrames=0;}$("#debug-build").textContent=declaredBuild===BUILD_ID?BUILD_ID:`HTML ${declaredBuild} / JS ${BUILD_ID}`;$("#debug-fps").textContent=fpsValue;$("#debug-position").textContent=`${Math.round(game.operator.x)}, ${Math.round(game.operator.y)}`;
 $("#debug-camera").textContent=`${Math.round(camera.x)}, ${Math.round(camera.y)}`;
-$("#debug-viewport").textContent=`${Math.round(camera.width)}×${Math.round(camera.height)}`;
-const screenX=game.operator.x-camera.x,screenY=game.operator.y-camera.y;
+$("#debug-viewport").textContent=`${Math.round(camera.width)}×${Math.round(camera.height)} · ${Math.round(camera.zoom*100)}%`;
+const operatorScreen=camera.worldToScreen(game.operator.x,game.operator.y);
+const screenX=operatorScreen.x,screenY=operatorScreen.y;
 $("#debug-screen-position").textContent=`${Math.round(screenX)}, ${Math.round(screenY)}`;
 $("#debug-operator-visible").textContent=camera.contains(game.operator,0)?"yes":"NO";
 $("#debug-render").textContent=renderer.lastOperatorRenderError?"ERROR":"OK";$("#debug-facing").textContent=game.operator.facing;$("#debug-target").textContent=game.interaction.getTarget()?.id??"—";$("#debug-incident").textContent=game.incident.state;$("#debug-excursion").textContent=game.excursion.state;$("#debug-operations").textContent=game.operations.started?`${game.operations.operations.filter(o=>o.status==="completed").length}/3 complete · ${game.perception?.identifiedContactCount??0} contact(s) · ${game.encounters?.activeCount??0} encounter(s)`:"inactive";$("#debug-obstruction").textContent=game.excursion.obstructionState;$("#debug-water").textContent=game.isInWater()?`${game.waterExposure.toFixed(1)}s`:findEntity(game.entities,"culvert_water_01")?.depth??"dry";$("#debug-weather").textContent=`${game.weather} · light ${Math.round((game.getLightLevel?.()??1)*100)}%`;$("#debug-collision").textContent=game.getCollisionReason?.()??"clear";const r=game.lastCollisionRecovery;$("#debug-recovery").textContent=r?`${r.context}: ${Math.round(r.to.x)},${Math.round(r.to.y)}`:"none";const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
@@ -121,16 +122,16 @@ function updateCombatUI(){
 
 function worldAimAngleFromPointer(clientX,clientY){
  const rect=canvas.getBoundingClientRect();
- const operatorScreenX=game.operator.x-camera.x;
- const operatorScreenY=game.operator.y-camera.y;
- return Math.atan2(clientY-rect.top-operatorScreenY,clientX-rect.left-operatorScreenX);
+ const pointer= camera.screenToWorld(clientX-rect.left,clientY-rect.top);
+ return Math.atan2(pointer.y-game.operator.y,pointer.x-game.operator.x);
 }
 
 function tryWorldInteraction(screenX,screenY){
  const target=game.interaction.getTarget();
  if(!target||!game.interaction.activeAction||game.interaction.activeAction.disabled)return false;
- const cx=target.x+(target.width??0)/2-camera.x;
- const cy=target.y+(target.height??0)/2-camera.y;
+ const screen=camera.worldToScreen(target.x+(target.width??0)/2,target.y+(target.height??0)/2);
+ const cx=screen.x;
+ const cy=screen.y;
  const radius=Math.max(58,(target.radius??0)+42,Math.max(target.width??0,target.height??0)*.65);
  if(Math.hypot(screenX-cx,screenY-cy)>radius)return false;
  return Boolean(triggerContextAction());
@@ -151,7 +152,7 @@ const combatInput=new CombatInputController({
 });
 
 
-function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.lockTo(game.operator);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;$("#weather-icon").textContent=game.isNight?.()?"☾":game.weather==="Rain"||game.weather==="Heavy Rain"?"☂":game.weather==="Cloudy"?"☁":game.weather==="Fog"?"≋":"☀";updateObjective();updateCompass();updateCombatUI();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
+function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.update(game,delta);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;$("#weather-icon").textContent=game.isNight?.()?"☾":game.weather==="Rain"||game.weather==="Heavy Rain"?"☂":game.weather==="Cloudy"?"☁":game.weather==="Fog"?"≋":"☀";updateObjective();updateCompass();updateCombatUI();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
 function recoverPosition(source){const before={x:game.operator.x,y:game.operator.y};game.resetPosition();camera.snapTo(game.operator);console.info("Fieldwork position recovery",{build:BUILD_ID,source,before,after:{x:game.operator.x,y:game.operator.y}});}
 
 

@@ -6,7 +6,10 @@ const shortestAngle=(from,to)=>Math.atan2(Math.sin(to-from),Math.cos(to-from));
 const CONFIG={
   magazineSize:20,
   reloadDuration:2.7,
-  range:820,
+  range:980,
+  preferredMinRange:260,
+  preferredMaxRange:610,
+  contactMemorySeconds:18,
   burstMin:2,
   burstMax:4,
   shotInterval:.19,
@@ -68,6 +71,8 @@ export class AICombatSystem{
     actor.moraleState ??= "steady";
     actor.combatHits ??= 0;
     actor.threatenedByPlayerUntil ??= 0;
+    actor.lastKnownEnemyPosition ??= null;
+    actor.contactMemoryUntil ??= 0;
   }
 
   onPlayerShot(origin,end,result){
@@ -111,10 +116,17 @@ export class AICombatSystem{
 
   getTarget(actor){
     const now=performance.now()/1000;
+    let target=null;
     if(actor.threatenedByPlayerUntil>now&&actor.factionId!=="commune"){
-      return this.game.operator;
+      target=this.game.operator;
+    }else{
+      target=this.getEncounterTarget(actor);
     }
-    return this.getEncounterTarget(actor);
+    if(target){
+      actor.lastKnownEnemyPosition={x:target.x,y:target.y};
+      actor.contactMemoryUntil=now+CONFIG.contactMemorySeconds;
+    }
+    return target;
   }
 
   hasFriendlyInLine(actor,target,origin,end){
@@ -259,8 +271,27 @@ export class AICombatSystem{
 
     const target=this.getTarget(actor);
     if(!target){
-      actor.aimReadiness=Math.max(0,actor.aimReadiness-delta*3.5);
-      if(actor.moraleState==="steady"&&!actor.encounterId)actor.operationPausedByEncounter=false;
+      actor.aimReadiness=Math.max(0,actor.aimReadiness-delta*2.2);
+      const now=performance.now()/1000;
+      if(actor.lastKnownEnemyPosition&&actor.contactMemoryUntil>now){
+        const memory=actor.lastKnownEnemyPosition;
+        actor.operationPausedByEncounter=true;
+        actor.currentTask="Searching last known position";
+        actor.currentAction="Searching for contact";
+        actor.workPose="scan";
+        const desired=angleTo(actor,memory);
+        actor.combatAimAngle+=shortestAngle(actor.combatAimAngle,desired)*(1-Math.exp(-delta*3.5));
+        actor.lookAngle=actor.combatAimAngle;
+        const d=Math.hypot(memory.x-actor.x,memory.y-actor.y);
+        if(d>360){
+          actor.x+=Math.cos(desired)*actor.moveSpeed*.16*delta;
+          actor.y+=Math.sin(desired)*actor.moveSpeed*.16*delta;
+          actor.groundY=actor.y+actor.radius;
+        }
+      }else{
+        actor.lastKnownEnemyPosition=null;
+        if(actor.moraleState==="steady"&&!actor.encounterId)actor.operationPausedByEncounter=false;
+      }
       return;
     }
 
@@ -273,7 +304,24 @@ export class AICombatSystem{
     actor.combatAimAngle+=shortestAngle(actor.combatAimAngle,desired)*(1-Math.exp(-delta*(actor.moraleState==="pinned"?4:8)));
     actor.lookAngle=actor.combatAimAngle;
     actor.facing=facingFromAngle(actor.combatAimAngle);
+    const targetDistance=distance(actor,target);
     actor.aimReadiness=clamp(actor.aimReadiness+delta*(actor.moraleState==="pinned"?.75:2.4),0,1);
+
+    // Preserve a useful rifle engagement distance instead of collapsing into CQB.
+    if(actor.moraleState!=="pinned"&&actor.moraleState!=="breaking"){
+      if(targetDistance<CONFIG.preferredMinRange){
+        actor.x-=Math.cos(desired)*actor.moveSpeed*.34*delta;
+        actor.y-=Math.sin(desired)*actor.moveSpeed*.34*delta;
+        actor.groundY=actor.y+actor.radius;
+        actor.currentTask="Opening distance under fire";
+        actor.aimReadiness=Math.max(.35,actor.aimReadiness-delta*.4);
+      }else if(targetDistance>CONFIG.preferredMaxRange&&targetDistance<760&&actor.aimReadiness<.62){
+        actor.x+=Math.cos(desired)*actor.moveSpeed*.12*delta;
+        actor.y+=Math.sin(desired)*actor.moveSpeed*.12*delta;
+        actor.groundY=actor.y+actor.radius;
+        actor.currentTask="Advancing under observation";
+      }
+    }
 
     if(actor.moraleState==="breaking"){
       const dx=actor.x-target.x,dy=actor.y-target.y,d=Math.max(1,Math.hypot(dx,dy));
@@ -288,7 +336,7 @@ export class AICombatSystem{
       return;
     }
 
-    if(actor.aimReadiness<.72||actor.fireCooldown>0||actor.burstPause>0)return;
+    if(targetDistance>CONFIG.range||actor.aimReadiness<.72||actor.fireCooldown>0||actor.burstPause>0)return;
     if(actor.burstRemaining<=0){
       actor.burstRemaining=CONFIG.burstMin+Math.floor(Math.random()*(CONFIG.burstMax-CONFIG.burstMin+1));
     }

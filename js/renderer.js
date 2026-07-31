@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=09b-ai-fire-suppression-reactions-20260731";
-import { drawOperator } from "./presentation/operator-renderer.js?v=09b-ai-fire-suppression-reactions-20260731";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=09b-ai-fire-suppression-reactions-20260731";
-import { findEntity } from "./world-entities.js?v=09b-ai-fire-suppression-reactions-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=09c-contact-camera-engagement-20260731";
+import { drawOperator } from "./presentation/operator-renderer.js?v=09c-contact-camera-engagement-20260731";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=09c-contact-camera-engagement-20260731";
+import { findEntity } from "./world-entities.js?v=09c-contact-camera-engagement-20260731";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -16,7 +16,8 @@ export class Renderer{
   ctx.clearRect(0,0,w,h);
   ctx.save();
   try{
-    ctx.translate(-Math.round(this.camera.x),-Math.round(this.camera.y));this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawCombatWorld(ctx,game);this.#drawMapBorder(ctx);
+    ctx.scale(this.camera.zoom,this.camera.zoom);
+    ctx.translate(-this.camera.x,-this.camera.y);this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawCombatWorld(ctx,game);this.#drawMapBorder(ctx);
   }finally{
     ctx.restore();
   }
@@ -29,18 +30,19 @@ export class Renderer{
  }
  #drawPlayerVisionConeScreen(ctx,game){
   const cone=game.perception?.getPlayerCone?.();if(!cone)return;
-  const x=cone.x-this.camera.x,y=cone.y-this.camera.y;
+  const screen=this.camera.worldToScreen(cone.x,cone.y);
+  const x=screen.x,y=screen.y;
   const angle=cone.lookAngle??0,half=cone.angle*Math.PI/360;
   ctx.save();
   try{
    ctx.setTransform(this.dpr,0,0,this.dpr,0,0);
-   const gradient=ctx.createRadialGradient(x,y,18,x,y,cone.range);
+   const gradient=ctx.createRadialGradient(x,y,18*this.camera.zoom,x,y,cone.range*this.camera.zoom);
    gradient.addColorStop(0,"rgba(255,255,245,.055)");
    gradient.addColorStop(.5,"rgba(255,255,245,.03)");
    gradient.addColorStop(1,"rgba(255,255,245,0)");
    ctx.fillStyle=gradient;
    ctx.beginPath();ctx.moveTo(x,y);
-   ctx.arc(x,y,cone.range,angle-half,angle+half);
+   ctx.arc(x,y,cone.range*this.camera.zoom,angle-half,angle+half);
    ctx.closePath();ctx.fill();
   }finally{ctx.restore();}
  }
@@ -48,7 +50,8 @@ export class Renderer{
 
  #drawInteractionPromptScreen(ctx,game){
   const target=game.interaction?.getTarget?.(),action=game.interaction?.activeAction;if(!target||!action)return;
-  const x=target.x+(target.width??0)/2-this.camera.x,y=target.y-this.camera.y-18;
+  const screen=this.camera.worldToScreen(target.x+(target.width??0)/2,target.y-18);
+  const x=screen.x,y=screen.y;
   ctx.save();try{ctx.setTransform(this.dpr,0,0,this.dpr,0,0);ctx.font='700 13px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
    const label=action.disabled?action.label:`${action.label}`;const width=Math.max(48,ctx.measureText(label).width+20);
    ctx.fillStyle='rgba(18,27,22,.86)';ctx.beginPath();ctx.roundRect(x-width/2,y-14,width,28,12);ctx.fill();
@@ -435,9 +438,11 @@ export class Renderer{
   const angle=combat.aimAngle??0;
   const trace=combat.aimTrace;
   const end=trace?.point??combat.reticle;
-  const targetX=end.x-this.camera.x,targetY=end.y-this.camera.y;
+  const targetScreen=this.camera.worldToScreen(end.x,end.y);
+  const targetX=targetScreen.x,targetY=targetScreen.y;
   const muzzle=combat.muzzle;
-  const startX=muzzle.x-this.camera.x,startY=muzzle.y-this.camera.y;
+  const muzzleScreen=this.camera.worldToScreen(muzzle.x,muzzle.y);
+  const startX=muzzleScreen.x,startY=muzzleScreen.y;
   const distance=Math.max(1,Math.hypot(end.x-muzzle.x,end.y-muzzle.y));
   const spread=combat.currentSpread??.04;
   const bracketGap=16+Math.tan(spread)*Math.min(distance,340);
