@@ -144,6 +144,11 @@ function drawUp(ctx, palette, motion) {
 
   drawRearLegs(ctx, step, palette);
 
+  ctx.save();
+  ctx.translate(0,10);
+  ctx.rotate(motion.torsoLean);
+  ctx.translate(0,-10);
+
   // Carried objects and their hands sit behind the operator when facing north.
   if (motion.carrying) drawHeldItem(ctx, motion.carriedDefinitionId, "up", palette);
   if (!motion.carrying) drawWeapon(ctx, {
@@ -169,6 +174,7 @@ function drawUp(ctx, palette, motion) {
   drawAccentPatch(ctx, 8, -10 + packBounce, 7, 4, palette.accent);
 
   drawHelmet(ctx, 0, -31, palette, { facing: "up" });
+  ctx.restore();
 }
 
 function drawDown(ctx, palette, motion) {
@@ -185,6 +191,10 @@ function drawDown(ctx, palette, motion) {
   roundedRect(ctx, 11, -14, 4, 30, 2, palette.webbing);
 
   drawFrontLegs(ctx, step, palette);
+  ctx.save();
+  ctx.translate(0,10);
+  ctx.rotate(motion.torsoLean);
+  ctx.translate(0,-10);
   roundedRect(ctx, -20, -14, 40, 29, 10, palette.torso);
   drawWaist(ctx, palette);
   drawFrontRig(ctx, palette);
@@ -199,6 +209,7 @@ function drawDown(ctx, palette, motion) {
     frontHand: { x: 8 + sway, y: 15 }
   });
   else drawHeldItem(ctx, motion.carriedDefinitionId, "down", palette);
+  ctx.restore();
 }
 
 function drawSide(ctx, palette, motion, direction) {
@@ -206,6 +217,11 @@ function drawSide(ctx, palette, motion, direction) {
   const { step, sway, packBounce, packScale } = motion;
 
   drawSideLegs(ctx, step, palette, sign);
+
+  ctx.save();
+  ctx.translate(0,10);
+  ctx.rotate(motion.torsoLean*sign);
+  ctx.translate(0,-10);
 
   const packX = sign === 1 ? -26 : 5;
   roundedRect(ctx, packX - (sign === 1 ? packScale : 0), -10 + packBounce, 21 + packScale, 30 + packScale * 0.5, 8, palette.backpack);
@@ -229,6 +245,7 @@ function drawSide(ctx, palette, motion, direction) {
     frontHand: { x: sign * (21 + sway), y: -4 }
   });
   else drawHeldItem(ctx, motion.carriedDefinitionId, direction, palette);
+  ctx.restore();
 }
 
 
@@ -253,7 +270,8 @@ export function drawOperator(ctx, operator, carriedItem = null) {
     carrying,
     carriedDefinitionId: carriedItem?.definitionId || null,
     searching: Boolean(operator.searchTargetId),
-    searchPose: operator.searchPose || 0
+    searchPose: operator.searchPose || 0,
+    torsoLean: operator.torsoLean || 0
   };
 
   ctx.save();
@@ -266,7 +284,7 @@ export function drawOperator(ctx, operator, carriedItem = null) {
     const runLean=mode==="run"?7.2:mode==="forward"?3.7:mode==="backpedal"?-2.2:2.4;
     const braking=-(operator.motionAcceleration??0)*2.2;
     ctx.translate(nx*(pace*runLean+braking),ny*(pace*runLean+braking));
-    ctx.rotate(sideDot*.045*pace + forwardDot*.012*pace);
+    ctx.translate(-forwardY*sideDot*1.2*pace,forwardX*sideDot*1.2*pace);
   }
   if (motion.searching) {
     const leanX = facing === "left" ? -4 : facing === "right" ? 4 : 0;
