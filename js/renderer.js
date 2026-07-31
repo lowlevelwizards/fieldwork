@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=091-control-rendering-hotfix-20260730";
-import { drawOperator } from "./presentation/operator-renderer.js?v=091-control-rendering-hotfix-20260730";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=091-control-rendering-hotfix-20260730";
-import { findEntity } from "./world-entities.js?v=091-control-rendering-hotfix-20260730";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=092-combat-controls-refactor-20260730";
+import { drawOperator } from "./presentation/operator-renderer.js?v=092-combat-controls-refactor-20260730";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=092-combat-controls-refactor-20260730";
+import { findEntity } from "./world-entities.js?v=092-combat-controls-refactor-20260730";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
