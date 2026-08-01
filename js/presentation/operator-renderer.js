@@ -377,7 +377,7 @@ export function drawOperator(ctx, operator, carriedItem = null) {
 
   const wound=woundPoseData(operator);
   motion.woundRegion=wound.region;
-  if(operator.actionLock?.allowsCombat===false||operator.medicalAction?.phase==="prepare"||operator.medicalAction?.phase==="treat"||operator.rescueDrag||operator.draggingCasualtyId){
+  if(operator.medicalAction?.phase==="prepare"||operator.medicalAction?.phase==="treat"||operator.rescueDrag||operator.draggingCasualtyId){
     motion.hideWeapon=true;
   }
   if(wound.wounded){
@@ -389,7 +389,6 @@ export function drawOperator(ctx, operator, carriedItem = null) {
       motion.sideStep*=.45;
     }
     if(wound.region==="arms"){
-      motion.hideWeapon=true;
       motion.sway*=.35;
     }
   }
