@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12e-fire-teams-suppression-authority-20260801";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -72,7 +72,9 @@ export class TeamCombatContextSystem{
           encounterId:null,updatedAt:now,
           primaryThreatLockedUntil:0,lastFrontAssignAt:-999,
           suppressorIds:[],boundActorId:null,boundUntil:0,
-          lastSuppressiveShotAt:-999,suppressionActive:false
+          lastSuppressiveShotAt:-999,suppressionActive:false,
+          fightState:"contested",fightStateSince:now,fightStateLockedUntil:0,
+          fightAssessment:null,rallyPosition:null
         };
         this.contexts.set(group.id,context);
       }
@@ -104,6 +106,8 @@ export class TeamCombatContextSystem{
         context.primaryThreatPosition=null;
         context.secondaryThreats=[];
         context.encounterId=null;
+        context.fightAssessment=null;
+        context.fightState="contested";
         for(const actor of group.actors){
           actor.teamCombatContext=context;
           actor.primaryThreatTeamId=null;
@@ -114,8 +118,14 @@ export class TeamCombatContextSystem{
       const primaryChanged=context.primaryThreatTeamId!==primary.enemy.id;
       if(primaryChanged)context.primaryThreatLockedUntil=now+7.5;
 
-      const proposedPlan=this.planFor(primary.encounter,group.id);
-      const urgentPlan=['withdraw','rescue'].includes(proposedPlan);
+      const assessment=this.game.fightAssessments?.assess?.(group,primary.enemy,context)??null;
+      let proposedPlan=this.planFor(primary.encounter,group.id);
+      if(primary.encounter.combatEngaged&&assessment){
+        if(assessment.state==="collapsing")proposedPlan="withdraw";
+        else if(assessment.state==="disadvantaged"&&assessment.recommendedPlan)proposedPlan=assessment.recommendedPlan;
+        else if(assessment.state==="overmatch"&&assessment.recommendedPlan&&proposedPlan!=="rescue")proposedPlan=assessment.recommendedPlan;
+      }
+      const urgentPlan=['withdraw','rescue'].includes(proposedPlan)||assessment?.state==="collapsing";
       const planCanChange=now>=(context.planLockedUntil??0)||urgentPlan||primaryChanged;
       const newPlan=planCanChange?proposedPlan:context.currentPlan;
       const planChanged=newPlan!==context.currentPlan;
@@ -139,7 +149,8 @@ export class TeamCombatContextSystem{
       const ownGroup={id:group.id,factionId:group.factionId,actors:group.actors};
       const shouldRefreshFront=primaryChanged||planChanged||now-(context.lastFrontAssignAt??-999)>8;
       if(shouldRefreshFront){
-        this.game.tacticalFronts?.assign?.(primary.encounter,ownGroup,primaryGroup,newPlan);
+        const front=this.game.tacticalFronts?.assign?.(primary.encounter,ownGroup,primaryGroup,newPlan);
+        if(front?.rear)context.rallyPosition={...front.rear};
         context.lastFrontAssignAt=now;
       }
 
@@ -152,6 +163,8 @@ export class TeamCombatContextSystem{
         actor.tacticalPlanUntil=now+24;
         actor.alertState=context.alertState;
         actor.encounterId=context.encounterId;
+        actor.fightAssessmentState=context.fightAssessment?.state??null;
+        actor.fightStrengthRatio=context.fightAssessment?.ratio??1;
       }
     }
   }

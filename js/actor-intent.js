@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor } from "./actor-motion.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { moveActorToward, stopActor } from "./actor-motion.js?v=12g-combat-posture-fight-assessment-20260801";
 
 export const INTENT_PRIORITY={
   PATROL:20,
@@ -26,6 +26,7 @@ const DEFAULT_COMMITMENT={
   shift_cover_edge:2.4,
   return_to_cover:2.2,
   reload_cover:3.8,
+  regroup:6,
   withdraw:7,
   medical_approach:4.5,
   hold:1.2

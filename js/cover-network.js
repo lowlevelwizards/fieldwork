@@ -1,6 +1,6 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { getDoctrine } from "./faction-doctrine.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { isAlive } from "./actor-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { projectOutsideObstacles } from "./actor-motion.js?v=12g-combat-posture-fight-assessment-20260801";
+import { getDoctrine } from "./faction-doctrine.js?v=12g-combat-posture-fight-assessment-20260801";
+import { isAlive } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -304,6 +304,62 @@ export class CoverNetworkSystem{
       role:options.role??actor.fireTeamRole??actor.tacticalRole,
       element:options.element??actor.fireTeamElement
     }):null;
+  }
+
+  bestRearCover(actor,threat,{anchor=null,context=null,reserveSeconds=28}={}){
+    if(!actor||!threat)return null;
+    const currentDistance=distance(actor,threat);
+    const currentIndex=actor.assignedCoverNode?.index;
+    const candidates=this.candidates(actor,threat,{
+      anchor:anchor??actor.tacticalRallyPoint??actor,
+      maxDistance:820,
+      secondaryThreats:context?.secondaryThreats??[],
+      excludeObstacleIndexes:Number.isFinite(currentIndex)?[currentIndex]:[],
+      minimumSpacing:82,
+      role:actor.fireTeamRole??actor.tacticalRole,
+      element:actor.fireTeamElement
+    }).filter(node=>distance(node.protectedPosition,threat)>currentDistance+70)
+      .sort((a,b)=>{
+        const aRear=distance(a.protectedPosition,threat)-currentDistance;
+        const bRear=distance(b.protectedPosition,threat)-currentDistance;
+        return (bRear+b.score*.35)-(aRear+a.score*.35);
+      });
+    const chosen=candidates[0]??null;
+    return chosen?this.reserve(actor,chosen,reserveSeconds,{
+      role:actor.fireTeamRole??actor.tacticalRole,
+      element:actor.fireTeamElement
+    }):null;
+  }
+
+  bestCasualtyCover(actor,patient,threat,{context=null,reserveSeconds=34}={}){
+    if(!actor||!patient||!threat)return null;
+    const patientDistance=distance(patient,threat);
+    const suppressorObstacles=new Set(
+      (context?.suppressorIds??[])
+        .map(id=>this.game.actors.find(candidate=>candidate.id===id)?.assignedCoverNode?.index)
+        .filter(Number.isFinite)
+    );
+    const away=normalize(patient.x-threat.x,patient.y-threat.y);
+    const anchor=actor.tacticalRallyPoint??{
+      x:patient.x+away.x*220,
+      y:patient.y+away.y*220
+    };
+    const candidates=this.candidates(actor,threat,{
+      anchor,maxDistance:760,
+      secondaryThreats:context?.secondaryThreats??[],
+      excludeObstacleIndexes:[...suppressorObstacles],
+      minimumSpacing:96,
+      role:"medic",element:"medical"
+    }).filter(node=>
+      distance(node.protectedPosition,threat)>patientDistance+55&&
+      node.localDensity<3
+    );
+    const chosen=candidates[0]??null;
+    return chosen?this.reserve(actor,chosen,reserveSeconds,{role:"medic",element:"medical"}):null;
+  }
+
+  hasUsableFireLane(node,target){
+    return Boolean(node&&target&&this.clearFirePositions(node,target).length);
   }
 
   routeWaypoint(actor,finalNode,threat,{secondaryThreats=[]}={}){

@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { ContinuousGameState } from "./continuous-game-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { InputController, CombatInputController } from "./input.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { Renderer } from "./renderer.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { getItemDefinition } from "../data/items.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { findEntity } from "./world-entities.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { validateItemLocations } from "./item-locations.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { Camera } from "./camera.js?v=12g-combat-posture-fight-assessment-20260801";
+import { ContinuousGameState } from "./continuous-game-state.js?v=12g-combat-posture-fight-assessment-20260801";
+import { InputController, CombatInputController } from "./input.js?v=12g-combat-posture-fight-assessment-20260801";
+import { Renderer } from "./renderer.js?v=12g-combat-posture-fight-assessment-20260801";
+import { getItemDefinition } from "../data/items.js?v=12g-combat-posture-fight-assessment-20260801";
+import { findEntity } from "./world-entities.js?v=12g-combat-posture-fight-assessment-20260801";
+import { validateItemLocations } from "./item-locations.js?v=12g-combat-posture-fight-assessment-20260801";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=12g-combat-posture-fight-assessment-20260801";
 
-const BUILD_ID="1.2F";
+const BUILD_ID="1.2G";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -126,7 +126,10 @@ $("#debug-operator-visible").textContent=camera.contains(game.operator,0)?"yes":
 $("#debug-render").textContent=renderer.lastOperatorRenderError?"ERROR":"OK";$("#debug-facing").textContent=game.operator.facing;$("#debug-target").textContent=game.interaction.getTarget()?.id??"—";$("#debug-incident").textContent=game.incident.state;$("#debug-excursion").textContent=game.excursion.state;$("#debug-operations").textContent=game.operations.started?`${game.operations.operations.filter(o=>o.status==="completed").length}/3 complete · ${game.perception?.identifiedContactCount??0} contact(s) · ${game.encounters?.activeCount??0} encounter(s)`:"inactive";$("#debug-obstruction").textContent=game.excursion.obstructionState;$("#debug-water").textContent=game.isInWater()?`${game.waterExposure.toFixed(1)}s`:findEntity(game.entities,"culvert_water_01")?.depth??"dry";$("#debug-weather").textContent=`${game.weather} · light ${Math.round((game.getLightLevel?.()??1)*100)}%`;$("#debug-collision").textContent=game.getCollisionReason?.()??"clear";const r=game.lastCollisionRecovery;$("#debug-recovery").textContent=r?`${r.context}: ${Math.round(r.to.x)},${Math.round(r.to.y)}`:"none";const combatActors=game.actors.filter(actor=>actor.operationId&&!actor.medical?.dead);
 const suppressors=combatActors.filter(actor=>actor.fireTeamRole==="base_of_fire").length;
 const reversals=combatActors.reduce((sum,actor)=>sum+(actor.intentReversals??0),0);
-$("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${reversals} reversal(s)`;
+const stalled=combatActors.filter(actor=>actor.combatStalled).length;
+const withdrawing=combatActors.filter(actor=>actor.combatPosture==="withdraw"||actor.combatPosture==="regroup").length;
+const assessments=[...new Set(combatActors.map(actor=>actor.fightAssessmentState).filter(Boolean))].join("/")||"quiet";
+$("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
 const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
 function updateCombatUI(){
  const combat=game.combat;

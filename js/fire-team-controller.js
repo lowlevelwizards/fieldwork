@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, isTreating } from "./actor-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { isAlive, isCombatCapable, isTreating } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -39,7 +39,12 @@ export class FireTeamControllerSystem{
   assignRoles(context,actors,now){
     const medics=actors.filter(actor=>/medic|shelter worker/i.test(actor.role??""));
     const line=actors.filter(actor=>!medics.includes(actor));
-    const desiredSuppressors=line.length>=6?2:line.length>=2?1:0;
+    const fightState=context.fightAssessment?.state??"contested";
+    const desiredSuppressors=fightState==="collapsing"
+      ?(line.length>=2?1:0)
+      :fightState==="overmatch"
+        ?(line.length>=5?2:line.length>=2?1:0)
+        :(line.length>=6?2:line.length>=2?1:0);
     let suppressorIds=this.validSuppressors(context,line);
 
     if(suppressorIds.length<desiredSuppressors||now>(context.fireRoleLockedUntil??0)){
@@ -103,11 +108,15 @@ export class FireTeamControllerSystem{
 
     this.assignRoles(context,actors,now);
     const plan=context.currentPlan??"hold";
-    const coordinatedMove=["push","flank_left","flank_right","support"].includes(plan);
+    const fightState=context.fightAssessment?.state??"contested";
+    const coordinatedMove=["push","flank_left","flank_right","support"].includes(plan)&&fightState!=="collapsing";
+    const withdrawing=fightState==="collapsing"||plan==="withdraw";
     const enemySuppression=this.enemySuppression(context);
     const recentCoveringFire=now-(context.lastSuppressiveShotAt??-999)<2.8;
-    context.suppressionRequired=coordinatedMove;
+    context.suppressionRequired=coordinatedMove||withdrawing;
     context.suppressionActive=recentCoveringFire||enemySuppression>=26;
+    context.fireIntensity=fightState==="overmatch"?1:fightState==="contested"?.72:fightState==="disadvantaged"?.46:.34;
+    context.withdrawalCovererIds=withdrawing?(context.suppressorIds??[]).slice(0,1):[];
     context.suppressionTarget={...(context.primaryThreatPosition??{})};
     context.enemySuppression=enemySuppression;
 
@@ -119,8 +128,9 @@ export class FireTeamControllerSystem{
         position:{...context.suppressionTarget},
         until:now+3.5
       }:null;
-      actor.boundAuthorized=actor.fireTeamRole==="maneuver"&&(!coordinatedMove||context.suppressionActive);
-      actor.holdForCoveringFire=coordinatedMove&&actor.fireTeamRole!=="base_of_fire"&&!actor.boundAuthorized;
+      actor.boundAuthorized=actor.fireTeamRole==="maneuver"&&fightState!=="disadvantaged"&&fightState!=="collapsing"&&(!coordinatedMove||context.suppressionActive);
+      actor.coveringWithdrawal=context.withdrawalCovererIds.includes(actor.id);
+      actor.holdForCoveringFire=(coordinatedMove||withdrawing)&&actor.fireTeamRole!=="base_of_fire"&&!actor.boundAuthorized;
       actor.coverCrowded=this.game.coverNetwork?.friendlyDensity?.(
         actor,actor.assignedCoverNode?.protectedPosition??actor,108
       )??0;
