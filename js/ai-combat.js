@@ -1,7 +1,7 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12e-fire-teams-suppression-authority-20260801";
-import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12e-fire-teams-suppression-authority-20260801";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12e-fire-teams-suppression-authority-20260801";
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12e-fire-teams-suppression-authority-20260801";
+import { getDoctrine } from "./faction-doctrine.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -264,6 +264,13 @@ export class AICombatSystem{
     if(this.hasFriendlyInLine(actor,referenceTarget,origin,intended)){
       actor.burstRemaining=0;actor.burstPause=.55;return false;
     }
+    const ownCover=actor.assignedCoverNode??actor.tacticalCoverNode;
+    const coverBlock=this.game.coverNetwork?.shotBlocked?.(origin,intended);
+    if(ownCover&&coverBlock?.obstacle===ownCover.obstacle){
+      actor.burstRemaining=0;
+      actor.burstPause=Math.max(actor.burstPause,.4);
+      return false;
+    }
 
     const result=this.resolveShot(actor,origin,intended,referenceTarget);
     const end=result.point;
@@ -320,6 +327,13 @@ export class AICombatSystem{
     if(this.hasFriendlyInLine(actor,target,origin,intended)){
       actor.burstRemaining=0;
       actor.burstPause=.65;
+      return;
+    }
+    const ownCover=actor.assignedCoverNode??actor.tacticalCoverNode;
+    const coverBlock=this.game.coverNetwork?.shotBlocked?.(origin,intended);
+    if(ownCover&&coverBlock?.obstacle===ownCover.obstacle){
+      actor.burstRemaining=0;
+      actor.burstPause=Math.max(actor.burstPause,.4);
       return;
     }
 
@@ -417,6 +431,51 @@ export class AICombatSystem{
       const suppression=actor.suppressionAssignment;
       if(actor.fireTeamRole==="base_of_fire"&&context?.alertState==="engaged"&&suppression?.position){
         const point=suppression.position;
+        let node=actor.assignedCoverNode??actor.tacticalCoverNode;
+        if(!node){
+          node=this.game.coverNetwork?.bestCover?.(actor,point,{
+            anchor:actor.tacticalSlot??actor,
+            maxDistance:680,
+            secondaryThreats:context?.secondaryThreats??[],
+            reserveSeconds:24,
+            role:"base_of_fire",element:"support",
+            minimumSpacing:82,requireFireLane:true
+          });
+          if(node){
+            actor.assignedCoverNode=node;
+            this.game.actorIntents?.submit?.(actor,createIntent("fire_team","seek_cover",INTENT_PRIORITY.RETURN_FIRE+3,{
+              key:`basefire:establish:${node.slotId}`,
+              destination:node.protectedPosition,speedMultiplier:.82,arrivalRadius:46,
+              commitSeconds:5.2,task:"Establishing a covered base of fire"
+            }));
+          }else{
+            actor.currentTask="Searching for base-of-fire cover";
+          }
+          actor.burstRemaining=0;
+          return;
+        }
+        const edge=this.game.coverNetwork?.nearestFirePosition?.(actor,node,point);
+        if(node&&!edge){
+          actor.coverBlockedSince ??= now;
+          if(now-actor.coverBlockedSince>2.6){
+            this.game.coverNetwork?.releaseActor?.(actor);
+            actor.coverReassignmentReason="no suppressive fire lane";
+          }
+          actor.burstRemaining=0;
+          actor.currentTask="Searching for a usable base-of-fire position";
+          return;
+        }
+        actor.coverBlockedSince=null;
+        if(edge&&distance(actor,edge)>24){
+          actor.coverPeekUntil=now+4.5;
+          this.game.actorIntents?.submit?.(actor,createIntent("fire_team","shift_cover_edge",INTENT_PRIORITY.RETURN_FIRE+1,{
+            key:`basefire:edge:${node.nodeId}:${Math.round(edge.x)}:${Math.round(edge.y)}`,
+            destination:edge,speedMultiplier:.48,arrivalRadius:20,
+            commitSeconds:3.1,task:"Moving to a clear suppressive firing edge"
+          }));
+          return;
+        }
+
         const desired=angleTo(actor,point);
         actor.combatAimAngle+=shortestAngle(actor.combatAimAngle,desired)*(1-Math.exp(-delta*7));
         actor.lookAngle=actor.combatAimAngle;
@@ -424,7 +483,10 @@ export class AICombatSystem{
         const speed=Math.hypot(actor.vx??0,actor.vy??0);
         actor.aimReadiness=speed<7?clamp(actor.aimReadiness+delta*1.8,0,1):Math.max(0,actor.aimReadiness-delta);
         actor.currentTask="Maintaining suppressive fire";
-        if(speed<7&&actor.aimReadiness>.58&&actor.fireCooldown<=0&&actor.burstPause<=0&&canFire(actor)){
+        const viability=this.game.coverNetwork?.shotViability?.(actor,point,{
+          ignoreObstacle:node?.obstacle??null
+        })??{status:"clear"};
+        if(viability.status==="clear"&&speed<7&&actor.aimReadiness>.58&&actor.fireCooldown<=0&&actor.burstPause<=0&&canFire(actor)){
           if(actor.burstRemaining<=0)actor.burstRemaining=3+Math.floor(Math.random()*3);
           this.fireSuppressive(actor,point,null);
         }
@@ -537,62 +599,109 @@ export class AICombatSystem{
       const context=this.game.teamCombatContexts?.forActor?.(actor);
       const primaryThreat=context?.primaryThreatPosition??target;
       const secondaryThreats=context?.secondaryThreats??actor.tacticalSecondaryThreats??[];
-      const activeNode=actor.assignedCoverNode??actor.tacticalCoverNode;
+      let activeNode=actor.assignedCoverNode??actor.tacticalCoverNode;
+      const assignmentValid=activeNode&&this.game.coverNetwork?.assignmentValid?.(actor,activeNode,primaryThreat);
+      const crowded=activeNode&&this.game.coverNetwork?.isOvercrowded?.(actor,activeNode);
       const atCoverFireEdge=Boolean(activeNode)&&(
-        distance(actor,activeNode.leftFirePosition)<34||
-        distance(actor,activeNode.rightFirePosition)<34
+        (activeNode.firePositions??[]).some(item=>distance(actor,item.position)<32)
       )&&(actor.coverPeekUntil??0)>now;
       const exposed=actor.coverState==="exposed"||actor.coverState==="concealment";
       const recentFire=now-(actor.lastIncomingFireAt??-999)<6;
-      const needsCover=exposed&&!atCoverFireEdge&&(recentFire||context?.alertState==="engaged"||actor.suppression>12);
-      const usefulCover=Boolean(activeNode)&&["hard","soft"].includes(actor.coverState)&&
-        distance(actor,activeNode.protectedPosition)<72;
+      const usefulCover=Boolean(activeNode)&&assignmentValid&&!crowded&&["hard","soft"].includes(actor.coverState)&&
+        distance(actor,activeNode.protectedPosition)<76;
       const coordinatedMove=["push","flank_left","flank_right","support"].includes(plan);
       const waitingForCoveringFire=coordinatedMove&&actor.fireTeamRole!=="base_of_fire"&&!actor.boundAuthorized;
       const suppressorHolding=actor.fireTeamRole==="base_of_fire"&&usefulCover&&plan!=="withdraw";
+      const leaseActive=usefulCover&&now<(actor.coverLeaseUntil??0);
+      const role=actor.fireTeamRole??actor.tacticalRole??"security";
+      const element=actor.fireTeamElement??(role==="base_of_fire"?"support":role==="maneuver"?"maneuver":role==="medic"?"medical":"security");
+      const openMoveAuthorized=
+        plan==="withdraw"||
+        actor.moraleState==="breaking"||
+        actor.boundAuthorized||
+        role==="maneuver"&&coordinatedMove&&context?.suppressionActive;
+      const needsCover=(
+        exposed&&!atCoverFireEdge&&(recentFire||context?.alertState==="engaged"||actor.suppression>12)
+      )||!assignmentValid||crowded;
+
+      const overcrowdedIndex=crowded&&activeNode?activeNode.index:null;
+      if(crowded&&activeNode){
+        this.game.coverNetwork?.releaseActor?.(actor);
+        actor.coverReassignmentReason="cover overcrowded";
+        activeNode=null;
+      }
 
       if(needsCover&&!actor.openingDistance){
-        let node=actor.assignedCoverNode;
-        const nodeInvalid=!node||!this.game.coverNetwork?.blocksThreat?.(node,primaryThreat);
-        if(nodeInvalid){
+        let node=activeNode;
+        if(!node||!this.game.coverNetwork?.assignmentValid?.(actor,node,primaryThreat)){
           node=this.game.coverNetwork?.bestCover?.(actor,primaryThreat,{
-            anchor:slot??actor,maxDistance:620,secondaryThreats,reserveSeconds:18
+            anchor:slot??actor,
+            maxDistance:role==="medic"?560:680,
+            secondaryThreats,
+            reserveSeconds:24,
+            role,element,
+            excludeObstacleIndexes:overcrowdedIndex!==null?[overcrowdedIndex]:[],
+            minimumSpacing:role==="medic"?90:76,
+            requireFireLane:role==="base_of_fire"
           });
         }
         if(node){
           actor.assignedCoverNode=node;
           const waypoint=this.game.coverNetwork?.routeWaypoint?.(actor,node,primaryThreat,{secondaryThreats})??node.protectedPosition;
-          intents.push(createIntent("combat","seek_cover",INTENT_PRIORITY.RETURN_FIRE+1,{
-            key:`combat:seek_cover:${node.id}`,
+          intents.push(createIntent("combat",crowded?"disperse_cover":"seek_cover",INTENT_PRIORITY.RETURN_FIRE+(crowded?4:1),{
+            key:`combat:${crowded?"disperse":"seek"}:${node.slotId}`,
             destination:waypoint,speedMultiplier:recentFire?1.05:.82,
-            arrivalRadius:50,commitSeconds:5.2,
-            task:waypoint===node.protectedPosition?"Moving into fighting cover":"Bounding to intermediate cover"
+            arrivalRadius:50,commitSeconds:crowded?5.8:5.2,
+            task:crowded
+              ?"Dispersing from overcrowded cover"
+              :waypoint===node.protectedPosition
+                ?"Moving into fighting cover"
+                :"Bounding to intermediate cover"
           }));
         }
       }
 
-      if((waitingForCoveringFire||suppressorHolding)&&usefulCover&&!needsCover){
-        intents.push(createIntent("fire_team","hold",INTENT_PRIORITY.RETURN_FIRE-1,{
-          key:`fireteam:hold:${actor.tacticalFrontId}:${actor.fireTeamRole}`,
-          commitSeconds:2.4,task:waitingForCoveringFire?"Waiting for covering fire":"Holding base of fire",pose:"brace"
+      if((waitingForCoveringFire||suppressorHolding||leaseActive)&&usefulCover&&!needsCover){
+        intents.push(createIntent("fire_team","hold",INTENT_PRIORITY.RETURN_FIRE+(leaseActive?1:-1),{
+          key:`fireteam:hold:${activeNode.slotId}:${role}`,
+          commitSeconds:2.8,
+          task:waitingForCoveringFire
+            ?"Waiting for covering fire"
+            :suppressorHolding
+              ?"Holding base of fire"
+              :"Holding assigned cover",
+          pose:"brace"
         }));
       }
 
-      const mayReposition=!waitingForCoveringFire&&!suppressorHolding;
+      const mayReposition=
+        !waitingForCoveringFire&&
+        !suppressorHolding&&
+        !leaseActive&&
+        (!usefulCover||openMoveAuthorized);
       if(mayReposition&&slot&&Math.hypot(slot.x-actor.x,slot.y-actor.y)>72){
-        intents.push(createIntent("squad","reposition",INTENT_PRIORITY.REPOSITION,{
-          key:`squad:${actor.tacticalFrontId}:${actor.tacticalSlotPlan}`,
-          destination:this.game.coverNetwork?.routeWaypoint?.(
-            actor,actor.tacticalCoverNode,actor.tacticalEnemyCenter??target,
-            {secondaryThreats:actor.tacticalSecondaryThreats??[]}
-          )??slot,
-          speedMultiplier:plan==="withdraw"||plan.startsWith("flank")?1.0:.68,
-          arrivalRadius:62,
-          commitSeconds:plan==="withdraw"?7:plan.startsWith("flank")?5.5:3.8,
-          task:plan==="withdraw"?"Falling back to rally line":
-            plan.startsWith("flank")?"Moving to flank cover":
-            plan==="push"?"Advancing by bounds":"Taking covered firing position"
-        }));
+        const destinationNode=this.game.coverNetwork?.assignmentValid?.(
+          actor,actor.tacticalCoverNode,primaryThreat
+        )?actor.tacticalCoverNode:null;
+        if(destinationNode||openMoveAuthorized){
+          intents.push(createIntent("squad","reposition",INTENT_PRIORITY.REPOSITION,{
+            key:`squad:${actor.tacticalFrontId}:${actor.tacticalSlotPlan}:${destinationNode?.slotId??"open"}`,
+            destination:this.game.coverNetwork?.routeWaypoint?.(
+              actor,destinationNode,actor.tacticalEnemyCenter??target,
+              {secondaryThreats:actor.tacticalSecondaryThreats??[]}
+            )??slot,
+            speedMultiplier:plan==="withdraw"||plan.startsWith("flank")?1.0:.68,
+            arrivalRadius:62,
+            commitSeconds:plan==="withdraw"?7:plan.startsWith("flank")?5.5:3.8,
+            task:plan==="withdraw"
+              ?"Falling back to rally line"
+              :plan.startsWith("flank")
+                ?"Moving to dispersed flank cover"
+                :plan==="push"
+                  ?"Bounding to the next cover position"
+                  :"Taking assigned fighting position"
+          }));
+        }
       }
 
       const protectedSuppressor=actor.fireTeamRole==="base_of_fire"&&usefulCover;
@@ -624,33 +733,68 @@ export class AICombatSystem{
 
     if(running)return;
 
-    const viability=this.game.coverNetwork?.shotViability?.(actor,target)??{status:"clear"};
+    const activeFireNode=actor.assignedCoverNode??actor.tacticalCoverNode;
+    const atAssignedFireEdge=Boolean(activeFireNode)&&(activeFireNode.firePositions??[])
+      .some(item=>distance(actor,item.position)<34);
+    const viability=this.game.coverNetwork?.shotViability?.(actor,target,{
+      ignoreObstacle:atAssignedFireEdge?activeFireNode.obstacle:null
+    })??{status:"clear"};
     if(viability.status==="blocked"){
       actor.clearShotTargetId=null;
       actor.clearShotSince=-999;
-      const suppressionPoint=this.game.coverNetwork?.suppressionPoint?.(actor,target)??{x:target.x,y:target.y};
-      const baseOfFire=actor.fireTeamRole==="base_of_fire";
-      const settled=!moving&&currentSpeed<8;
-      if(baseOfFire){
-        if(settled&&targetDistance<=CONFIG.range&&actor.aimReadiness>.56&&actor.fireCooldown<=0&&actor.burstPause<=0){
-          if(actor.burstRemaining<=0)actor.burstRemaining=3+Math.floor(Math.random()*3);
-          this.fireSuppressive(actor,suppressionPoint,target);
-        }
-        return;
-      }
-
       const node=actor.assignedCoverNode??actor.tacticalCoverNode;
       const edge=this.game.coverNetwork?.nearestFirePosition?.(actor,node,target);
-      if(edge&&distance(actor,edge)>24&&actor.fireTeamRole!=="base_of_fire"){
-        actor.coverPeekUntil=now+4.2;
-        this.game.actorIntents?.submit?.(actor,createIntent("combat","shift_cover_edge",INTENT_PRIORITY.RETURN_FIRE-2,{
-          key:`cover:edge:${node.id}:${target.id}`,
-          destination:edge,speedMultiplier:.48,arrivalRadius:22,
-          commitSeconds:2.8,task:"Shifting to a clear firing edge"
-        }));
+      if(edge){
+        actor.coverBlockedSince=null;
+        if(distance(actor,edge)>24){
+          actor.coverPeekUntil=now+4.2;
+          this.game.actorIntents?.submit?.(actor,createIntent("combat","shift_cover_edge",INTENT_PRIORITY.RETURN_FIRE-1,{
+            key:`cover:edge:${node.slotId}:${target.id}:${Math.round(edge.x)}:${Math.round(edge.y)}`,
+            destination:edge,speedMultiplier:.48,arrivalRadius:22,
+            commitSeconds:3.0,task:"Shifting to a clear firing edge"
+          }));
+        }else if(actor.fireTeamRole==="base_of_fire"){
+          const suppressionPoint=this.game.coverNetwork?.suppressionPoint?.(edge,target)??{x:target.x,y:target.y};
+          const edgeViability=this.game.coverNetwork?.shotViability?.(actor,suppressionPoint,{
+            ignoreObstacle:node?.obstacle??null
+          })??{status:"clear"};
+          const settled=!moving&&currentSpeed<8;
+          if(edgeViability.status==="clear"&&settled&&targetDistance<=CONFIG.range&&actor.aimReadiness>.56&&actor.fireCooldown<=0&&actor.burstPause<=0){
+            if(actor.burstRemaining<=0)actor.burstRemaining=3+Math.floor(Math.random()*3);
+            this.fireSuppressive(actor,suppressionPoint,target);
+          }
+        }
+      }else if(node){
+        actor.coverBlockedSince ??= now;
+        if(now-actor.coverBlockedSince>3.2&&now>=(actor.coverLeaseUntil??0)-5){
+          const oldIndex=node.index;
+          this.game.coverNetwork?.releaseActor?.(actor);
+          actor.coverReassignmentReason="no usable firing edge";
+          const context=this.game.teamCombatContexts?.forActor?.(actor);
+          const replacement=this.game.coverNetwork?.bestCover?.(actor,context?.primaryThreatPosition??target,{
+            anchor:actor.tacticalSlot??actor,
+            maxDistance:680,
+            secondaryThreats:context?.secondaryThreats??[],
+            reserveSeconds:22,
+            role:actor.fireTeamRole??actor.tacticalRole,
+            element:actor.fireTeamElement,
+            excludeObstacleIndexes:[oldIndex],
+            minimumSpacing:76,
+            requireFireLane:actor.fireTeamRole==="base_of_fire"
+          });
+          if(replacement){
+            actor.assignedCoverNode=replacement;
+            this.game.actorIntents?.submit?.(actor,createIntent("combat","disperse_cover",INTENT_PRIORITY.RETURN_FIRE+2,{
+              key:`cover:blocked_reassign:${replacement.slotId}`,
+              destination:replacement.protectedPosition,
+              speedMultiplier:.76,arrivalRadius:48,
+              commitSeconds:5.2,task:"Moving to cover with a usable firing lane"
+            }));
+          }
+        }
       }
       actor.burstRemaining=0;
-      actor.burstPause=Math.max(actor.burstPause,.28);
+      actor.burstPause=Math.max(actor.burstPause,.32);
       return;
     }
 

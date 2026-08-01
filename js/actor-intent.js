@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor } from "./actor-motion.js?v=12e-fire-teams-suppression-authority-20260801";
+import { moveActorToward, stopActor } from "./actor-motion.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
 
 export const INTENT_PRIORITY={
   PATROL:20,
@@ -21,6 +21,7 @@ const DEFAULT_COMMITMENT={
   open_distance:3.8,
   cover:3.6,
   seek_cover:4.6,
+  disperse_cover:5.4,
   bound_to_cover:5.2,
   shift_cover_edge:2.4,
   return_to_cover:2.2,

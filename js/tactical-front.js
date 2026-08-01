@@ -1,6 +1,6 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12d-team-context-cover-network-20260801";
-import { projectOutsideObstacles } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
+import { getDoctrine } from "./faction-doctrine.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { projectOutsideObstacles } from "./actor-motion.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 
@@ -88,11 +88,30 @@ export class TacticalFrontSystem{
     return front;
   }
 
-  coverNear(raw,front,actor){
+  coverNear(raw,front,actor,allocation={}){
     const context=this.game.teamCombatContexts?.forActor?.(actor);
     const secondaryThreats=context?.secondaryThreats??actor.tacticalSecondaryThreats??[];
-    const node=this.game.coverNetwork?.bestCover?.(actor,front.enemyCenter,{
-      anchor:raw,maxDistance:520,secondaryThreats,reserveSeconds:26
+    const role=allocation.role??actor.fireTeamRole??actor.tacticalRole;
+    const element=allocation.element??actor.fireTeamElement??(
+      role==="base_of_fire"?"support":
+      role==="maneuver"?"maneuver":
+      role==="medic"?"medical":"security"
+    );
+    const existing=actor.assignedCoverNode;
+    const preserve=existing&&
+      actor.tacticalFrontId===front.id&&
+      actor.tacticalSlotPlan===front.plan&&
+      this.game.coverNetwork?.assignmentValid?.(actor,existing,front.enemyCenter)&&
+      !this.game.coverNetwork?.isOvercrowded?.(actor,existing);
+    const node=preserve?existing:this.game.coverNetwork?.bestCover?.(actor,front.enemyCenter,{
+      anchor:raw,
+      maxDistance:role==="medic"?580:640,
+      secondaryThreats,
+      reserveSeconds:32,
+      role,element,
+      excludeObstacleIndexes:allocation.excludeObstacleIndexes??[],
+      minimumSpacing:role==="medic"?90:74,
+      requireFireLane:role==="base_of_fire"
     });
     if(!node)return {...raw,coverType:null,coverNode:null};
     return {
@@ -103,7 +122,7 @@ export class TacticalFrontSystem{
     };
   }
 
-  slotFor(front,actor,index,count){
+  slotFor(front,actor,index,count,allocation={}){
     const medic=/medic|shelter worker/i.test(actor.role??"");
     const role=medic?"medic":actor.tacticalRole??(index===0?"leader":index===1?"base_of_fire":"maneuver");
     const centered=index-(count-1)/2;
@@ -132,7 +151,7 @@ export class TacticalFrontSystem{
       x:front.lineCenter.x+front.lateral.x*along+front.forward.x*depth,
       y:front.lineCenter.y+front.lateral.y*along+front.forward.y*depth
     };
-    const covered=this.coverNear(raw,front,actor);
+    const covered=this.coverNear(raw,front,actor,allocation);
     const projected=projectOutsideObstacles(this.game,covered.x,covered.y,actor.radius??18,10);
     return {
       ...projected,
@@ -148,29 +167,70 @@ export class TacticalFrontSystem{
     const actors=team.actors.filter(canReceiveOrders);
     const now=performance.now()/1000;
 
-    actors.forEach((actor,index)=>{
-      actor.tacticalRole ??=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
-      const preserve=actor.tacticalFrontId===front.id&&
-        actor.tacticalSlotPlan===plan&&
-        actor.tacticalSlot;
-      const slot=preserve
-        ?{...actor.tacticalSlot,coverType:actor.tacticalSlotCoverType??null}
-        :this.slotFor(front,actor,index,actors.length);
+    const actorIndex=new Map(actors.map((actor,index)=>[actor.id,index]));
+    for(const actor of actors){
+      actor.tacticalRole ??=/medic|shelter worker/i.test(actor.role??"")
+        ?"medic"
+        :actorIndex.get(actor.id)===0
+          ?"leader"
+          :actorIndex.get(actor.id)===1
+            ?"base_of_fire"
+            :"maneuver";
+    }
+
+    const roleOf=actor=>actor.fireTeamRole??actor.tacticalRole??"security";
+    const orderWeight={base_of_fire:0,leader:1,maneuver:2,security:3,medic:4};
+    const allocationOrder=actors.slice().sort((a,b)=>
+      (orderWeight[roleOf(a)]??3)-(orderWeight[roleOf(b)]??3)
+    );
+    const elementObstacles={
+      support:new Set(),
+      maneuver:new Set(),
+      security:new Set(),
+      medical:new Set()
+    };
+
+    for(const actor of allocationOrder){
+      const role=roleOf(actor);
+      const element=role==="base_of_fire"||role==="leader"
+        ?"support"
+        :role==="maneuver"
+          ?"maneuver"
+          :role==="medic"
+            ?"medical"
+            :"security";
+      const excluded=new Set();
+      if(element==="maneuver"){
+        for(const index of elementObstacles.support)excluded.add(index);
+      }else if(element==="medical"){
+        for(const key of ["support","maneuver"])for(const index of elementObstacles[key])excluded.add(index);
+      }else if(element==="security"){
+        for(const index of elementObstacles.maneuver)excluded.add(index);
+      }
+
+      const index=actorIndex.get(actor.id)??0;
+      const slot=this.slotFor(front,actor,index,actors.length,{
+        role,element,excludeObstacleIndexes:[...excluded]
+      });
       const key=`${front.id}:${actor.id}`;
-      this.slotReservations.set(key,{actorId:actor.id,until:now+28});
+      this.slotReservations.set(key,{actorId:actor.id,until:now+32});
+      actor.fireTeamElement=element;
       actor.tacticalFrontId=front.id;
       actor.tacticalSlotPlan=plan;
       actor.tacticalSlot={x:slot.x,y:slot.y};
       actor.tacticalSlotCoverType=slot.coverType??null;
-      actor.tacticalCoverNode=slot.coverNode??actor.tacticalCoverNode??null;
-      if(slot.coverNode)actor.assignedCoverNode=slot.coverNode;
+      actor.tacticalCoverNode=slot.coverNode??null;
+      if(slot.coverNode){
+        actor.assignedCoverNode=slot.coverNode;
+        elementObstacles[element].add(slot.coverNode.index);
+      }
       actor.tacticalRallyPoint={...front.rear};
       actor.tacticalLineCenter={...front.lineCenter};
       actor.tacticalForward={...front.forward};
       actor.tacticalLateral={...front.lateral};
       actor.tacticalPreferredDistance=front.preferredDistance;
-      actor.tacticalSlotUntil=now+28;
-    });
+      actor.tacticalSlotUntil=now+32;
+    }
     return front;
   }
 

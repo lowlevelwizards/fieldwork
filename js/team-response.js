@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12e-fire-teams-suppression-authority-20260801";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -87,21 +87,44 @@ export class TeamResponseSystem{
       ?{x:victimCenter.x-dx/length*120,y:victimCenter.y-dy/length*120}
       :{x:victimCenter.x+lateral.x*side*300-dx/length*60,y:victimCenter.y+lateral.y*side*300-dy/length*60};
 
-    const representative=best.actors[0];
-    const coverNode=this.game.coverNetwork?.bestCover?.(representative,enemyCenter,{
-      anchor:destination,maxDistance:620,reserveSeconds:20
-    });
-    const coveredDestination=coverNode?.protectedPosition??destination;
     const assignment={
       teamId:best.teamId,
       victimTeamId:event.victimTeamId,
       aggressorTeamId:event.aggressorTeamId,
-      plan,destination:coveredDestination,coverNode,
-      until:now+18
+      plan,destination,
+      until:now+18,
+      actorAssignments:new Map()
     };
     this.assignments.set(best.teamId,assignment);
-    for(const actor of best.actors.filter(canReceiveOrders)){
-      actor.supportAssignment=assignment;
+    const usedObstacles=new Set();
+    const responseActors=best.actors.filter(canReceiveOrders);
+    for(const [index,actor] of responseActors.entries()){
+      const lateralOffset=(index-(responseActors.length-1)/2)*95;
+      const anchor={
+        x:destination.x+lateral.x*lateralOffset,
+        y:destination.y+lateral.y*lateralOffset
+      };
+      const role=index===0?"base_of_fire":"maneuver";
+      const element=index===0?"support":"maneuver";
+      const coverNode=this.game.coverNetwork?.bestCover?.(actor,enemyCenter,{
+        anchor,maxDistance:680,reserveSeconds:22,
+        role,element,
+        excludeObstacleIndexes:element==="maneuver"?[...usedObstacles]:[],
+        minimumSpacing:78,
+        requireFireLane:role==="base_of_fire"
+      });
+      if(coverNode)usedObstacles.add(coverNode.index);
+      const actorAssignment={
+        teamId:assignment.teamId,
+        victimTeamId:assignment.victimTeamId,
+        aggressorTeamId:assignment.aggressorTeamId,
+        plan:assignment.plan,
+        until:assignment.until,
+        destination:coverNode?.protectedPosition??anchor,
+        coverNode
+      };
+      assignment.actorAssignments.set(actor.id,actorAssignment);
+      actor.supportAssignment=actorAssignment;
       if(coverNode)actor.assignedCoverNode=coverNode;
       actor.tacticalPlan=plan;
       actor.tacticalPlanUntil=assignment.until;

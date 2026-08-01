@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, isTreating } from "./actor-state.js?v=12e-fire-teams-suppression-authority-20260801";
+import { isAlive, isCombatCapable, isTreating } from "./actor-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -39,7 +39,7 @@ export class FireTeamControllerSystem{
   assignRoles(context,actors,now){
     const medics=actors.filter(actor=>/medic|shelter worker/i.test(actor.role??""));
     const line=actors.filter(actor=>!medics.includes(actor));
-    const desiredSuppressors=line.length>=5?2:line.length>=2?1:0;
+    const desiredSuppressors=line.length>=6?2:line.length>=2?1:0;
     let suppressorIds=this.validSuppressors(context,line);
 
     if(suppressorIds.length<desiredSuppressors||now>(context.fireRoleLockedUntil??0)){
@@ -48,8 +48,10 @@ export class FireTeamControllerSystem{
         .sort((a,b)=>roleScore(b)-roleScore(a))
         .slice(0,desiredSuppressors)
         .map(actor=>actor.id);
+      const roleChanged=suppressorIds.join(",")!==(context.suppressorIds??[]).join(",");
       context.suppressorIds=suppressorIds;
-      context.fireRoleLockedUntil=now+12;
+      context.fireRoleLockedUntil=now+14;
+      if(roleChanged)context.lastFrontAssignAt=-999;
     }
 
     const maneuver=line.filter(actor=>!suppressorIds.includes(actor.id));
@@ -76,6 +78,13 @@ export class FireTeamControllerSystem{
       else if(suppressorIds.includes(actor.id))actor.fireTeamRole="base_of_fire";
       else if(actor.id===context.boundActorId)actor.fireTeamRole="maneuver";
       else actor.fireTeamRole="security";
+      actor.fireTeamElement=actor.fireTeamRole==="base_of_fire"
+        ?"support"
+        :actor.fireTeamRole==="maneuver"
+          ?"maneuver"
+          :actor.fireTeamRole==="medic"
+            ?"medical"
+            :"security";
     }
   }
 
@@ -112,6 +121,9 @@ export class FireTeamControllerSystem{
       }:null;
       actor.boundAuthorized=actor.fireTeamRole==="maneuver"&&(!coordinatedMove||context.suppressionActive);
       actor.holdForCoveringFire=coordinatedMove&&actor.fireTeamRole!=="base_of_fire"&&!actor.boundAuthorized;
+      actor.coverCrowded=this.game.coverNetwork?.friendlyDensity?.(
+        actor,actor.assignedCoverNode?.protectedPosition??actor,108
+      )??0;
     }
   }
 

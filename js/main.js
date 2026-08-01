@@ -1,13 +1,13 @@
-import { Camera } from "./camera.js?v=12e-fire-teams-suppression-authority-20260801";
-import { ContinuousGameState } from "./continuous-game-state.js?v=12e-fire-teams-suppression-authority-20260801";
-import { InputController, CombatInputController } from "./input.js?v=12e-fire-teams-suppression-authority-20260801";
-import { Renderer } from "./renderer.js?v=12e-fire-teams-suppression-authority-20260801";
-import { getItemDefinition } from "../data/items.js?v=12e-fire-teams-suppression-authority-20260801";
-import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
-import { validateItemLocations } from "./item-locations.js?v=12e-fire-teams-suppression-authority-20260801";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
+import { Camera } from "./camera.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { ContinuousGameState } from "./continuous-game-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { InputController, CombatInputController } from "./input.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { Renderer } from "./renderer.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { getItemDefinition } from "../data/items.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { findEntity } from "./world-entities.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { validateItemLocations } from "./item-locations.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
 
-const BUILD_ID="1.2E";
+const BUILD_ID="1.2F";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
