@@ -1,6 +1,6 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12a-unified-ai-authority-doctrine-20260731";
-import { projectOutsideObstacles } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { getDoctrine } from "./faction-doctrine.js?v=12b-contact-cover-triage-20260731";
+import { projectOutsideObstacles } from "./actor-motion.js?v=12b-contact-cover-triage-20260731";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12b-contact-cover-triage-20260731";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 
@@ -106,7 +106,8 @@ export class TacticalFrontSystem{
         return {point,score:hard*doctrine.coverPriority-distanceToSlot*.2};
       })
       .sort((a,b)=>b.score-a.score);
-    return candidates[0]?.score>0?candidates[0].point:raw;
+    const chosen=candidates[0]?.score>0?candidates[0]:null;
+    return chosen?{...chosen.point,coverType:chosen.point===raw?null:(chosen.score>35?"hard":"soft")}:{...raw,coverType:null};
   }
 
   slotFor(front,actor,index,count){
@@ -154,7 +155,8 @@ export class TacticalFrontSystem{
       const key=`${front.id}:${index}`;
       this.slotReservations.set(key,{actorId:actor.id,until:now+14});
       actor.tacticalFrontId=front.id;
-      actor.tacticalSlot={...slot};
+      actor.tacticalSlot={x:slot.x,y:slot.y};
+      actor.tacticalSlotCoverType=slot.coverType??null;
       actor.tacticalRallyPoint={...front.rear};
       actor.tacticalLineCenter={...front.lineCenter};
       actor.tacticalForward={...front.forward};

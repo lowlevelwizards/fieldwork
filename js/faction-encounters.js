@@ -1,16 +1,9 @@
-import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12a-unified-ai-authority-doctrine-20260731";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12a-unified-ai-authority-doctrine-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
-const RELATIONSHIPS = {
-  "commune:northline": -22,
-  "commune:freelancers": -34,
-  "freelancers:northline": -48
-};
-
-const STATE_ORDER = ["unaware","aware","watchful","challenging","blocking","threatening","disengaging"];
-
+import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12b-contact-cover-triage-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12b-contact-cover-triage-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12b-contact-cover-triage-20260731";
+const STATE_ORDER=["unaware","aware","alerted","contact","threatening","disengaging"];
 function pairKey(a,b){return [a,b].sort().join(":");}
-function relation(a,b){return a===b?100:(RELATIONSHIPS[pairKey(a,b)]??-15);}
+function relation(a,b){return relationshipBetween(a,b);}
 function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
 function faceToward(actor,target){
   const dx=target.x-actor.x,dy=target.y-actor.y;
@@ -153,7 +146,10 @@ export class FactionEncounterSystem{
           lastPlanAt:-999,
           planA:"observe",
           planB:"observe",
-          alertState:"unaware"
+          alertState:"unaware",
+          contactStartedAt:null,
+          contactPlanAt:-999,
+          committedBy:null
         };
         this.encounters.set(key,encounter);
       }
@@ -216,19 +212,47 @@ export class FactionEncounterSystem{
       const contactDistance=Math.max(doctrineA.contactDistance,doctrineB.contactDistance);
 
       if(areBelligerents(a.factionId,b.factionId)){
-        encounter.alertState=confirmed?"contact":"alerted";
-        encounter.state="watchful";
-        // Belligerent groups stop casual movement as soon as they have contact.
+        if(!confirmed){
+          encounter.alertState="alerted";
+          encounter.state="alerted";
+          for(const actor of [...a.actors,...b.actors]){
+            actor.operationPausedByEncounter=true;
+            actor.alertState="alerted";
+            actor.encounterState="alerted";
+            actor.currentTask="Possible hostile contact";
+          }
+          continue;
+        }
+
+        if(encounter.contactStartedAt===null)encounter.contactStartedAt=now;
+        encounter.alertState="contact";
+        encounter.state="contact";
+        this.assignContactPosture(encounter,a,b);
+
         for(const actor of [...a.actors,...b.actors]){
           actor.operationPausedByEncounter=true;
-          actor.encounterState=encounter.alertState;
-          actor.currentTask=confirmed?"Confirmed hostile contact":"Taking tactical precautions";
+          actor.alertState="contact";
+          actor.encounterState="contact";
+          actor.encounterId=encounter.id;
+          actor.currentTask="Taking position on confirmed contact";
         }
-        if(confirmed||d<Math.min(contactDistance,680)){
+
+        const readinessA=this.game.coverStates?.teamReadiness?.(a.actors)??0;
+        const readinessB=this.game.coverStates?.teamReadiness?.(b.actors)??0;
+        encounter.readinessA=readinessA;
+        encounter.readinessB=readinessB;
+
+        const commitA=this.shouldCommit(a,b,encounter,readinessA,d);
+        const commitB=this.shouldCommit(b,a,encounter,readinessB,d);
+        if(commitA||commitB){
           encounter.combatEngaged=true;
           encounter.state="threatening";
           encounter.alertState="engaged";
-          encounter.violenceAt=Math.max(encounter.violenceAt,performance.now()/1000-8);
+          encounter.committedBy=commitA?a.factionId:b.factionId;
+        }else{
+          // CONTACT is tactical preparation, not a social standoff. AI combat
+          // moves members to cover but does not deliberately fire yet.
+          continue;
         }
       }else{
         if(d<780&&encounter.state==="unaware"){encounter.state="aware";encounter.elapsed=0;}
@@ -236,7 +260,6 @@ export class FactionEncounterSystem{
       }
       if(encounter.state==="threatening"&&hasContact){
         encounter.lastHostileContactAt=now;
-        if(disposition.level==="hostile"||rel<=-40)encounter.combatEngaged=true;
       }
 
       if(encounter.combatEngaged){
@@ -444,6 +467,61 @@ export class FactionEncounterSystem{
     if(arrived){challenger.workPose="brace";challenger.currentTask="Blocking the route";}
   }
 
+  contactPlanFor(group,enemy,encounter,side){
+    const own=this.teamStatus(group),other=this.teamStatus(enemy);
+    const strength=(own.capable.length+1)/(other.capable.length+1);
+    const seenByEnemy=this.game.perception?.teamHasContact(enemy.id,group.id,"located")??false;
+
+    if(group.factionId==="northline")return "hold";
+    if(group.factionId==="commune"){
+      if(strength<.72&&seenByEnemy)return "withdraw";
+      return side==="A"?"flank_left":"flank_right";
+    }
+    if(group.factionId==="freelancers"){
+      if(strength<1.05)return "withdraw";
+      return side==="A"?"flank_right":"flank_left";
+    }
+    return "hold";
+  }
+
+  assignContactPosture(encounter,a,b){
+    const now=performance.now()/1000;
+    if(now-encounter.contactPlanAt<7)return;
+    encounter.contactPlanAt=now;
+    encounter.planA=this.contactPlanFor(a,b,encounter,"A");
+    encounter.planB=this.contactPlanFor(b,a,encounter,"B");
+    for(const [group,plan,enemy] of [[a,encounter.planA,b],[b,encounter.planB,a]]){
+      const enemyCenter=center(enemy);
+      const capable=group.actors.filter(canReceiveOrders);
+      capable.forEach((actor,index)=>{
+        actor.alertState="contact";
+        actor.tacticalPlan=plan;
+        actor.tacticalRole=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
+        actor.tacticalEnemyCenter={...enemyCenter};
+        actor.tacticalPlanUntil=now+12;
+      });
+      this.game.tacticalFronts?.assign?.(encounter,group,enemy,plan);
+    }
+  }
+
+  shouldCommit(group,enemy,encounter,readiness,distanceToEnemy){
+    const own=this.teamStatus(group),other=this.teamStatus(enemy);
+    const strength=(own.capable.length+1)/(other.capable.length+1);
+    const elapsed=performance.now()/1000-(encounter.contactStartedAt??performance.now()/1000);
+    if(distanceToEnemy<300)return true;
+
+    if(group.factionId==="northline"){
+      return elapsed>5.2&&readiness>=.48;
+    }
+    if(group.factionId==="commune"){
+      return elapsed>4.4&&readiness>=.62&&strength>=.88;
+    }
+    if(group.factionId==="freelancers"){
+      return elapsed>5.5&&readiness>=.68&&strength>=1.12;
+    }
+    return false;
+  }
+
   markViolence(actor,target){
     if(!actor||!target)return;
     this.game.teamResponses?.emitUnderFire?.(target,actor,{x:target.x,y:target.y});
@@ -453,6 +531,8 @@ export class FactionEncounterSystem{
     if(!encounter)return;
     encounter.combatEngaged=true;
     encounter.state="threatening";
+    encounter.alertState="engaged";
+    encounter.committedBy=actor.factionId;
     encounter.violenceAt=performance.now()/1000;
     encounter.elapsed=0;
     this.raiseDisposition(encounter.key,"shots exchanged",28);

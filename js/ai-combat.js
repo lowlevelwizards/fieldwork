@@ -1,7 +1,7 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12a-unified-ai-authority-doctrine-20260731";
-import { createIntent, chooseIntent, executeMovementIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12a-unified-ai-authority-doctrine-20260731";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12a-unified-ai-authority-doctrine-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { getDoctrine } from "./faction-doctrine.js?v=12b-contact-cover-triage-20260731";
+import { createIntent, chooseIntent, executeMovementIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12b-contact-cover-triage-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12b-contact-cover-triage-20260731";
+import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12b-contact-cover-triage-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -170,7 +170,8 @@ export class AICombatSystem{
       const d=distance(actor,point);
       if(d<CONFIG.suppressionRadius){
         this.ensureActor(actor);
-        actor.suppression=clamp(actor.suppression+14*(1-d/CONFIG.suppressionRadius),0,100);
+        const coverMultiplier=actor.coverState==="hard"?.45:actor.coverState==="soft"?.7:actor.coverState==="concealment"?.86:1;
+        actor.suppression=clamp(actor.suppression+14*(1-d/CONFIG.suppressionRadius)*coverMultiplier,0,100);
       }
     }
   }
@@ -191,7 +192,8 @@ export class AICombatSystem{
     const targetDistance=distance(actor,target);
     const suppressionPenalty=(actor.suppression??0)/100;
     const moralePenalty=actor.moraleState==="pinned"?.08:actor.moraleState==="pressured"?.035:0;
-    const baseSpread=.025+targetDistance/9000+suppressionPenalty*.12+moralePenalty;
+    const movementRatio=clamp(Math.hypot(actor.vx??0,actor.vy??0)/Math.max(1,actor.moveSpeed??110),0,1);
+    const baseSpread=.025+targetDistance/9000+suppressionPenalty*.12+moralePenalty+movementRatio*.095;
     const deviation=(Math.random()+Math.random()-1)*baseSpread;
     const shotAngle=actor.combatAimAngle+deviation;
     const origin={
@@ -283,6 +285,27 @@ export class AICombatSystem{
 
     if(!target){
       actor.aimReadiness=Math.max(0,actor.aimReadiness-delta*2.2);
+      if(actor.alertState==="contact"&&actor.tacticalSlot){
+        const slotDistance=Math.hypot(actor.tacticalSlot.x-actor.x,actor.tacticalSlot.y-actor.y);
+        if(slotDistance>58){
+          executeMovementIntent(this.game,actor,createIntent("contact","take_contact_position",INTENT_PRIORITY.REPOSITION+5,{
+            destination:actor.tacticalSlot,
+            speedMultiplier:actor.tacticalPlan==="withdraw"?1.0:.78,
+            arrivalRadius:46,
+            task:actor.tacticalPlan==="withdraw"?"Evading confirmed contact":"Taking cover before engagement"
+          }),delta);
+        }else{
+          stopActor(actor,"brace");
+          actor.currentTask=actor.tacticalSlotCoverType?"Holding covered contact position":"Holding contact position";
+          if(actor.tacticalEnemyCenter){
+            const desired=angleTo(actor,actor.tacticalEnemyCenter);
+            actor.combatAimAngle+=shortestAngle(actor.combatAimAngle,desired)*(1-Math.exp(-delta*4));
+            actor.lookAngle=actor.combatAimAngle;
+            actor.facing=facingFromAngle(actor.combatAimAngle);
+          }
+        }
+        return;
+      }
       const support=actor.supportAssignment;
       if(support&&(support.until??0)>now){
         intents.push(createIntent("team_response","support",INTENT_PRIORITY.SUPPORT,{
@@ -322,7 +345,11 @@ export class AICombatSystem{
 
     const targetDistance=distance(actor,target);
     const doctrine=getDoctrine(actor.factionId);
-    actor.aimReadiness=clamp(actor.aimReadiness+delta*(actor.moraleState==="pinned"?.75:2.4),0,1);
+    const locomotionSpeed=Math.hypot(actor.vx??0,actor.vy??0);
+    const speedRatio=locomotionSpeed/Math.max(1,actor.moveSpeed??110);
+    if(speedRatio<.08)actor.aimReadiness=clamp(actor.aimReadiness+delta*(actor.moraleState==="pinned"?.65:2.4),0,1);
+    else if(speedRatio<.48)actor.aimReadiness=clamp(actor.aimReadiness+delta*.42,0,.74);
+    else actor.aimReadiness=clamp(actor.aimReadiness-delta*1.55,0,.3);
     const plan=(actor.tacticalPlanUntil??0)>now?actor.tacticalPlan:"hold";
     const slot=(actor.tacticalSlotUntil??0)>now?actor.tacticalSlot:null;
 
@@ -366,15 +393,18 @@ export class AICombatSystem{
     const movementIntent=chooseIntent(intents);
     const moved=movementIntent?executeMovementIntent(this.game,actor,movementIntent,delta):false;
     const moving=Boolean(movementIntent)&&Math.hypot(actor.vx??0,actor.vy??0)>5;
-    const requiredReadiness=moving?.88:.72;
+    const currentSpeed=Math.hypot(actor.vx??0,actor.vy??0);
+    const running=currentSpeed>Math.max(70,(actor.moveSpeed??110)*.68);
+    const requiredReadiness=moving?.9:.72;
 
+    if(running)return;
     if(!canFire(actor)||!canBeTargeted(target)){
       cancelCombatState(actor);
       return;
     }
     if(targetDistance>CONFIG.range||actor.aimReadiness<requiredReadiness||actor.fireCooldown>0||actor.burstPause>0)return;
     if(actor.burstRemaining<=0){
-      actor.burstRemaining=CONFIG.burstMin+Math.floor(Math.random()*(CONFIG.burstMax-CONFIG.burstMin+1));
+      actor.burstRemaining=moving?1:CONFIG.burstMin+Math.floor(Math.random()*(CONFIG.burstMax-CONFIG.burstMin+1));
     }
     this.fire(actor,target);
   }

@@ -42,6 +42,9 @@ export function canReload(actor){
 export function canTreatSelf(actor){
   return isConscious(actor)&&!isCritical(actor)&&!actor.beingDragged;
 }
+export function canDrag(actor){
+  return isConscious(actor)&&!isCritical(actor)&&!actor.beingDragged&&actor.actionLock?.allowsMovement!==false;
+}
 export function cancelCombatState(actor){
   if(!actor)return;
   actor.burstRemaining=0;
