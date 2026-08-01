@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -74,7 +74,7 @@ export class TeamCombatContextSystem{
           suppressorIds:[],boundActorId:null,boundUntil:0,
           lastSuppressiveShotAt:-999,suppressionActive:false,
           fightState:"contested",fightStateSince:now,fightStateLockedUntil:0,
-          fightAssessment:null,rallyPosition:null
+          fightAssessment:null,rallyPosition:null,engagementStartedAt:null,reactiveFireAllowed:false
         };
         this.contexts.set(group.id,context);
       }
@@ -118,6 +118,12 @@ export class TeamCombatContextSystem{
       const primaryChanged=context.primaryThreatTeamId!==primary.enemy.id;
       if(primaryChanged)context.primaryThreatLockedUntil=now+7.5;
 
+      if(primary.encounter.combatEngaged){
+        context.engagementStartedAt ??=now;
+      }else if(primary.encounter.state!=="contact"){
+        context.engagementStartedAt=null;
+      }
+      context.reactiveFireAllowed=Boolean(primary.encounter.reactiveFireAllowed||primary.encounter.state==="contact");
       const assessment=this.game.fightAssessments?.assess?.(group,primary.enemy,context)??null;
       let proposedPlan=this.planFor(primary.encounter,group.id);
       if(primary.encounter.combatEngaged&&assessment){
@@ -135,6 +141,7 @@ export class TeamCombatContextSystem{
         context.planLockedUntil=now+(urgentPlan?8:12);
       }
       context.alertState=primary.encounter.combatEngaged?'engaged':primary.encounter.state==='contact'?'contact':'alerted';
+      if(context.alertState==='engaged')context.engagementStartedAt ??=now;
       context.primaryThreatTeamId=primary.enemy.id;
       context.primaryThreatPosition={...primary.position};
       context.secondaryThreats=contacts.slice(1,3).map(item=>({

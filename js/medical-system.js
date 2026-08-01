@@ -1,6 +1,6 @@
-import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12g-combat-posture-fight-assessment-20260801";
-import { canTreatSelf, canDrag, isCombatCapable } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12g-combat-posture-fight-assessment-20260801";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { canTreatSelf, canDrag, isCombatCapable } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -8,24 +8,25 @@ const TREATMENT_DURATION={
   bandage:2.5,
   pressure_dressing:4.2,
   tourniquet:3.1,
-  painkillers:1.6
+  painkillers:1.6,
+  iv_fluids:6.2
 };
 
 const DEFAULT_LOADOUTS={
   commune:{
-    default:{bandage:2,pressure_dressing:1,tourniquet:0,painkillers:1},
-    "Field Medic":{bandage:5,pressure_dressing:3,tourniquet:2,painkillers:2},
-    "Shelter Worker":{bandage:3,pressure_dressing:1,tourniquet:0,painkillers:1}
+    default:{bandage:2,pressure_dressing:1,tourniquet:0,painkillers:1,iv_fluids:0},
+    "Field Medic":{bandage:5,pressure_dressing:3,tourniquet:2,painkillers:2,iv_fluids:2},
+    "Shelter Worker":{bandage:3,pressure_dressing:1,tourniquet:0,painkillers:1,iv_fluids:1}
   },
   northline:{
-    default:{bandage:2,pressure_dressing:2,tourniquet:1,painkillers:1},
-    Engineer:{bandage:2,pressure_dressing:2,tourniquet:1,painkillers:1},
-    Security:{bandage:2,pressure_dressing:1,tourniquet:1,painkillers:1}
+    default:{bandage:2,pressure_dressing:2,tourniquet:1,painkillers:1,iv_fluids:0},
+    Engineer:{bandage:2,pressure_dressing:2,tourniquet:1,painkillers:1,iv_fluids:1},
+    Security:{bandage:2,pressure_dressing:1,tourniquet:1,painkillers:1,iv_fluids:0}
   },
   freelancers:{
-    default:{bandage:1,pressure_dressing:1,tourniquet:1,painkillers:1},
-    Recovery:{bandage:2,pressure_dressing:1,tourniquet:1,painkillers:1},
-    Scout:{bandage:1,pressure_dressing:1,tourniquet:1,painkillers:1}
+    default:{bandage:1,pressure_dressing:1,tourniquet:1,painkillers:1,iv_fluids:0},
+    Recovery:{bandage:2,pressure_dressing:1,tourniquet:1,painkillers:1,iv_fluids:1},
+    Scout:{bandage:1,pressure_dressing:1,tourniquet:1,painkillers:1,iv_fluids:0}
   }
 };
 
@@ -110,6 +111,7 @@ export class MedicalSystem{
   canTreatHere(actor,patient,need,{allowEmergency=true}={}){
     const window=this.treatmentWindow(actor,patient);
     if(window.safe)return true;
+    if(need?.type==="iv_fluids")return false;
     if(!allowEmergency)return false;
     const condition=patient.medical?.condition;
     const immediate=["critical","unconscious"].includes(condition)&&

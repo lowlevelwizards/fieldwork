@@ -1,5 +1,5 @@
-import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12g-combat-posture-fight-assessment-20260801";
-import { isAlive, isCombatCapable, canBeTargeted, isTreating } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { isAlive, isCombatCapable, canBeTargeted, isTreating } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -87,8 +87,21 @@ export class CombatPostureSystem{
     const wounded=["wounded","serious"].includes(condition);
     const serious=condition==="serious";
     const clear=this.clearShot(actor,target);
-    const recentFire=performance.now()/1000-(actor.lastIncomingFireAt??-999)<6;
+    const now=performance.now()/1000;
+    const recentFire=now-(actor.lastIncomingFireAt??-999)<6;
     const role=actor.fireTeamRole??actor.tacticalRole??"security";
+    const targetDistance=target?distance(actor,target):Infinity;
+    const targetExposed=Boolean(target)&&!["hard","soft"].includes(target.coverState);
+    const targetMoving=Boolean(target)&&Math.hypot(target.vx??0,target.vy??0)>28;
+    const reactiveThreat=Boolean(target&&clear&&(
+      targetDistance<470||recentFire||targetExposed||targetMoving||context.alertState==="contact"
+    ));
+
+    if(reactiveThreat&&(actor.suppression??0)<72&&!actor.reloading){
+      actor.reactiveFireUntil=Math.max(actor.reactiveFireUntil??0,now+(exposed?1.25:2.2));
+      return COMBAT_POSTURE.ENGAGE;
+    }
+    if(now<(actor.mustSeekCoverAfterShotUntil??0)&&exposed)return COMBAT_POSTURE.SEEK_COVER;
 
     if(assessment==="collapsing"){
       if(role==="base_of_fire"&&protectedNow&&(actor.ammoInMagazine??0)>0&&(actor.suppression??0)<72){
@@ -98,13 +111,14 @@ export class CombatPostureSystem{
     }
 
     if(assessment==="disadvantaged"){
-      if(exposed||serious||actor.reloading)return COMBAT_POSTURE.REGROUP;
+      if((serious||actor.reloading)&&exposed)return COMBAT_POSTURE.REGROUP;
+      if(exposed&&recentFire)return COMBAT_POSTURE.SEEK_COVER;
       if(role==="base_of_fire")return target&&clear?COMBAT_POSTURE.ENGAGE:COMBAT_POSTURE.HOLD_PROTECTED;
       if(wounded)return COMBAT_POSTURE.HOLD_PROTECTED;
       return target&&clear?COMBAT_POSTURE.ENGAGE:COMBAT_POSTURE.HOLD_PROTECTED;
     }
 
-    if(exposed&&(recentFire||context.alertState==="engaged"||actor.reloading||wounded))return COMBAT_POSTURE.SEEK_COVER;
+    if(exposed&&(recentFire||actor.reloading||wounded))return COMBAT_POSTURE.SEEK_COVER;
     if(actor.reloading&&!protectedNow)return COMBAT_POSTURE.SEEK_COVER;
     if(performance.now()/1000<(actor.forceFirePositionUntil??0))return COMBAT_POSTURE.SEEK_FIRE_POSITION;
     if(target&&clear)return COMBAT_POSTURE.ENGAGE;
@@ -130,7 +144,8 @@ export class CombatPostureSystem{
     const currentPriority=POSTURE_PRIORITY[current]??0;
     const nextPriority=POSTURE_PRIORITY[next]??0;
     const locked=now<(actor.combatPostureLockedUntil??0);
-    const emergency=nextPriority>=POSTURE_PRIORITY.SEEK_COVER||next===COMBAT_POSTURE.TREAT||next===COMBAT_POSTURE.RESCUE;
+    const reactiveOverride=next===COMBAT_POSTURE.ENGAGE&&now<(actor.reactiveFireUntil??0);
+    const emergency=nextPriority>=POSTURE_PRIORITY.SEEK_COVER||next===COMBAT_POSTURE.TREAT||next===COMBAT_POSTURE.RESCUE||reactiveOverride;
     if(next!==current&&locked&&!emergency&&nextPriority<currentPriority+12)return current;
     if(next!==current){
       actor.combatPosture=next;
@@ -298,7 +313,8 @@ export class CombatPostureSystem{
             commitSeconds:3.2,task:"Moving to a clear firing edge"
           }));
         }else{
-          actor.coverCyclePhase="settle";
+          actor.coverCyclePhase="fire_window";
+          actor.coverFireWindowUntil=Math.max(actor.coverFireWindowUntil??0,now+3.8);
           this.game.actorIntents?.submit?.(actor,createIntent("posture","hold",INTENT_PRIORITY.RETURN_FIRE,{
             key:`posture:settle_edge:${firing.node.slotId}`,
             commitSeconds:.65,task:"Settling at firing edge",pose:"brace"
@@ -328,8 +344,10 @@ export class CombatPostureSystem{
     const ammo=actor.ammoInMagazine??0;
     const fired=ammo<(actor.tacticalWatchAmmo??ammo);
     const active=actor.medicalAction||actor.rescueDrag||actor.reloading;
+    const aimingWindow=now-(actor.lastClearShotAt??-999)<1.1&&
+      [COMBAT_POSTURE.ENGAGE,COMBAT_POSTURE.SEEK_FIRE_POSITION].includes(posture);
     const postureChanged=posture!==actor.tacticalWatchPosture;
-    if(moved||fired||active||postureChanged){
+    if(moved||fired||active||postureChanged||aimingWindow){
       actor.lastTacticalProgressAt=now;
       actor.combatStalled=false;
       actor.tacticalWatchPosition={x:actor.x,y:actor.y};
@@ -343,14 +361,14 @@ export class CombatPostureSystem{
       actor.combatStalled=true;
       actor.combatStallCount=(actor.combatStallCount??0)+1;
       actor.combatPostureLockedUntil=0;
-      actor.targetLockUntil=0;
-      actor.clearShotTargetId=null;
-      actor.coverCycleEdge=null;
-      actor.coverCycleEdgeLeaseUntil=0;
+      actor.combatStallReason=actor.lastFireBlockReason??"no tactical progress";
+      // Preserve a valid target and edge. The old watchdog discarded the
+      // exact context needed to complete a nearly-valid firing sequence.
       const threat=context.primaryThreatPosition;
       const node=actor.assignedCoverNode;
       if(posture===COMBAT_POSTURE.ENGAGE){
-        actor.forceFirePositionUntil=now+3.4;
+        actor.forceFirePositionUntil=now+2.2;
+        actor.reactiveFireUntil=Math.max(actor.reactiveFireUntil??0,now+1.4);
       }
       if(posture===COMBAT_POSTURE.SEEK_COVER&&!this.isProtected(actor)&&node){
         actor.avoidCoverIndex=node.index;

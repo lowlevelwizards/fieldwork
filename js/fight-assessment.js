@@ -1,12 +1,12 @@
-import { isAlive, isCombatCapable, isTreating } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
+import { isAlive, isCombatCapable, isTreating } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 function conditionWeight(actor){
   const condition=actor.medical?.condition??"healthy";
   if(actor.medical?.dead||actor.medical?.unconscious||condition==="critical")return 0;
-  if(condition==="serious")return .48;
-  if(condition==="wounded")return .82;
+  if(condition==="serious")return .65;
+  if(condition==="wounded")return .88;
   return 1;
 }
 
@@ -15,12 +15,12 @@ function actorStrength(actor){
   let value=conditionWeight(actor);
   if(value<=0)return 0;
   const suppression=clamp((actor.suppression??0)/100,0,1);
-  value*=1-suppression*.62;
+  value*=1-suppression*.48;
   const magazine=actor.ammoInMagazine??actor.magazineSize??20;
   if(actor.reloading)value*=.68;
   else if(magazine<=0)value*=.42;
   else if(magazine<=3)value*=.78;
-  if(isTreating(actor)||actor.rescueDrag)value*=.32;
+  if(isTreating(actor)||actor.rescueDrag)value*=.62;
   if(actor.coverState==="hard")value*=1.12;
   else if(actor.coverState==="soft")value*=1.06;
   if(actor.fireTeamRole==="base_of_fire"&&actor.coverAtAssignedNode)value*=1.05;
@@ -63,16 +63,21 @@ export class FightAssessmentSystem{
   }
 
   classify(metrics){
-    const {ratio,ownStrength,ownRecent,enemyRecent,coverReadiness}=metrics;
-    if(ownStrength<.72||ratio<.42||ownRecent>=2.35&&ownRecent>enemyRecent+1.1)return "collapsing";
-    if(ratio<.78||ownRecent>enemyRecent+1.15||ratio<.95&&coverReadiness<.28)return "disadvantaged";
-    if(ratio>1.62&&ownStrength>1.4||ratio>1.35&&enemyRecent>ownRecent+1.25)return "overmatch";
+    const {ratio,ownStrength,ownRecent,enemyRecent,engagementAge}=metrics;
+    const severeMomentum=ownRecent>=2.5&&ownRecent>enemyRecent+1.35;
+    if(ownStrength<.5||ratio<.3||severeMomentum)return "collapsing";
+
+    // Teams first return fire and establish a position. Merely being out of
+    // cover at contact is not evidence that the fight is already lost.
+    const openingConfidence=engagementAge<9&&ratio>=.42&&ownRecent<1.45;
+    if(!openingConfidence&&(ratio<.62||ownRecent>enemyRecent+1.45))return "disadvantaged";
+    if(ratio>1.55&&ownStrength>1.35||ratio>1.32&&enemyRecent>ownRecent+1.45)return "overmatch";
     return "contested";
   }
 
   recommendedPlan(state,factionId,currentPlan,ratio){
     if(state==="collapsing")return "withdraw";
-    if(state==="disadvantaged")return ratio<.62?"withdraw":"hold";
+    if(state==="disadvantaged")return ratio<.46?"withdraw":"hold";
     if(state!=="overmatch")return currentPlan??"hold";
     if(factionId==="northline")return "push";
     if(factionId==="commune")return (Math.floor(ratio*10)%2===0)?"flank_left":"flank_right";
@@ -88,7 +93,8 @@ export class FightAssessmentSystem{
     const enemyRecent=this.recentWoundPressure(enemy.actors);
     const coverReadiness=this.coverReadiness(group.actors);
     const ammoConfidence=this.ammoConfidence(group.actors);
-    const metrics={ownStrength,enemyStrength,ratio,ownRecent,enemyRecent,coverReadiness,ammoConfidence};
+    const engagementAge=now-(context.engagementStartedAt??now);
+    const metrics={ownStrength,enemyStrength,ratio,ownRecent,enemyRecent,coverReadiness,ammoConfidence,engagementAge};
     const candidate=this.classify(metrics);
 
     context.fightState ??="contested";
@@ -107,7 +113,7 @@ export class FightAssessmentSystem{
     const locked=now<(context.fightStateLockedUntil??0);
     const candidateHeld=now-(context.fightCandidateSince??now)>(candidate==="overmatch"?3.2:2.2);
     const decisive=urgent||
-      candidate==="disadvantaged"&&ratio<.58||
+      candidate==="disadvantaged"&&ratio<.48||
       candidate==="overmatch"&&ratio>2.05;
 
     if(candidate!==current&&candidateHeld&&(!locked||decisive)){
@@ -122,7 +128,7 @@ export class FightAssessmentSystem{
     const aggression=state==="overmatch"
       ?clamp(.68+(ratio-1)*.18,.68,1)
       :state==="contested"?.48
-      :state==="disadvantaged"?.22:.08;
+      :state==="disadvantaged"?.36:.08;
 
     const assessment={
       state,
@@ -134,6 +140,7 @@ export class FightAssessmentSystem{
       enemyRecent,
       coverReadiness,
       ammoConfidence,
+      engagementAge,
       aggression,
       recommendedPlan,
       rapidLosses:ownRecent>=1.4&&ownRecent>enemyRecent+.6,

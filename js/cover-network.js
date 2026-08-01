@@ -1,6 +1,6 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=12g-combat-posture-fight-assessment-20260801";
-import { getDoctrine } from "./faction-doctrine.js?v=12g-combat-posture-fight-assessment-20260801";
-import { isAlive } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
+import { projectOutsideObstacles } from "./actor-motion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { getDoctrine } from "./faction-doctrine.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { isAlive } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -248,11 +248,19 @@ export class CoverNetworkSystem{
         const spacingPenalty=closest<minimumSpacing?(minimumSpacing-closest)*6:0;
         const routeReservation=this.routeReservations.get(node.nodeId);
         const routePenalty=routeReservation&&routeReservation.actorId!==actor.id?180:0;
+        const teamMates=friendlies.filter(other=>other.id!==actor.id);
+        const teamCenter=teamMates.length?{
+          x:teamMates.reduce((sum,item)=>sum+item.x,0)/teamMates.length,
+          y:teamMates.reduce((sum,item)=>sum+item.y,0)/teamMates.length
+        }:actor;
+        const cohesionDistance=distance(slot.position,teamCenter);
+        const cohesionLimit=element==="maneuver"?440:element==="medical"?360:340;
+        const cohesionPenalty=cohesionDistance>cohesionLimit?(cohesionDistance-cohesionLimit)*.7:0;
         const fireBonus=clearEdges.length?(role==="base_of_fire"?82:28):(role==="base_of_fire"?-260:-55);
         const crowdPenalty=occupancy*145+localDensity*92+sameElement*135+otherElement*210;
         const score=(node.coverType==="hard"?88:44)*doctrine.coverPriority+
           (actor.factionId==="commune"||actor.factionId==="freelancers"?18:0)+fireBonus-
-          travel*.18-anchorDistance*.08-openCost*.12-secondaryExposure-crowdPenalty-spacingPenalty-routePenalty-
+          travel*.18-anchorDistance*.08-openCost*.12-secondaryExposure-crowdPenalty-spacingPenalty-routePenalty-cohesionPenalty-
           (role==="medic"&&distance(slot.position,threat)<420?120:0);
         return {...node,availableSlot:slot,clearEdges,travel,openCost,score,localDensity,occupancy};
       })

@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, isTreating } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
+import { isAlive, isCombatCapable, isTreating } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -115,7 +115,7 @@ export class FireTeamControllerSystem{
     const recentCoveringFire=now-(context.lastSuppressiveShotAt??-999)<2.8;
     context.suppressionRequired=coordinatedMove||withdrawing;
     context.suppressionActive=recentCoveringFire||enemySuppression>=26;
-    context.fireIntensity=fightState==="overmatch"?1:fightState==="contested"?.72:fightState==="disadvantaged"?.46:.34;
+    context.fireIntensity=fightState==="overmatch"?1:fightState==="contested"?.8:fightState==="disadvantaged"?.62:.4;
     context.withdrawalCovererIds=withdrawing?(context.suppressorIds??[]).slice(0,1):[];
     context.suppressionTarget={...(context.primaryThreatPosition??{})};
     context.enemySuppression=enemySuppression;

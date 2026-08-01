@@ -1,21 +1,21 @@
-import { GameState } from "./game.js?v=12g-combat-posture-fight-assessment-20260801";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=12g-combat-posture-fight-assessment-20260801";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=12g-combat-posture-fight-assessment-20260801";
-import { PerceptionSystem } from "./perception.js?v=12g-combat-posture-fight-assessment-20260801";
-import { CombatSystem } from "./combat.js?v=12g-combat-posture-fight-assessment-20260801";
-import { AICombatSystem } from "./ai-combat.js?v=12g-combat-posture-fight-assessment-20260801";
-import { WoundSystem } from "./wound-system.js?v=12g-combat-posture-fight-assessment-20260801";
-import { MedicalSystem } from "./medical-system.js?v=12g-combat-posture-fight-assessment-20260801";
-import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12g-combat-posture-fight-assessment-20260801";
-import { TacticalFrontSystem } from "./tactical-front.js?v=12g-combat-posture-fight-assessment-20260801";
-import { TeamResponseSystem } from "./team-response.js?v=12g-combat-posture-fight-assessment-20260801";
-import { CoverStateSystem } from "./cover-state.js?v=12g-combat-posture-fight-assessment-20260801";
-import { ActorIntentSystem } from "./actor-intent.js?v=12g-combat-posture-fight-assessment-20260801";
-import { CoverNetworkSystem } from "./cover-network.js?v=12g-combat-posture-fight-assessment-20260801";
-import { TeamCombatContextSystem } from "./team-combat-context.js?v=12g-combat-posture-fight-assessment-20260801";
-import { FireTeamControllerSystem } from "./fire-team-controller.js?v=12g-combat-posture-fight-assessment-20260801";
-import { FightAssessmentSystem } from "./fight-assessment.js?v=12g-combat-posture-fight-assessment-20260801";
-import { CombatPostureSystem } from "./combat-posture.js?v=12g-combat-posture-fight-assessment-20260801";
+import { GameState } from "./game.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { PerceptionSystem } from "./perception.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { CombatSystem } from "./combat.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { AICombatSystem } from "./ai-combat.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { WoundSystem } from "./wound-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { MedicalSystem } from "./medical-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { TacticalFrontSystem } from "./tactical-front.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { TeamResponseSystem } from "./team-response.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { CoverStateSystem } from "./cover-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { ActorIntentSystem } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { CoverNetworkSystem } from "./cover-network.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { TeamCombatContextSystem } from "./team-combat-context.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { FireTeamControllerSystem } from "./fire-team-controller.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { FightAssessmentSystem } from "./fight-assessment.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { CombatPostureSystem } from "./combat-posture.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 
 export class ContinuousGameState extends GameState {
   constructor({scenario="operations"}={}) {

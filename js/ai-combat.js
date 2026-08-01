@@ -1,7 +1,7 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12g-combat-posture-fight-assessment-20260801";
-import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12g-combat-posture-fight-assessment-20260801";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12g-combat-posture-fight-assessment-20260801";
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12g-combat-posture-fight-assessment-20260801";
+import { getDoctrine } from "./faction-doctrine.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -82,6 +82,8 @@ export class AICombatSystem{
     actor.clearShotSince ??= -999;
     actor.clearShotTargetId ??= null;
     actor.lastSuppressiveShotAt ??= -999;
+    actor.lastShotAt ??= -999;
+    actor.lastFireBlockReason ??= null;
   }
 
   onPlayerShot(origin,end,result){
@@ -112,7 +114,8 @@ export class AICombatSystem{
     const encounter=context?.encounterId
       ?[...(this.game.encounters?.encounters?.values?.()??[])].find(item=>item.id===context.encounterId)
       :this.game.encounters?.getActorEncounter?.(actor.id);
-    if(!encounter||(!encounter.combatEngaged&&encounter.state!=="threatening"))return null;
+    const reactiveContact=Boolean(encounter?.reactiveFireAllowed||encounter?.state==="contact");
+    if(!encounter||(!encounter.combatEngaged&&encounter.state!=="threatening"&&!reactiveContact))return null;
 
     const candidates=[...primaryActors];
     if(actor.threatenedByPlayerUntil>performance.now()/1000&&actor.factionId!=="commune")candidates.push(this.game.operator);
@@ -124,7 +127,11 @@ export class AICombatSystem{
       if(candidate.id!==this.game.operator.id&&!known&&!shared&&distance(actor,candidate)>620)continue;
       const d=distance(actor,candidate);
       const blocked=this.game.coverNetwork?.shotBlocked?.(actor,candidate);
-      const score=d+(blocked?150:0)+(candidate.suppression??0)*-.35;
+      const exposed=!["hard","soft"].includes(candidate.coverState);
+      const moving=Math.hypot(candidate.vx??0,candidate.vy??0)>28;
+      const vulnerable=Boolean(candidate.medicalAction||candidate.rescueDrag||candidate.reloading);
+      const score=d+(blocked?170:0)+(candidate.suppression??0)*-.35-
+        (exposed?125:0)-(moving?48:0)-(vulnerable?85:0)-(d<420?90:0);
       if(!best||score<best.score)best={candidate,score};
     }
     return best?.candidate??null;
@@ -278,6 +285,8 @@ export class AICombatSystem{
     actor.fireCooldown=CONFIG.shotInterval*(.88+suppressionPenalty*.7);
     actor.burstRemaining=Math.max(0,actor.burstRemaining-1);
     actor.lastSuppressiveShotAt=performance.now()/1000;
+    actor.lastShotAt=actor.lastSuppressiveShotAt;
+    actor.lastFireBlockReason=null;
     actor.lastTacticalProgressAt=actor.lastSuppressiveShotAt;
     if(referenceTarget)this.game.encounters?.markViolence?.(actor,referenceTarget);
     this.game.fireTeams?.noteShot?.(actor,{suppressive:true});
@@ -328,6 +337,7 @@ export class AICombatSystem{
     if(this.hasFriendlyInLine(actor,target,origin,intended)){
       actor.burstRemaining=0;
       actor.burstPause=.65;
+      actor.lastFireBlockReason="friendly in line";
       return;
     }
     const ownCover=actor.assignedCoverNode??actor.tacticalCoverNode;
@@ -335,6 +345,7 @@ export class AICombatSystem{
     if(ownCover&&coverBlock?.obstacle===ownCover.obstacle){
       actor.burstRemaining=0;
       actor.burstPause=Math.max(actor.burstPause,.4);
+      actor.lastFireBlockReason="own cover blocked muzzle";
       return;
     }
 
@@ -342,6 +353,8 @@ export class AICombatSystem{
     const end=result.point;
     actor.ammoInMagazine--;
     actor.lastTacticalProgressAt=performance.now()/1000;
+    actor.lastShotAt=actor.lastTacticalProgressAt;
+    actor.lastFireBlockReason=null;
     this.game.encounters?.markViolence?.(actor,target);
     actor.fireCooldown=CONFIG.shotInterval*(1+suppressionPenalty*.9);
     actor.burstRemaining=Math.max(0,actor.burstRemaining-1);
@@ -596,13 +609,18 @@ export class AICombatSystem{
     const targetDistance=distance(actor,target);
     const doctrine=getDoctrine(actor.factionId);
     const locomotionSpeed=Math.hypot(actor.vx??0,actor.vy??0);
-    const speedRatio=locomotionSpeed/Math.max(1,actor.moveSpeed??110);
-    if(speedRatio<.08)actor.aimReadiness=clamp(actor.aimReadiness+delta*(actor.moraleState==="pinned"?.65:2.4),0,1);
-    else if(speedRatio<.48)actor.aimReadiness=clamp(actor.aimReadiness+delta*.42,0,.74);
-    else actor.aimReadiness=clamp(actor.aimReadiness-delta*1.55,0,.3);
-    if(["seek_cover","withdraw","regroup","hold_protected","treat","rescue","incapacitated"].includes(posture)){
+    const stationary=locomotionSpeed<8;
+    const walking=locomotionSpeed>=8&&locomotionSpeed<48;
+    const jogging=locomotionSpeed>=48&&locomotionSpeed<82;
+    const running=locomotionSpeed>=82;
+    if(stationary)actor.aimReadiness=clamp(actor.aimReadiness+delta*(actor.moraleState==="pinned"?.8:2.65),0,1);
+    else if(walking)actor.aimReadiness=clamp(actor.aimReadiness+delta*.72,0,.84);
+    else if(jogging)actor.aimReadiness=clamp(actor.aimReadiness-delta*.35,0,.5);
+    else actor.aimReadiness=clamp(actor.aimReadiness-delta*1.7,0,.22);
+    if(["treat","rescue","incapacitated"].includes(posture)){
       actor.burstRemaining=0;
       actor.aimReadiness=Math.max(0,actor.aimReadiness-delta*.8);
+      actor.lastFireBlockReason="hands occupied";
       return;
     }
 
@@ -758,12 +776,20 @@ export class AICombatSystem{
 
     const movementIntent=chooseIntent(intents);
     if(movementIntent)this.game.actorIntents?.submit?.(actor,movementIntent);
-    const moving=Boolean(movementIntent?.destination)||Math.hypot(actor.vx??0,actor.vy??0)>5;
     const currentSpeed=Math.hypot(actor.vx??0,actor.vy??0);
-    const running=currentSpeed>Math.max(70,(actor.moveSpeed??110)*.68);
-    const requiredReadiness=moving?.9:.72;
+    const stationaryNow=currentSpeed<8;
+    const walkingNow=currentSpeed>=8&&currentSpeed<48;
+    const joggingNow=currentSpeed>=48&&currentSpeed<82;
+    const runningNow=currentSpeed>=82;
+    const moving=!stationaryNow;
+    const targetExposed=!["hard","soft"].includes(target.coverState);
+    const targetVulnerable=Boolean(target.medicalAction||target.rescueDrag||target.reloading);
+    const reactiveOpportunity=targetDistance<470||targetExposed||targetVulnerable||
+      now-(actor.lastIncomingFireAt??-999)<5||postureContext?.alertState==="contact";
+    if(reactiveOpportunity)actor.reactiveFireUntil=Math.max(actor.reactiveFireUntil??0,now+1.15);
+    const requiredReadiness=stationaryNow?.62:walkingNow?.54:joggingNow&&reactiveOpportunity?.4:.9;
 
-    if(running)return;
+    if(runningNow){actor.lastFireBlockReason="running";return;}
 
     const activeFireNode=actor.assignedCoverNode??actor.tacticalCoverNode;
     const atAssignedFireEdge=Boolean(activeFireNode)&&(activeFireNode.firePositions??[])
@@ -841,26 +867,45 @@ export class AICombatSystem{
     }
     actor.lastClearShotAt=now;
 
-    if(!["engage","seek_fire_position","bound"].includes(posture))return;
+    const protectedNow=["hard","soft"].includes(actor.coverState)||actor.coverAtAssignedNode;
+    const reactiveWindow=now<(actor.reactiveFireUntil??0)&&reactiveOpportunity;
+    const postureAllowsFire=["engage","seek_fire_position","bound"].includes(posture)||
+      posture==="hold_protected"&&protectedNow||
+      posture==="seek_cover"&&reactiveWindow&&currentSpeed<72||
+      ["regroup","withdraw"].includes(posture)&&reactiveWindow&&currentSpeed<12;
+    if(!postureAllowsFire){actor.lastFireBlockReason=`posture:${posture}`;return;}
     if(!canFire(actor)||!canBeTargeted(target)){
+      actor.lastFireBlockReason="weapon unavailable";
       cancelCombatState(actor);
       return;
     }
     const fightState=postureContext?.fightAssessment?.state??"contested";
-    const reactionDelay=actor.fireTeamRole==="base_of_fire"
-      ?(fightState==="overmatch"?.2:.28)
-      :(fightState==="overmatch"?.34:.46)+((actor.id?.length??0)%4)*.07;
-    if(now-(actor.clearShotSince??now)<reactionDelay)return;
-    if(targetDistance>CONFIG.range||actor.aimReadiness<requiredReadiness||actor.fireCooldown>0||actor.burstPause>0)return;
+    const goodEnough=reactiveOpportunity&&(targetExposed||targetDistance<520||targetVulnerable);
+    const reactionDelay=goodEnough
+      ?.12+((actor.id?.length??0)%3)*.035
+      :actor.fireTeamRole==="base_of_fire"
+        ?(fightState==="overmatch"?.18:.24)
+        :(fightState==="overmatch"?.28:.38)+((actor.id?.length??0)%4)*.055;
+    if(now-(actor.clearShotSince??now)<reactionDelay){actor.lastFireBlockReason="reaction delay";return;}
+    if(targetDistance>CONFIG.range){actor.lastFireBlockReason="out of range";return;}
+    if(actor.aimReadiness<requiredReadiness){actor.lastFireBlockReason=`readiness ${actor.aimReadiness.toFixed(2)}/${requiredReadiness.toFixed(2)}`;return;}
+    if(actor.fireCooldown>0){actor.lastFireBlockReason="fire cooldown";return;}
+    if(actor.burstPause>0){actor.lastFireBlockReason="burst pause";return;}
     if(actor.burstRemaining<=0){
-      if(moving)actor.burstRemaining=1;
+      if(joggingNow||posture==="seek_cover"||posture==="regroup"||posture==="withdraw")actor.burstRemaining=1+Math.floor(Math.random()*2);
+      else if(walkingNow)actor.burstRemaining=1+Math.floor(Math.random()*2);
       else if(actor.fireTeamRole==="base_of_fire"){
-        actor.burstRemaining=fightState==="overmatch"?4+Math.floor(Math.random()*3):fightState==="disadvantaged"||fightState==="collapsing"?2+Math.floor(Math.random()*2):3+Math.floor(Math.random()*3);
+        actor.burstRemaining=fightState==="overmatch"?4+Math.floor(Math.random()*3):fightState==="disadvantaged"||fightState==="collapsing"?3+Math.floor(Math.random()*2):3+Math.floor(Math.random()*3);
       }else{
         actor.burstRemaining=fightState==="overmatch"?3+Math.floor(Math.random()*3):CONFIG.burstMin+Math.floor(Math.random()*(CONFIG.burstMax-CONFIG.burstMin+1));
       }
     }
+    const firedPosture=posture;
     this.fire(actor,target);
+    if(["seek_cover","regroup","withdraw"].includes(firedPosture)||(!protectedNow&&goodEnough)){
+      actor.mustSeekCoverAfterShotUntil=Math.max(actor.mustSeekCoverAfterShotUntil??0,now+2.4);
+      actor.reactiveFireUntil=0;
+    }
   }
 
   update(delta){

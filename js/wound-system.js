@@ -232,6 +232,9 @@ export class WoundSystem{
     const medical=this.ensure(target);
     const active=medical.wounds.filter(w=>!w.controlled);
     if(!active.length){
+      if(medical.blood<55&&medical.bleedingRate<=.05){
+        return {type:"iv_fluids",label:"Administer IV Fluids",priority:95};
+      }
       if(medical.pain>=48)return {type:"painkillers",label:"Take Painkillers",priority:20};
       return null;
     }
@@ -257,6 +260,15 @@ export class WoundSystem{
       medical.painMedicationSeconds=Math.max(medical.painMedicationSeconds??0,45);
       this.#derive(target,true);
       return {ok:true,label:"Pain controlled"};
+    }
+    if(treatmentType==="iv_fluids"){
+      if(medical.bleedingRate>.05)return {ok:false,reason:"Control bleeding before administering fluids"};
+      if(medical.blood>=62)return {ok:false,reason:"Circulation is already stable"};
+      medical.blood=clamp(medical.blood+22,0,100);
+      medical.shock=clamp(medical.shock-17,0,100);
+      medical.ivFluidsReceived=(medical.ivFluidsReceived??0)+1;
+      this.#derive(target,true);
+      return {ok:true,label:"Circulation supported with IV fluids"};
     }
 
     const need=this.getTreatmentNeed(target);

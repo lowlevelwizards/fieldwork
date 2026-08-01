@@ -1,7 +1,7 @@
-import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12d-team-context-cover-network-20260801";
-import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12d-team-context-cover-network-20260801";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 const STATE_ORDER=["unaware","aware","alerted","contact","threatening","disengaging"];
 function pairKey(a,b){return [a,b].sort().join(":");}
 function relation(a,b){return relationshipBetween(a,b);}
@@ -150,7 +150,8 @@ export class FactionEncounterSystem{
           alertState:"unaware",
           contactStartedAt:null,
           contactPlanAt:-999,
-          committedBy:null
+          committedBy:null,
+          reactiveFireAllowed:false
         };
         this.encounters.set(key,encounter);
       }
@@ -228,6 +229,7 @@ export class FactionEncounterSystem{
         if(encounter.contactStartedAt===null)encounter.contactStartedAt=now;
         encounter.alertState="contact";
         encounter.state="contact";
+        encounter.reactiveFireAllowed=true;
         this.assignContactPosture(encounter,a,b);
 
         for(const actor of [...a.actors,...b.actors]){
@@ -503,16 +505,18 @@ export class FactionEncounterSystem{
     const own=this.teamStatus(group),other=this.teamStatus(enemy);
     const strength=(own.capable.length+1)/(other.capable.length+1);
     const elapsed=performance.now()/1000-(encounter.contactStartedAt??performance.now()/1000);
-    if(distanceToEnemy<300)return true;
+    if(distanceToEnemy<420)return true;
 
+    // Reactive shots are permitted during CONTACT. These thresholds only
+    // govern when the whole team deliberately commits to sustained combat.
     if(group.factionId==="northline"){
-      return elapsed>5.2&&readiness>=.48;
+      return elapsed>3.4&&readiness>=.34;
     }
     if(group.factionId==="commune"){
-      return elapsed>4.4&&readiness>=.62&&strength>=.88;
+      return elapsed>3.1&&readiness>=.44&&strength>=.68;
     }
     if(group.factionId==="freelancers"){
-      return elapsed>5.5&&readiness>=.68&&strength>=1.12;
+      return elapsed>3.8&&readiness>=.48&&strength>=.82;
     }
     return false;
   }
@@ -528,6 +532,7 @@ export class FactionEncounterSystem{
     encounter.state="threatening";
     encounter.alertState="engaged";
     encounter.committedBy=actor.factionId;
+    encounter.reactiveFireAllowed=true;
     encounter.violenceAt=performance.now()/1000;
     encounter.elapsed=0;
     this.raiseDisposition(encounter.key,"shots exchanged",28);
