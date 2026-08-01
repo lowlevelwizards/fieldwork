@@ -1,6 +1,6 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12c-intent-commitment-stable-movement-20260731";
-import { projectOutsideObstacles } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
+import { getDoctrine } from "./faction-doctrine.js?v=12d-team-context-cover-network-20260801";
+import { projectOutsideObstacles } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 
@@ -89,25 +89,18 @@ export class TacticalFrontSystem{
   }
 
   coverNear(raw,front,actor){
-    const doctrine=getDoctrine(actor.factionId);
-    const candidates=(this.game.map.obstacles??[])
-      .filter(obstacle=>Math.hypot(obstacle.x-raw.x,obstacle.y-raw.y)<260)
-      .map(obstacle=>{
-        const awayX=obstacle.x-front.enemyCenter.x;
-        const awayY=obstacle.y-front.enemyCenter.y;
-        const length=Math.max(1,Math.hypot(awayX,awayY));
-        const clearance=(obstacle.radius??28)+(actor.radius??18)+10;
-        const point={
-          x:obstacle.x+awayX/length*clearance,
-          y:obstacle.y+awayY/length*clearance
-        };
-        const distanceToSlot=Math.hypot(point.x-raw.x,point.y-raw.y);
-        const hard=obstacle.type==="rock"?48:obstacle.type==="tree"?24:12;
-        return {point,score:hard*doctrine.coverPriority-distanceToSlot*.2};
-      })
-      .sort((a,b)=>b.score-a.score);
-    const chosen=candidates[0]?.score>0?candidates[0]:null;
-    return chosen?{...chosen.point,coverType:chosen.point===raw?null:(chosen.score>35?"hard":"soft")}:{...raw,coverType:null};
+    const context=this.game.teamCombatContexts?.forActor?.(actor);
+    const secondaryThreats=context?.secondaryThreats??actor.tacticalSecondaryThreats??[];
+    const node=this.game.coverNetwork?.bestCover?.(actor,front.enemyCenter,{
+      anchor:raw,maxDistance:520,secondaryThreats,reserveSeconds:26
+    });
+    if(!node)return {...raw,coverType:null,coverNode:null};
+    return {
+      x:node.protectedPosition.x,
+      y:node.protectedPosition.y,
+      coverType:node.coverType,
+      coverNode:node
+    };
   }
 
   slotFor(front,actor,index,count){
@@ -140,7 +133,12 @@ export class TacticalFrontSystem{
       y:front.lineCenter.y+front.lateral.y*along+front.forward.y*depth
     };
     const covered=this.coverNear(raw,front,actor);
-    return projectOutsideObstacles(this.game,covered.x,covered.y,actor.radius??18,10);
+    const projected=projectOutsideObstacles(this.game,covered.x,covered.y,actor.radius??18,10);
+    return {
+      ...projected,
+      coverType:covered.coverType??null,
+      coverNode:covered.coverNode??null
+    };
   }
 
   assign(encounter,team,enemy,plan){
@@ -164,6 +162,8 @@ export class TacticalFrontSystem{
       actor.tacticalSlotPlan=plan;
       actor.tacticalSlot={x:slot.x,y:slot.y};
       actor.tacticalSlotCoverType=slot.coverType??null;
+      actor.tacticalCoverNode=slot.coverNode??actor.tacticalCoverNode??null;
+      if(slot.coverNode)actor.assignedCoverNode=slot.coverNode;
       actor.tacticalRallyPoint={...front.rear};
       actor.tacticalLineCenter={...front.lineCenter};
       actor.tacticalForward={...front.forward};

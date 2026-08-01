@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -85,16 +85,22 @@ export class TeamResponseSystem{
       ?{x:victimCenter.x-dx/length*120,y:victimCenter.y-dy/length*120}
       :{x:victimCenter.x+lateral.x*side*300-dx/length*60,y:victimCenter.y+lateral.y*side*300-dy/length*60};
 
+    const representative=best.actors[0];
+    const coverNode=this.game.coverNetwork?.bestCover?.(representative,enemyCenter,{
+      anchor:destination,maxDistance:620,reserveSeconds:20
+    });
+    const coveredDestination=coverNode?.protectedPosition??destination;
     const assignment={
       teamId:best.teamId,
       victimTeamId:event.victimTeamId,
       aggressorTeamId:event.aggressorTeamId,
-      plan,destination,
+      plan,destination:coveredDestination,coverNode,
       until:now+18
     };
     this.assignments.set(best.teamId,assignment);
     for(const actor of best.actors.filter(canReceiveOrders)){
       actor.supportAssignment=assignment;
+      if(coverNode)actor.assignedCoverNode=coverNode;
       actor.tacticalPlan=plan;
       actor.tacticalPlanUntil=assignment.until;
       actor.currentTask=plan==="support"?"Moving to support nearby team":"Moving to flank attackers";

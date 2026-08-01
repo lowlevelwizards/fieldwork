@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable } from "./actor-state.js?v=12b-contact-cover-triage-20260731";
+import { isAlive, isCombatCapable } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
@@ -14,6 +14,8 @@ export class CoverStateSystem{
   constructor(game){this.game=game;}
 
   nearestThreat(actor){
+    const context=this.game.teamCombatContexts?.forActor?.(actor);
+    if(context?.primaryThreatPosition)return context.primaryThreatPosition;
     if(actor.tacticalEnemyCenter)return actor.tacticalEnemyCenter;
     if(actor.lastKnownEnemyPosition)return actor.lastKnownEnemyPosition;
     let best=null;
@@ -66,6 +68,12 @@ export class CoverStateSystem{
     actor.coverState=cover.state;
     actor.coverQuality=cover.quality;
     actor.coverObstacle=cover.obstacle??null;
+    if(actor.assignedCoverNode){
+      actor.coverAtAssignedNode=Math.hypot(
+        actor.x-actor.assignedCoverNode.protectedPosition.x,
+        actor.y-actor.assignedCoverNode.protectedPosition.y
+      )<74;
+    }else actor.coverAtAssignedNode=false;
     return cover;
   }
 

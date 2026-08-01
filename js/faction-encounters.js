@@ -1,7 +1,7 @@
-import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12c-intent-commitment-stable-movement-20260731";
-import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12c-intent-commitment-stable-movement-20260731";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12d-team-context-cover-network-20260801";
+import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12d-team-context-cover-network-20260801";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
 const STATE_ORDER=["unaware","aware","alerted","contact","threatening","disengaging"];
 function pairKey(a,b){return [a,b].sort().join(":");}
 function relation(a,b){return relationshipBetween(a,b);}
@@ -402,29 +402,13 @@ export class FactionEncounterSystem{
   }
 
   findCover(actor,threat){
-    const now=performance.now()/1000;
-    for(const [key,reservation] of this.coverReservations)if(reservation.until<now)this.coverReservations.delete(key);
-    const candidates=this.game.map.obstacles
-      .filter(obstacle=>Math.hypot(obstacle.x-actor.x,obstacle.y-actor.y)<420)
-      .map((obstacle,index)=>{
-        const awayX=obstacle.x-threat.x,awayY=obstacle.y-threat.y;
-        const length=Math.max(1,Math.hypot(awayX,awayY));
-        const clearance=(obstacle.radius??30)+(actor.radius??18)+12;
-        const point={
-          x:obstacle.x+awayX/length*clearance,
-          y:obstacle.y+awayY/length*clearance
-        };
-        const key=`${index}:${Math.round(point.x/24)}:${Math.round(point.y/24)}`;
-        const reserved=this.coverReservations.has(key)&&this.coverReservations.get(key).actorId!==actor.id;
-        const fromActor=Math.hypot(point.x-actor.x,point.y-actor.y);
-        const exposure=Math.hypot(point.x-threat.x,point.y-threat.y);
-        return{point,key,score:exposure-fromActor*.72+(obstacle.type==="rock"?55:30)-(reserved?500:0)};
-      })
-      .sort((a,b)=>b.score-a.score);
-    const chosen=candidates[0];
-    if(!chosen)return null;
-    this.coverReservations.set(chosen.key,{actorId:actor.id,until:now+8});
-    return chosen.point;
+    const context=this.game.teamCombatContexts?.forActor?.(actor);
+    const node=this.game.coverNetwork?.bestCover?.(actor,threat,{
+      maxDistance:520,
+      secondaryThreats:context?.secondaryThreats??[],
+      reserveSeconds:12
+    });
+    return node?.protectedPosition??null;
   }
 
   applyEncounterBehavior(encounter,a,b,nearest){
@@ -509,12 +493,9 @@ export class FactionEncounterSystem{
       const capable=group.actors.filter(canReceiveOrders);
       capable.forEach((actor,index)=>{
         actor.alertState="contact";
-        actor.tacticalPlan=plan;
         actor.tacticalRole ??=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
-        actor.tacticalEnemyCenter={...enemyCenter};
-        actor.tacticalPlanUntil=now+18;
+        actor.contactEnemyCenter={...enemyCenter};
       });
-      this.game.tacticalFronts?.assign?.(encounter,group,enemy,plan);
     }
   }
 
@@ -600,12 +581,9 @@ export class FactionEncounterSystem{
       const enemyCenter=center(enemy);
       const capable=group.actors.filter(canReceiveOrders);
       capable.forEach((actor,index)=>{
-        actor.tacticalPlan=plan;
         actor.tacticalRole ??=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
-        actor.tacticalEnemyCenter={...enemyCenter};
-        actor.tacticalPlanUntil=now+24;
+        actor.contactEnemyCenter={...enemyCenter};
       });
-      this.game.tacticalFronts?.assign?.(encounter,group,enemy,plan);
     }
   }
 

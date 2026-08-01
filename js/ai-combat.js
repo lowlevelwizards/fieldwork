@@ -1,7 +1,7 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12c-intent-commitment-stable-movement-20260731";
-import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12c-intent-commitment-stable-movement-20260731";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
+import { getDoctrine } from "./faction-doctrine.js?v=12d-team-context-cover-network-20260801";
+import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12d-team-context-cover-network-20260801";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -100,21 +100,24 @@ export class AICombatSystem{
   }
 
   getEncounterTarget(actor){
-    const encounter=this.game.encounters?.getActorEncounter?.(actor.id);
+    const context=this.game.teamCombatContexts?.forActor?.(actor);
+    const primaryActors=this.game.teamCombatContexts?.primaryThreatActors?.(actor)??[];
+    const encounter=context?.encounterId
+      ?[...(this.game.encounters?.encounters?.values?.()??[])].find(item=>item.id===context.encounterId)
+      :this.game.encounters?.getActorEncounter?.(actor.id);
     if(!encounter||(!encounter.combatEngaged&&encounter.state!=="threatening"))return null;
-    const candidates=[this.game.operator,...this.game.actors].filter(candidate=>
-      candidate&&candidate.id!==actor.id&&candidate.factionId!==actor.factionId&&canBeTargeted(candidate)
-    );
+
+    const candidates=[...primaryActors];
+    if(actor.threatenedByPlayerUntil>performance.now()/1000&&actor.factionId!=="commune")candidates.push(this.game.operator);
     let best=null;
     for(const candidate of candidates){
-      const sameEncounter=candidate.id===this.game.operator.id
-        ?encounter.participantIds?.has?.("player")
-        :encounter.participantIds?.has?.(candidate.id);
+      if(!candidate||candidate.id===actor.id||candidate.factionId===actor.factionId||!canBeTargeted(candidate))continue;
       const known=this.game.perception?.getDetection?.(actor.id,candidate.id);
       const shared=this.game.perception?.getTeamContact?.(actor.teamId,candidate.teamId??candidate.factionId);
-      if(!sameEncounter&&!known&&!shared)continue;
+      if(candidate.id!==this.game.operator.id&&!known&&!shared&&distance(actor,candidate)>620)continue;
       const d=distance(actor,candidate);
-      const score=d+(candidate.suppression??0)*-.4+(candidate.medical?.condition==="wounded"?30:0);
+      const blocked=this.game.coverNetwork?.shotBlocked?.(actor,candidate);
+      const score=d+(blocked?150:0)+(candidate.suppression??0)*-.35;
       if(!best||score<best.score)best={candidate,score};
     }
     return best?.candidate??null;
@@ -241,6 +244,10 @@ export class AICombatSystem{
       actor.burstRemaining=0;
     }else if(actor.burstRemaining<=0){
       actor.burstPause=.55+Math.random()*.85+(actor.suppression/100)*.9;
+      const node=actor.assignedCoverNode??actor.tacticalCoverNode;
+      if(node&&distance(actor,node.protectedPosition)>34){
+        actor.returnToCoverUntil=performance.now()/1000+2.8;
+      }
     }
   }
 
@@ -271,6 +278,20 @@ export class AICombatSystem{
     if(actor.reloading){
       if(!canReload(actor)){cancelCombatState(actor);return;}
       actor.operationPausedByEncounter=true;
+      const node=actor.assignedCoverNode??actor.tacticalCoverNode;
+      const protectedPosition=node?.protectedPosition;
+      if(protectedPosition&&actor.coverState==="exposed"&&distance(actor,protectedPosition)>54){
+        const context=this.game.teamCombatContexts?.forActor?.(actor);
+        const waypoint=this.game.coverNetwork?.routeWaypoint?.(actor,node,context?.primaryThreatPosition??actor.tacticalEnemyCenter??protectedPosition,{
+          secondaryThreats:context?.secondaryThreats??[]
+        })??protectedPosition;
+        this.game.actorIntents?.submit?.(actor,createIntent("combat","reload_cover",INTENT_PRIORITY.RETURN_FIRE+3,{
+          key:`reload:cover:${node.id}`,
+          destination:waypoint,speedMultiplier:.88,arrivalRadius:48,
+          commitSeconds:4.2,task:"Moving into cover to reload"
+        }));
+        return;
+      }
       actor.workPose="brace";
       actor.reloadProgress=clamp(actor.reloadProgress+delta/CONFIG.reloadDuration,0,1);
       if(actor.reloadProgress>=1){
@@ -282,6 +303,14 @@ export class AICombatSystem{
     const now=performance.now()/1000;
     const target=this.getTarget(actor);
     const intents=[];
+    const returnNode=actor.assignedCoverNode??actor.tacticalCoverNode;
+    if(returnNode&&(actor.returnToCoverUntil??0)>now&&distance(actor,returnNode.protectedPosition)>30){
+      intents.push(createIntent("combat","return_to_cover",INTENT_PRIORITY.RETURN_FIRE+2,{
+        key:`cover:return:${returnNode.id}`,
+        destination:returnNode.protectedPosition,speedMultiplier:.62,
+        arrivalRadius:28,commitSeconds:2.5,task:"Returning behind cover"
+      }));
+    }
 
     if(!target){
       actor.aimReadiness=Math.max(0,actor.aimReadiness-delta*2.2);
@@ -290,7 +319,10 @@ export class AICombatSystem{
         if(slotDistance>58){
           this.game.actorIntents?.submit?.(actor,createIntent("contact","take_contact_position",INTENT_PRIORITY.REPOSITION+5,{
             key:`contact:${actor.tacticalFrontId}:${actor.tacticalSlotPlan}`,
-            destination:actor.tacticalSlot,
+            destination:this.game.coverNetwork?.routeWaypoint?.(
+              actor,actor.tacticalCoverNode,actor.tacticalEnemyCenter??actor.tacticalSlot,
+              {secondaryThreats:actor.tacticalSecondaryThreats??[]}
+            )??actor.tacticalSlot,
             speedMultiplier:actor.tacticalPlan==="withdraw"?1.0:.78,
             arrivalRadius:54,
             commitSeconds:4.2,
@@ -384,10 +416,45 @@ export class AICombatSystem{
       }));
       else intents.push(createIntent("morale","hold",INTENT_PRIORITY.ESCAPE_FIRE,{task:"Pinned"}));
     }else{
+      const context=this.game.teamCombatContexts?.forActor?.(actor);
+      const primaryThreat=context?.primaryThreatPosition??target;
+      const secondaryThreats=context?.secondaryThreats??actor.tacticalSecondaryThreats??[];
+      const activeNode=actor.assignedCoverNode??actor.tacticalCoverNode;
+      const atCoverFireEdge=Boolean(activeNode)&&(
+        distance(actor,activeNode.leftFirePosition)<34||
+        distance(actor,activeNode.rightFirePosition)<34
+      )&&(actor.coverPeekUntil??0)>now;
+      const exposed=actor.coverState==="exposed"||actor.coverState==="concealment";
+      const recentFire=now-(actor.lastIncomingFireAt??-999)<6;
+      const needsCover=exposed&&!atCoverFireEdge&&(recentFire||context?.alertState==="engaged"||actor.suppression>12);
+
+      if(needsCover&&!actor.openingDistance){
+        let node=actor.assignedCoverNode;
+        const nodeInvalid=!node||!this.game.coverNetwork?.blocksThreat?.(node,primaryThreat);
+        if(nodeInvalid){
+          node=this.game.coverNetwork?.bestCover?.(actor,primaryThreat,{
+            anchor:slot??actor,maxDistance:620,secondaryThreats,reserveSeconds:18
+          });
+        }
+        if(node){
+          actor.assignedCoverNode=node;
+          const waypoint=this.game.coverNetwork?.routeWaypoint?.(actor,node,primaryThreat,{secondaryThreats})??node.protectedPosition;
+          intents.push(createIntent("combat","seek_cover",INTENT_PRIORITY.RETURN_FIRE+1,{
+            key:`combat:seek_cover:${node.id}`,
+            destination:waypoint,speedMultiplier:recentFire?1.05:.82,
+            arrivalRadius:50,commitSeconds:5.2,
+            task:waypoint===node.protectedPosition?"Moving into fighting cover":"Bounding to intermediate cover"
+          }));
+        }
+      }
+
       if(slot&&Math.hypot(slot.x-actor.x,slot.y-actor.y)>72){
         intents.push(createIntent("squad","reposition",INTENT_PRIORITY.REPOSITION,{
           key:`squad:${actor.tacticalFrontId}:${actor.tacticalSlotPlan}`,
-          destination:slot,
+          destination:this.game.coverNetwork?.routeWaypoint?.(
+            actor,actor.tacticalCoverNode,actor.tacticalEnemyCenter??target,
+            {secondaryThreats:actor.tacticalSecondaryThreats??[]}
+          )??slot,
           speedMultiplier:plan==="withdraw"||plan.startsWith("flank")?1.0:.68,
           arrivalRadius:62,
           commitSeconds:plan==="withdraw"?7:plan.startsWith("flank")?5.5:3.8,
@@ -424,6 +491,24 @@ export class AICombatSystem{
     const requiredReadiness=moving?.9:.72;
 
     if(running)return;
+
+    const shotBlock=this.game.coverNetwork?.shotBlocked?.(actor,target);
+    if(shotBlock){
+      const node=actor.assignedCoverNode??actor.tacticalCoverNode;
+      const edge=this.game.coverNetwork?.nearestFirePosition?.(actor,node,target);
+      if(edge&&distance(actor,edge)>24){
+        actor.coverPeekUntil=now+3.8;
+        this.game.actorIntents?.submit?.(actor,createIntent("combat","shift_cover_edge",INTENT_PRIORITY.RETURN_FIRE-2,{
+          key:`cover:edge:${node.id}`,
+          destination:edge,speedMultiplier:.48,arrivalRadius:22,
+          commitSeconds:2.6,task:"Shifting to a firing edge"
+        }));
+      }
+      actor.burstRemaining=0;
+      actor.burstPause=Math.max(actor.burstPause,.35);
+      return;
+    }
+
     if(!canFire(actor)||!canBeTargeted(target)){
       cancelCombatState(actor);
       return;

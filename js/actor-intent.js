@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
+import { moveActorToward, stopActor } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
 
 export const INTENT_PRIORITY={
   PATROL:20,
@@ -20,6 +20,11 @@ const DEFAULT_COMMITMENT={
   support:5.5,
   open_distance:3.8,
   cover:3.6,
+  seek_cover:4.6,
+  bound_to_cover:5.2,
+  shift_cover_edge:2.4,
+  return_to_cover:2.2,
+  reload_cover:3.8,
   withdraw:7,
   medical_approach:4.5,
   hold:1.2
