@@ -1,13 +1,16 @@
-# Fieldwork 1.2D
+# Fieldwork 1.2E
 
-## Team Combat Context & Cover Network
+## Fire Teams, Suppression & Movement Authority
 
-- Added one primary combat context per team so pairwise encounters no longer overwrite the final plan and threat direction.
-- Added directional hard/soft cover nodes with protected and firing-edge positions.
-- Exposed combatants now seek cover during active contact, route through intermediate cover when practical, and return behind cover after bursts.
-- AI checks shot obstruction before firing and shifts toward a firing edge instead of wasting normal bursts into cover.
-- Reloading operators prefer assigned protected positions.
-- Nearby support teams choose covered support destinations.
+- Added stable fire-team roles with dedicated base-of-fire and maneuver assignments.
+- Added sustained suppressive bursts against occupied cover and last-known threat sectors.
+- Maneuver elements now wait for active covering fire before longer flank and push movements.
+- Added retained combat targets and reliable clear-shot reaction windows.
+- Stabilized primary-threat and squad-plan selection to reduce wandering between competing fronts.
+- Added movement reversal damping and post-arrival dead zones to reduce high-frequency jitter.
+- Operators in useful cover require a stronger reason to leave it.
+- Fixed wounded arm poses incorrectly hiding weapons; ordinary wounded and serious operators keep visible weapons.
+- Fixed support-team casualty scoring and expanded incoming-fire timestamps for suppression and triage decisions.
 
 # Changelog
 
