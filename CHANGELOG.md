@@ -1,3 +1,14 @@
+# Fieldwork 1.2D
+
+## Team Combat Context & Cover Network
+
+- Added one primary combat context per team so pairwise encounters no longer overwrite the final plan and threat direction.
+- Added directional hard/soft cover nodes with protected and firing-edge positions.
+- Exposed combatants now seek cover during active contact, route through intermediate cover when practical, and return behind cover after bursts.
+- AI checks shot obstruction before firing and shifts toward a firing edge instead of wasting normal bursts into cover.
+- Reloading operators prefer assigned protected positions.
+- Nearby support teams choose covered support destinations.
+
 # Changelog
 
 ## 0.5A.0 — Care Under Pressure
