@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
+import { moveActorToward, stopActor } from "./actor-motion.js?v=12e-fire-teams-suppression-authority-20260801";
 
 export const INTENT_PRIORITY={
   PATROL:20,
@@ -119,8 +119,40 @@ export class ActorIntentSystem{
     }
 
     if(!proposed)return null;
+
+    if(now<(actor.intentStabilizeUntil??0)&&(proposed.priority??0)<INTENT_PRIORITY.ESCAPE_FIRE){
+      return createIntent('brain','hold',(proposed.priority??0)+1,{
+        key:`stabilize:${actor.id}`,commitSeconds:.45,task:'Holding position',pose:'brace',syntheticHold:true
+      });
+    }
+
+    if(proposed.key===actor.lastCompletedIntentKey&&now-(actor.lastCompletedIntentAt??-999)<.85&&
+      (proposed.priority??0)<INTENT_PRIORITY.ESCAPE_FIRE){
+      actor.intentStabilizeUntil=Math.max(actor.intentStabilizeUntil??0,now+.72);
+      return createIntent('brain','hold',(proposed.priority??0)+1,{
+        key:`stabilize:${proposed.key}`,commitSeconds:.55,task:'Holding position',pose:'brace',syntheticHold:true
+      });
+    }
+
+    if(proposed.destination&&Math.hypot(actor.vx??0,actor.vy??0)>12&&
+      now-(actor.lastIntentSwitchAt??-999)<1.15&&
+      (proposed.priority??0)<INTENT_PRIORITY.ESCAPE_FIRE){
+      const speed=Math.max(1,Math.hypot(actor.vx??0,actor.vy??0));
+      const dx=proposed.destination.x-actor.x,dy=proposed.destination.y-actor.y;
+      const length=Math.max(1,Math.hypot(dx,dy));
+      const dot=(actor.vx/speed)*(dx/length)+(actor.vy/speed)*(dy/length);
+      if(dot<-.62){
+        actor.intentReversals=(actor.intentReversals??0)+1;
+        actor.intentStabilizeUntil=Math.max(actor.intentStabilizeUntil??0,now+.75);
+        return createIntent('brain','hold',(proposed.priority??0)+1,{
+          key:`stabilize:reversal:${actor.id}`,commitSeconds:.65,task:'Stabilizing movement',pose:'brace',syntheticHold:true
+        });
+      }
+    }
+
     const accepted=cloneIntent(proposed);
     accepted.acceptedAt=now;
+    actor.lastIntentSwitchAt=now;
     accepted.commitUntil=now+(accepted.commitSeconds??2.5);
     accepted.expiresAt=now+(accepted.timeoutSeconds??Math.max(accepted.commitSeconds??2.5,8));
     actor.committedIntent=accepted;
@@ -140,12 +172,22 @@ export class ActorIntentSystem{
     const intent=this.select(actor);
     if(!intent){
       actor.selectedIntent=null;
+      actor.movementOwner=null;
+      const combatControlled=actor.operationPausedByEncounter||
+        (actor.teamCombatContext&&actor.teamCombatContext.alertState!=='unaware');
+      if(combatControlled)stopActor(actor);
       return;
     }
+    actor.movementOwner=intent.owner;
     const arrived=executeMovementIntent(this.game,actor,intent,delta);
     if(arrived){
+      if(!intent.syntheticHold){
+        actor.lastCompletedIntentKey=intent.key;
+        actor.lastCompletedIntentAt=performance.now()/1000;
+      }
       actor.committedIntent=null;
       actor.selectedIntent=null;
+      actor.movementOwner=null;
     }
   }
 

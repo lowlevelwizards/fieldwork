@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12e-fire-teams-suppression-authority-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -55,7 +55,7 @@ export class TeamResponseSystem{
     const candidates=new Map();
 
     for(const actor of this.game.actors){
-      if(actor.factionId!==event.factionId||actor.teamId===event.victimTeamId||!isCombatCapable(actor))continue;
+      if(actor.factionId!==event.factionId||actor.teamId===event.victimTeamId||!isAlive(actor))continue;
       if(!candidates.has(actor.teamId))candidates.set(actor.teamId,[]);
       candidates.get(actor.teamId).push(actor);
     }
@@ -64,13 +64,15 @@ export class TeamResponseSystem{
     for(const [teamId,actors] of candidates){
       const existing=this.assignments.get(teamId);
       if(existing&&existing.until>now)continue;
-      const center=groupCenter(actors);
+      const capableActors=actors.filter(isCombatCapable);
+      if(!capableActors.length)continue;
+      const center=groupCenter(capableActors);
       const d=distance(center,victimCenter);
       if(d>980)continue;
-      const casualties=actors.filter(actor=>!isCombatCapable(actor)).length;
-      const suppression=actors.reduce((sum,actor)=>sum+(actor.suppression??0),0)/Math.max(1,actors.length);
+      const casualties=actors.length-capableActors.length;
+      const suppression=capableActors.reduce((sum,actor)=>sum+(actor.suppression??0),0)/Math.max(1,capableActors.length);
       const score=1000-d-casualties*130-suppression*4;
-      if(!best||score>best.score)best={teamId,actors,center,score,d};
+      if(!best||score>best.score)best={teamId,actors:capableActors,center,score,d};
     }
     if(!best)return;
 

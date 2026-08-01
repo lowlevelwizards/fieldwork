@@ -1,18 +1,19 @@
-import { GameState } from "./game.js?v=12d-team-context-cover-network-20260801";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=12d-team-context-cover-network-20260801";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=12d-team-context-cover-network-20260801";
-import { PerceptionSystem } from "./perception.js?v=12d-team-context-cover-network-20260801";
-import { CombatSystem } from "./combat.js?v=12d-team-context-cover-network-20260801";
-import { AICombatSystem } from "./ai-combat.js?v=12d-team-context-cover-network-20260801";
-import { WoundSystem } from "./wound-system.js?v=12d-team-context-cover-network-20260801";
-import { MedicalSystem } from "./medical-system.js?v=12d-team-context-cover-network-20260801";
-import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12d-team-context-cover-network-20260801";
-import { TacticalFrontSystem } from "./tactical-front.js?v=12d-team-context-cover-network-20260801";
-import { TeamResponseSystem } from "./team-response.js?v=12d-team-context-cover-network-20260801";
-import { CoverStateSystem } from "./cover-state.js?v=12d-team-context-cover-network-20260801";
-import { ActorIntentSystem } from "./actor-intent.js?v=12d-team-context-cover-network-20260801";
-import { CoverNetworkSystem } from "./cover-network.js?v=12d-team-context-cover-network-20260801";
-import { TeamCombatContextSystem } from "./team-combat-context.js?v=12d-team-context-cover-network-20260801";
+import { GameState } from "./game.js?v=12e-fire-teams-suppression-authority-20260801";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=12e-fire-teams-suppression-authority-20260801";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=12e-fire-teams-suppression-authority-20260801";
+import { PerceptionSystem } from "./perception.js?v=12e-fire-teams-suppression-authority-20260801";
+import { CombatSystem } from "./combat.js?v=12e-fire-teams-suppression-authority-20260801";
+import { AICombatSystem } from "./ai-combat.js?v=12e-fire-teams-suppression-authority-20260801";
+import { WoundSystem } from "./wound-system.js?v=12e-fire-teams-suppression-authority-20260801";
+import { MedicalSystem } from "./medical-system.js?v=12e-fire-teams-suppression-authority-20260801";
+import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12e-fire-teams-suppression-authority-20260801";
+import { TacticalFrontSystem } from "./tactical-front.js?v=12e-fire-teams-suppression-authority-20260801";
+import { TeamResponseSystem } from "./team-response.js?v=12e-fire-teams-suppression-authority-20260801";
+import { CoverStateSystem } from "./cover-state.js?v=12e-fire-teams-suppression-authority-20260801";
+import { ActorIntentSystem } from "./actor-intent.js?v=12e-fire-teams-suppression-authority-20260801";
+import { CoverNetworkSystem } from "./cover-network.js?v=12e-fire-teams-suppression-authority-20260801";
+import { TeamCombatContextSystem } from "./team-combat-context.js?v=12e-fire-teams-suppression-authority-20260801";
+import { FireTeamControllerSystem } from "./fire-team-controller.js?v=12e-fire-teams-suppression-authority-20260801";
 
 export class ContinuousGameState extends GameState {
   constructor({scenario="operations"}={}) {
@@ -48,6 +49,7 @@ export class ContinuousGameState extends GameState {
     this.coverNetwork = new CoverNetworkSystem(this);
     this.coverStates = new CoverStateSystem(this);
     this.teamCombatContexts = new TeamCombatContextSystem(this);
+    this.fireTeams = new FireTeamControllerSystem(this);
     this.teamResponses = new TeamResponseSystem(this);
     this.encounters = new FactionEncounterSystem(this);
     const phases = [
@@ -202,6 +204,7 @@ export class ContinuousGameState extends GameState {
       this.encounters.update(delta);
       this.teamCombatContexts.update(delta);
       this.coverStates.update(delta);
+      this.fireTeams.update(delta);
       this.teamResponses.update(delta);
       // Medical commitment is evaluated before combat so an accepted
       // treatment action cannot be followed by a same-frame combat move.

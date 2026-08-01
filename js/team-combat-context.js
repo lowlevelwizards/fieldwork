@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12e-fire-teams-suppression-authority-20260801";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -68,8 +68,11 @@ export class TeamCombatContextSystem{
           teamId:group.id,factionId:group.factionId,
           alertState:'unaware',primaryThreatTeamId:null,
           primaryThreatPosition:null,secondaryThreats:[],
-          currentPlan:'hold',planStartedAt:now,
-          encounterId:null,updatedAt:now
+          currentPlan:'hold',planStartedAt:now,planLockedUntil:0,
+          encounterId:null,updatedAt:now,
+          primaryThreatLockedUntil:0,lastFrontAssignAt:-999,
+          suppressorIds:[],boundActorId:null,boundUntil:0,
+          lastSuppressiveShotAt:-999,suppressionActive:false
         };
         this.contexts.set(group.id,context);
       }
@@ -83,7 +86,16 @@ export class TeamCombatContextSystem{
         contacts.push({enemy,encounter,score,position:center(enemy.actors)});
       }
       contacts.sort((a,b)=>b.score-a.score);
-      const primary=contacts[0]??null;
+      const best=contacts[0]??null;
+      const current=contacts.find(item=>item.enemy.id===context.primaryThreatTeamId)??null;
+      let primary=best;
+      if(current&&best&&best.enemy.id!==current.enemy.id){
+        const locked=now<(context.primaryThreatLockedUntil??0);
+        const decisive=best.score>current.score+165;
+        if(locked&&!decisive)primary=current;
+      }else if(current){
+        primary=current;
+      }
 
       if(!primary){
         if(context.primaryThreatTeamId&&now-context.updatedAt<8)continue;
@@ -99,10 +111,18 @@ export class TeamCombatContextSystem{
         continue;
       }
 
-      const newPlan=this.planFor(primary.encounter,group.id);
-      if(newPlan!==context.currentPlan){
+      const primaryChanged=context.primaryThreatTeamId!==primary.enemy.id;
+      if(primaryChanged)context.primaryThreatLockedUntil=now+7.5;
+
+      const proposedPlan=this.planFor(primary.encounter,group.id);
+      const urgentPlan=['withdraw','rescue'].includes(proposedPlan);
+      const planCanChange=now>=(context.planLockedUntil??0)||urgentPlan||primaryChanged;
+      const newPlan=planCanChange?proposedPlan:context.currentPlan;
+      const planChanged=newPlan!==context.currentPlan;
+      if(planChanged){
         context.currentPlan=newPlan;
         context.planStartedAt=now;
+        context.planLockedUntil=now+(urgentPlan?8:12);
       }
       context.alertState=primary.encounter.combatEngaged?'engaged':primary.encounter.state==='contact'?'contact':'alerted';
       context.primaryThreatTeamId=primary.enemy.id;
@@ -117,7 +137,11 @@ export class TeamCombatContextSystem{
       // writes the team's final threat, plan, and tactical front.
       const primaryGroup={id:primary.enemy.id,factionId:primary.enemy.factionId,actors:primary.enemy.actors};
       const ownGroup={id:group.id,factionId:group.factionId,actors:group.actors};
-      const front=this.game.tacticalFronts?.assign?.(primary.encounter,ownGroup,primaryGroup,newPlan);
+      const shouldRefreshFront=primaryChanged||planChanged||now-(context.lastFrontAssignAt??-999)>8;
+      if(shouldRefreshFront){
+        this.game.tacticalFronts?.assign?.(primary.encounter,ownGroup,primaryGroup,newPlan);
+        context.lastFrontAssignAt=now;
+      }
 
       for(const actor of group.actors.filter(canReceiveOrders)){
         actor.teamCombatContext=context;

@@ -1,7 +1,7 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12d-team-context-cover-network-20260801";
-import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12d-team-context-cover-network-20260801";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
+import { getDoctrine } from "./faction-doctrine.js?v=12e-fire-teams-suppression-authority-20260801";
+import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12e-fire-teams-suppression-authority-20260801";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12e-fire-teams-suppression-authority-20260801";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12e-fire-teams-suppression-authority-20260801";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -18,9 +18,9 @@ const CONFIG={
   burstMax:4,
   shotInterval:.19,
   settleDuration:.42,
-  suppressionRadius:82,
-  playerSuppressionRadius:96,
-  suppressionDecay:8,
+  suppressionRadius:106,
+  playerSuppressionRadius:112,
+  suppressionDecay:6,
   actorHitSuppression:38,
   nearMissSuppression:18
 };
@@ -77,6 +77,11 @@ export class AICombatSystem{
     actor.threatenedByPlayerUntil ??= 0;
     actor.lastKnownEnemyPosition ??= null;
     actor.contactMemoryUntil ??= 0;
+    actor.combatTargetId ??= null;
+    actor.targetLockUntil ??= 0;
+    actor.clearShotSince ??= -999;
+    actor.clearShotTargetId ??= null;
+    actor.lastSuppressiveShotAt ??= -999;
   }
 
   onPlayerShot(origin,end,result){
@@ -87,6 +92,7 @@ export class AICombatSystem{
       const missDistance=pointSegmentDistance(actor,origin,end);
       if(result.actor===actor){
         actor.suppression=clamp(actor.suppression+CONFIG.actorHitSuppression,0,100);
+        actor.lastIncomingFireAt=performance.now()/1000;
         actor.threatenedByPlayerUntil=performance.now()/1000+18;
         actor.currentTask="Under fire from Mara";
         const shotDistance=Math.hypot(origin.x-actor.x,origin.y-actor.y);
@@ -94,6 +100,7 @@ export class AICombatSystem{
       }else if(missDistance<CONFIG.suppressionRadius){
         const amount=CONFIG.nearMissSuppression*(1-missDistance/CONFIG.suppressionRadius);
         actor.suppression=clamp(actor.suppression+amount,0,100);
+        actor.lastIncomingFireAt=performance.now()/1000;
         actor.threatenedByPlayerUntil=performance.now()/1000+12;
       }
     }
@@ -125,6 +132,18 @@ export class AICombatSystem{
 
   getTarget(actor){
     const now=performance.now()/1000;
+    const context=this.game.teamCombatContexts?.forActor?.(actor);
+    const current=[this.game.operator,...this.game.actors].find(candidate=>candidate.id===actor.combatTargetId);
+    const currentInPrimary=!context?.primaryThreatTeamId||
+      (current?.teamId??current?.factionId)===context.primaryThreatTeamId||
+      current?.id===this.game.operator.id;
+
+    if(current&&currentInPrimary&&canBeTargeted(current)&&now<(actor.targetLockUntil??0)&&distance(actor,current)<CONFIG.range*1.08){
+      actor.lastKnownEnemyPosition={x:current.x,y:current.y};
+      actor.contactMemoryUntil=now+CONFIG.contactMemorySeconds;
+      return current;
+    }
+
     let target=null;
     if(actor.threatenedByPlayerUntil>now&&actor.factionId!=="commune"&&canBeTargeted(this.game.operator)){
       target=this.game.operator;
@@ -132,15 +151,19 @@ export class AICombatSystem{
       target=this.getEncounterTarget(actor);
     }
     if(target){
+      actor.combatTargetId=target.id;
+      actor.targetLockUntil=now+3.8+((actor.id?.length??0)%5)*.22;
       actor.lastKnownEnemyPosition={x:target.x,y:target.y};
       actor.contactMemoryUntil=now+CONFIG.contactMemorySeconds;
+    }else if(now>=(actor.targetLockUntil??0)){
+      actor.combatTargetId=null;
     }
     return target;
   }
 
   hasFriendlyInLine(actor,target,origin,end){
     for(const friendly of this.game.actors){
-      if(friendly.id===actor.id||friendly.id===target.id||friendly.factionId!==actor.factionId||!isAlive(friendly))continue;
+      if(friendly.id===actor.id||friendly.id===target?.id||friendly.factionId!==actor.factionId||!isAlive(friendly))continue;
       const hit=segmentCircleHit(origin,end,{x:friendly.x,y:friendly.y,radius:(friendly.radius??18)+6});
       if(hit)return true;
     }
@@ -161,22 +184,108 @@ export class AICombatSystem{
     return nearest;
   }
 
-  addSuppressionAt(point,shooter,target){
+  addSuppressionAlongLine(origin,end,shooter,{radius=88,amount=12}={}){
+    const now=performance.now()/1000;
+    for(const actor of this.game.actors){
+      if(actor.id===shooter.id||!isAlive(actor))continue;
+      const miss=pointSegmentDistance(actor,origin,end);
+      if(miss>=radius)continue;
+      this.ensureActor(actor);
+      const coverMultiplier=actor.coverState==="hard"?.42:actor.coverState==="soft"?.68:actor.coverState==="concealment"?.84:1;
+      actor.suppression=clamp(actor.suppression+amount*(1-miss/radius)*coverMultiplier,0,100);
+      actor.lastIncomingFireAt=now;
+    }
+    const playerMiss=pointSegmentDistance(this.game.operator,origin,end);
+    if(playerMiss<radius){
+      this.game.combat.addSuppression(amount*(1-playerMiss/radius),angleTo(origin,this.game.operator));
+    }
+  }
+
+  addSuppressionAt(point,shooter,target,{radius=CONFIG.suppressionRadius,amount=14}={}){
+    const now=performance.now()/1000;
     const player=this.game.operator;
     const playerDistance=distance(player,point);
-    if(playerDistance<CONFIG.playerSuppressionRadius){
-      const amount=22*(1-playerDistance/CONFIG.playerSuppressionRadius);
-      this.game.combat.addSuppression(amount,angleTo(point,player));
+    if(playerDistance<Math.max(CONFIG.playerSuppressionRadius,radius*.8)){
+      const effectiveRadius=Math.max(CONFIG.playerSuppressionRadius,radius*.8);
+      const value=22*(1-playerDistance/effectiveRadius);
+      this.game.combat.addSuppression(value,angleTo(point,player));
     }
     for(const actor of this.game.actors){
       if(actor.id===shooter.id||!isAlive(actor))continue;
       const d=distance(actor,point);
-      if(d<CONFIG.suppressionRadius){
+      if(d<radius){
         this.ensureActor(actor);
         const coverMultiplier=actor.coverState==="hard"?.45:actor.coverState==="soft"?.7:actor.coverState==="concealment"?.86:1;
-        actor.suppression=clamp(actor.suppression+14*(1-d/CONFIG.suppressionRadius)*coverMultiplier,0,100);
+        actor.suppression=clamp(actor.suppression+amount*(1-d/radius)*coverMultiplier,0,100);
+        actor.lastIncomingFireAt=now;
       }
     }
+  }
+
+  applyShotResult(actor,result,end,targetDistance){
+    if(result.actor){
+      this.game.combat.effects.push({type:"hit",x:end.x,y:end.y,life:.16,maxLife:.16,source:"ai"});
+      if(result.actor.id===this.game.operator.id){
+        this.game.combat.addSuppression(34,angleTo(actor,this.game.operator));
+        this.game.wounds?.applyGunshot?.(this.game.operator,end,{source:actor,distance:targetDistance});
+      }else{
+        this.ensureActor(result.actor);
+        result.actor.suppression=clamp(result.actor.suppression+36,0,100);
+        result.actor.lastIncomingFireAt=performance.now()/1000;
+        this.game.wounds?.applyGunshot?.(result.actor,end,{source:actor,distance:targetDistance});
+      }
+    }else{
+      this.game.combat.decals.push({type:"impact",x:end.x,y:end.y,angle:Math.random()*Math.PI,life:46,maxLife:46});
+    }
+  }
+
+  fireSuppressive(actor,point,referenceTarget=null){
+    if(!canFire(actor)||!point){
+      cancelCombatState(actor);
+      return false;
+    }
+    if(actor.ammoInMagazine<=0){
+      if(!canReload(actor)){cancelCombatState(actor);return false;}
+      actor.reloading=true;actor.reloadProgress=0;actor.burstRemaining=0;
+      return false;
+    }
+
+    const targetDistance=Math.min(CONFIG.range,distance(actor,point));
+    const desiredAngle=angleTo(actor,point);
+    const suppressionPenalty=(actor.suppression??0)/100;
+    const baseSpread=.052+targetDistance/7200+suppressionPenalty*.13;
+    const deviation=(Math.random()+Math.random()-1)*baseSpread;
+    const shotAngle=desiredAngle+deviation;
+    const origin={x:actor.x+Math.cos(desiredAngle)*44,y:actor.y+Math.sin(desiredAngle)*44};
+    const intended={
+      x:origin.x+Math.cos(shotAngle)*Math.max(90,targetDistance),
+      y:origin.y+Math.sin(shotAngle)*Math.max(90,targetDistance)
+    };
+    if(this.hasFriendlyInLine(actor,referenceTarget,origin,intended)){
+      actor.burstRemaining=0;actor.burstPause=.55;return false;
+    }
+
+    const result=this.resolveShot(actor,origin,intended,referenceTarget);
+    const end=result.point;
+    actor.ammoInMagazine--;
+    actor.fireCooldown=CONFIG.shotInterval*(.88+suppressionPenalty*.7);
+    actor.burstRemaining=Math.max(0,actor.burstRemaining-1);
+    actor.lastSuppressiveShotAt=performance.now()/1000;
+    if(referenceTarget)this.game.encounters?.markViolence?.(actor,referenceTarget);
+    this.game.fireTeams?.noteShot?.(actor,{suppressive:true});
+
+    this.game.combat.effects.push({type:"muzzle",x:origin.x,y:origin.y,angle:shotAngle,life:.085,maxLife:.085,source:"ai"});
+    this.game.combat.effects.push({type:"tracer",x1:origin.x,y1:origin.y,x2:end.x,y2:end.y,life:.13,maxLife:.13,source:"ai"});
+    this.addSuppressionAlongLine(origin,end,actor,{radius:124,amount:21});
+    this.applyShotResult(actor,result,end,targetDistance);
+    this.addSuppressionAt(end,actor,referenceTarget,{radius:145,amount:22});
+
+    if(actor.ammoInMagazine<=0){
+      actor.reloading=true;actor.reloadProgress=0;actor.burstRemaining=0;
+    }else if(actor.burstRemaining<=0){
+      actor.burstPause=.48+Math.random()*.62+(actor.suppression/100)*.55;
+    }
+    return true;
   }
 
   fire(actor,target){
@@ -223,27 +332,18 @@ export class AICombatSystem{
 
     this.game.combat.effects.push({type:"muzzle",x:origin.x,y:origin.y,angle:shotAngle,life:.085,maxLife:.085,source:"ai"});
     this.game.combat.effects.push({type:"tracer",x1:origin.x,y1:origin.y,x2:end.x,y2:end.y,life:.13,maxLife:.13,source:"ai"});
-    if(result.actor){
-      this.game.combat.effects.push({type:"hit",x:end.x,y:end.y,life:.16,maxLife:.16,source:"ai"});
-      if(result.actor.id===this.game.operator.id){
-        this.game.combat.addSuppression(34,angleTo(origin,this.game.operator));
-        this.game.wounds?.applyGunshot?.(this.game.operator,end,{source:actor,distance:targetDistance});
-      }else{
-        this.ensureActor(result.actor);
-        result.actor.suppression=clamp(result.actor.suppression+36,0,100);
-        this.game.wounds?.applyGunshot?.(result.actor,end,{source:actor,distance:targetDistance});
-      }
-    }else{
-      this.game.combat.decals.push({type:"impact",x:end.x,y:end.y,angle:Math.random()*Math.PI,life:46,maxLife:46});
-    }
-    this.addSuppressionAt(end,actor,target);
+    this.addSuppressionAlongLine(origin,end,actor,{radius:92,amount:12});
+    this.applyShotResult(actor,result,end,targetDistance);
+    this.addSuppressionAt(end,actor,target,{radius:CONFIG.suppressionRadius,amount:14});
+    this.game.fireTeams?.noteShot?.(actor,{suppressive:false});
 
     if(actor.ammoInMagazine<=0){
       actor.reloading=true;
       actor.reloadProgress=0;
       actor.burstRemaining=0;
     }else if(actor.burstRemaining<=0){
-      actor.burstPause=.55+Math.random()*.85+(actor.suppression/100)*.9;
+      const baseOfFire=actor.fireTeamRole==="base_of_fire";
+      actor.burstPause=(baseOfFire?.38:.58)+Math.random()*(baseOfFire?.62:.82)+(actor.suppression/100)*.75;
       const node=actor.assignedCoverNode??actor.tacticalCoverNode;
       if(node&&distance(actor,node.protectedPosition)>34){
         actor.returnToCoverUntil=performance.now()/1000+2.8;
@@ -313,6 +413,24 @@ export class AICombatSystem{
     }
 
     if(!target){
+      const context=this.game.teamCombatContexts?.forActor?.(actor);
+      const suppression=actor.suppressionAssignment;
+      if(actor.fireTeamRole==="base_of_fire"&&context?.alertState==="engaged"&&suppression?.position){
+        const point=suppression.position;
+        const desired=angleTo(actor,point);
+        actor.combatAimAngle+=shortestAngle(actor.combatAimAngle,desired)*(1-Math.exp(-delta*7));
+        actor.lookAngle=actor.combatAimAngle;
+        actor.facing=facingFromAngle(actor.combatAimAngle);
+        const speed=Math.hypot(actor.vx??0,actor.vy??0);
+        actor.aimReadiness=speed<7?clamp(actor.aimReadiness+delta*1.8,0,1):Math.max(0,actor.aimReadiness-delta);
+        actor.currentTask="Maintaining suppressive fire";
+        if(speed<7&&actor.aimReadiness>.58&&actor.fireCooldown<=0&&actor.burstPause<=0&&canFire(actor)){
+          if(actor.burstRemaining<=0)actor.burstRemaining=3+Math.floor(Math.random()*3);
+          this.fireSuppressive(actor,point,null);
+        }
+        return;
+      }
+
       actor.aimReadiness=Math.max(0,actor.aimReadiness-delta*2.2);
       if(actor.alertState==="contact"&&actor.tacticalSlot){
         const slotDistance=Math.hypot(actor.tacticalSlot.x-actor.x,actor.tacticalSlot.y-actor.y);
@@ -427,6 +545,11 @@ export class AICombatSystem{
       const exposed=actor.coverState==="exposed"||actor.coverState==="concealment";
       const recentFire=now-(actor.lastIncomingFireAt??-999)<6;
       const needsCover=exposed&&!atCoverFireEdge&&(recentFire||context?.alertState==="engaged"||actor.suppression>12);
+      const usefulCover=Boolean(activeNode)&&["hard","soft"].includes(actor.coverState)&&
+        distance(actor,activeNode.protectedPosition)<72;
+      const coordinatedMove=["push","flank_left","flank_right","support"].includes(plan);
+      const waitingForCoveringFire=coordinatedMove&&actor.fireTeamRole!=="base_of_fire"&&!actor.boundAuthorized;
+      const suppressorHolding=actor.fireTeamRole==="base_of_fire"&&usefulCover&&plan!=="withdraw";
 
       if(needsCover&&!actor.openingDistance){
         let node=actor.assignedCoverNode;
@@ -448,7 +571,15 @@ export class AICombatSystem{
         }
       }
 
-      if(slot&&Math.hypot(slot.x-actor.x,slot.y-actor.y)>72){
+      if((waitingForCoveringFire||suppressorHolding)&&usefulCover&&!needsCover){
+        intents.push(createIntent("fire_team","hold",INTENT_PRIORITY.RETURN_FIRE-1,{
+          key:`fireteam:hold:${actor.tacticalFrontId}:${actor.fireTeamRole}`,
+          commitSeconds:2.4,task:waitingForCoveringFire?"Waiting for covering fire":"Holding base of fire",pose:"brace"
+        }));
+      }
+
+      const mayReposition=!waitingForCoveringFire&&!suppressorHolding;
+      if(mayReposition&&slot&&Math.hypot(slot.x-actor.x,slot.y-actor.y)>72){
         intents.push(createIntent("squad","reposition",INTENT_PRIORITY.REPOSITION,{
           key:`squad:${actor.tacticalFrontId}:${actor.tacticalSlotPlan}`,
           destination:this.game.coverNetwork?.routeWaypoint?.(
@@ -464,8 +595,9 @@ export class AICombatSystem{
         }));
       }
 
-      const enterDistance=doctrine.minimumRange;
-      const exitDistance=doctrine.minimumRange+110;
+      const protectedSuppressor=actor.fireTeamRole==="base_of_fire"&&usefulCover;
+      const enterDistance=protectedSuppressor?Math.max(170,doctrine.minimumRange-90):doctrine.minimumRange;
+      const exitDistance=protectedSuppressor?doctrine.minimumRange+20:doctrine.minimumRange+110;
       if(targetDistance<enterDistance)actor.openingDistance=true;
       else if(targetDistance>exitDistance)actor.openingDistance=false;
 
@@ -485,37 +617,60 @@ export class AICombatSystem{
 
     const movementIntent=chooseIntent(intents);
     if(movementIntent)this.game.actorIntents?.submit?.(actor,movementIntent);
-    const moving=Boolean(movementIntent)||Math.hypot(actor.vx??0,actor.vy??0)>5;
+    const moving=Boolean(movementIntent?.destination)||Math.hypot(actor.vx??0,actor.vy??0)>5;
     const currentSpeed=Math.hypot(actor.vx??0,actor.vy??0);
     const running=currentSpeed>Math.max(70,(actor.moveSpeed??110)*.68);
     const requiredReadiness=moving?.9:.72;
 
     if(running)return;
 
-    const shotBlock=this.game.coverNetwork?.shotBlocked?.(actor,target);
-    if(shotBlock){
+    const viability=this.game.coverNetwork?.shotViability?.(actor,target)??{status:"clear"};
+    if(viability.status==="blocked"){
+      actor.clearShotTargetId=null;
+      actor.clearShotSince=-999;
+      const suppressionPoint=this.game.coverNetwork?.suppressionPoint?.(actor,target)??{x:target.x,y:target.y};
+      const baseOfFire=actor.fireTeamRole==="base_of_fire";
+      const settled=!moving&&currentSpeed<8;
+      if(baseOfFire){
+        if(settled&&targetDistance<=CONFIG.range&&actor.aimReadiness>.56&&actor.fireCooldown<=0&&actor.burstPause<=0){
+          if(actor.burstRemaining<=0)actor.burstRemaining=3+Math.floor(Math.random()*3);
+          this.fireSuppressive(actor,suppressionPoint,target);
+        }
+        return;
+      }
+
       const node=actor.assignedCoverNode??actor.tacticalCoverNode;
       const edge=this.game.coverNetwork?.nearestFirePosition?.(actor,node,target);
-      if(edge&&distance(actor,edge)>24){
-        actor.coverPeekUntil=now+3.8;
+      if(edge&&distance(actor,edge)>24&&actor.fireTeamRole!=="base_of_fire"){
+        actor.coverPeekUntil=now+4.2;
         this.game.actorIntents?.submit?.(actor,createIntent("combat","shift_cover_edge",INTENT_PRIORITY.RETURN_FIRE-2,{
-          key:`cover:edge:${node.id}`,
+          key:`cover:edge:${node.id}:${target.id}`,
           destination:edge,speedMultiplier:.48,arrivalRadius:22,
-          commitSeconds:2.6,task:"Shifting to a firing edge"
+          commitSeconds:2.8,task:"Shifting to a clear firing edge"
         }));
       }
       actor.burstRemaining=0;
-      actor.burstPause=Math.max(actor.burstPause,.35);
+      actor.burstPause=Math.max(actor.burstPause,.28);
       return;
     }
+
+    if(actor.clearShotTargetId!==target.id){
+      actor.clearShotTargetId=target.id;
+      actor.clearShotSince=now;
+    }
+    actor.lastClearShotAt=now;
 
     if(!canFire(actor)||!canBeTargeted(target)){
       cancelCombatState(actor);
       return;
     }
+    const reactionDelay=actor.fireTeamRole==="base_of_fire"?.28:.46+((actor.id?.length??0)%4)*.07;
+    if(now-(actor.clearShotSince??now)<reactionDelay)return;
     if(targetDistance>CONFIG.range||actor.aimReadiness<requiredReadiness||actor.fireCooldown>0||actor.burstPause>0)return;
     if(actor.burstRemaining<=0){
-      actor.burstRemaining=moving?1:CONFIG.burstMin+Math.floor(Math.random()*(CONFIG.burstMax-CONFIG.burstMin+1));
+      if(moving)actor.burstRemaining=1;
+      else if(actor.fireTeamRole==="base_of_fire")actor.burstRemaining=3+Math.floor(Math.random()*3);
+      else actor.burstRemaining=CONFIG.burstMin+Math.floor(Math.random()*(CONFIG.burstMax-CONFIG.burstMin+1));
     }
     this.fire(actor,target);
   }

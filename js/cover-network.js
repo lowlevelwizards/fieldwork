@@ -1,5 +1,5 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=12d-team-context-cover-network-20260801";
-import { getDoctrine } from "./faction-doctrine.js?v=12d-team-context-cover-network-20260801";
+import { projectOutsideObstacles } from "./actor-motion.js?v=12e-fire-teams-suppression-authority-20260801";
+import { getDoctrine } from "./faction-doctrine.js?v=12e-fire-teams-suppression-authority-20260801";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -163,8 +163,32 @@ export class CoverNetworkSystem{
 
   nearestFirePosition(actor,node,target){
     if(!node)return null;
-    const positions=[node.leftFirePosition,node.rightFirePosition];
-    return positions.sort((a,b)=>distance(actor,a)-distance(actor,b))[0];
+    const positions=[node.leftFirePosition,node.rightFirePosition]
+      .map(position=>({
+        position,
+        blocked:this.shotBlocked(position,target),
+        travel:distance(actor,position)
+      }))
+      .sort((a,b)=>Boolean(a.blocked)-Boolean(b.blocked)||a.travel-b.travel);
+    return positions[0]?.position??null;
+  }
+
+  shotViability(origin,target){
+    if(!origin||!target)return {status:'invalid',obstacle:null};
+    const blocked=this.shotBlocked(origin,target);
+    return blocked
+      ?{status:'blocked',obstacle:blocked.obstacle,distance:blocked.distance}
+      :{status:'clear',obstacle:null,distance:distance(origin,target)};
+  }
+
+  suppressionPoint(origin,target){
+    const blocked=this.shotBlocked(origin,target);
+    if(!blocked)return {x:target.x,y:target.y};
+    const obstacle=blocked.obstacle;
+    const dx=target.x-obstacle.x,dy=target.y-obstacle.y;
+    const length=Math.max(1,Math.hypot(dx,dy));
+    const offset=(obstacle.radius??28)*.58;
+    return {x:obstacle.x+dx/length*offset,y:obstacle.y+dy/length*offset};
   }
 
   shotBlocked(origin,target){
