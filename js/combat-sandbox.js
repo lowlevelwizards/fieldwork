@@ -1,4 +1,5 @@
-import { moveActorToward, stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12c-intent-commitment-stable-movement-20260731";
+import { stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -146,9 +147,15 @@ export class CombatSandboxDirector{
     const base=PATROLS[Math.floor(Math.random()*PATROLS.length)];
     actor.patrolTarget=projectOutsideObstacles(this.game,base.x+(Math.random()-.5)*170,base.y+(Math.random()-.5)*170,actor.radius);
   }
-  moveActorToward(actor,actor.patrolTarget,delta,{
-    game:this.game,speedMultiplier:.58,arrivalRadius:55,task:"Patrolling the test range",pose:"walk"
-  });
+  this.game.actorIntents?.submit?.(actor,createIntent("mission","patrol",INTENT_PRIORITY.PATROL,{
+    key:`mission:patrol:${actor.teamId}`,
+    destination:actor.patrolTarget,
+    speedMultiplier:.58,
+    arrivalRadius:55,
+    commitSeconds:2.8,
+    task:"Patrolling the test range",
+    pose:"walk"
+  }));
  }
  update(delta){
   this.start();this.elapsed+=delta;

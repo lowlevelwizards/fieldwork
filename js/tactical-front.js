@@ -1,6 +1,6 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12b-contact-cover-triage-20260731";
-import { projectOutsideObstacles } from "./actor-motion.js?v=12b-contact-cover-triage-20260731";
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12b-contact-cover-triage-20260731";
+import { getDoctrine } from "./faction-doctrine.js?v=12c-intent-commitment-stable-movement-20260731";
+import { projectOutsideObstacles } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 
@@ -151,10 +151,17 @@ export class TacticalFrontSystem{
     const now=performance.now()/1000;
 
     actors.forEach((actor,index)=>{
-      const slot=this.slotFor(front,actor,index,actors.length);
-      const key=`${front.id}:${index}`;
-      this.slotReservations.set(key,{actorId:actor.id,until:now+14});
+      actor.tacticalRole ??=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
+      const preserve=actor.tacticalFrontId===front.id&&
+        actor.tacticalSlotPlan===plan&&
+        actor.tacticalSlot;
+      const slot=preserve
+        ?{...actor.tacticalSlot,coverType:actor.tacticalSlotCoverType??null}
+        :this.slotFor(front,actor,index,actors.length);
+      const key=`${front.id}:${actor.id}`;
+      this.slotReservations.set(key,{actorId:actor.id,until:now+28});
       actor.tacticalFrontId=front.id;
+      actor.tacticalSlotPlan=plan;
       actor.tacticalSlot={x:slot.x,y:slot.y};
       actor.tacticalSlotCoverType=slot.coverType??null;
       actor.tacticalRallyPoint={...front.rear};
@@ -162,7 +169,7 @@ export class TacticalFrontSystem{
       actor.tacticalForward={...front.forward};
       actor.tacticalLateral={...front.lateral};
       actor.tacticalPreferredDistance=front.preferredDistance;
-      actor.tacticalSlotUntil=now+14;
+      actor.tacticalSlotUntil=now+28;
     });
     return front;
   }

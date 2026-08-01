@@ -1,6 +1,7 @@
-import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12b-contact-cover-triage-20260731";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12b-contact-cover-triage-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12b-contact-cover-triage-20260731";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12c-intent-commitment-stable-movement-20260731";
+import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12c-intent-commitment-stable-movement-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
 const STATE_ORDER=["unaware","aware","alerted","contact","threatening","disengaging"];
 function pairKey(a,b){return [a,b].sort().join(":");}
 function relation(a,b){return relationshipBetween(a,b);}
@@ -365,7 +366,11 @@ export class FactionEncounterSystem{
       }else if(reaction==="take_cover"){
         actor.currentAction="Taking cover";actor.currentTask="Moving toward nearby cover";actor.workPose="brace";
         const cover=this.findCover(actor,otherCenter);
-        if(cover)moveActorToward(actor,cover,1/60,{game:this.game,speedMultiplier:.48,arrivalRadius:18,task:"Moving to cover",pose:"walk"});
+        if(cover)this.game.actorIntents?.submit?.(actor,createIntent("encounter","cover",INTENT_PRIORITY.REPOSITION+4,{
+          key:`encounter:cover:${encounter.id}`,
+          destination:cover,speedMultiplier:.48,arrivalRadius:28,
+          commitSeconds:3.5,task:"Moving to cover",pose:"walk"
+        }));
       }else if(reaction==="block"){
         actor.currentAction="Blocking route";actor.currentTask="Blocking access to the work site";actor.workPose="brace";
       }else if(reaction==="protect"){
@@ -377,12 +382,20 @@ export class FactionEncounterSystem{
         const dx=otherCenter.x-actor.x,dy=otherCenter.y-actor.y,d=Math.max(1,Math.hypot(dx,dy));
         const side=i%2?1:-1;
         const flankTarget={x:actor.x+(-dy/d)*side*110,y:actor.y+(dx/d)*side*110};
-        moveActorToward(actor,flankTarget,1/60,{game:this.game,speedMultiplier:.55,arrivalRadius:12,task:"Flanking contact",pose:"walk"});
+        this.game.actorIntents?.submit?.(actor,createIntent("encounter","reposition",INTENT_PRIORITY.REPOSITION,{
+          key:`encounter:flank:${encounter.id}:${side}`,
+          destination:flankTarget,speedMultiplier:.55,arrivalRadius:34,
+          commitSeconds:4.5,task:"Flanking contact",pose:"walk"
+        }));
       }else if(reaction==="retreat"||reaction==="disengage"){
         actor.currentAction="Disengaging";actor.currentTask="Breaking contact";actor.workPose="walk";
         const dx=actor.x-otherCenter.x,dy=actor.y-otherCenter.y,d=Math.max(1,Math.hypot(dx,dy));
         const retreatTarget={x:actor.x+dx/d*150,y:actor.y+dy/d*150};
-        moveActorToward(actor,retreatTarget,1/60,{game:this.game,speedMultiplier:.62,arrivalRadius:12,task:"Breaking contact",pose:"walk"});
+        this.game.actorIntents?.submit?.(actor,createIntent("encounter","withdraw",INTENT_PRIORITY.ESCAPE_FIRE-4,{
+          key:`encounter:withdraw:${encounter.id}`,
+          destination:retreatTarget,speedMultiplier:.62,arrivalRadius:34,
+          commitSeconds:6,task:"Breaking contact",pose:"walk"
+        }));
       }
       actor.groundY=actor.y+actor.radius;
     }
@@ -461,10 +474,11 @@ export class FactionEncounterSystem{
     if(isImmobileCasualty(challenger)||challenger.beingDragged){stopActor(challenger);return;}
     const dx=target.x-challenger.x,dy=target.y-challenger.y,d=Math.max(1,Math.hypot(dx,dy));
     const desired={x:target.x-dx/d*74,y:target.y-dy/d*74};
-    const arrived=moveActorToward(challenger,desired,1/60,{game:this.game,
-      speedMultiplier:.5,arrivalRadius:12,task:"Moving to block the route",pose:"walk"
-    });
-    if(arrived){challenger.workPose="brace";challenger.currentTask="Blocking the route";}
+    this.game.actorIntents?.submit?.(challenger,createIntent("encounter","reposition",INTENT_PRIORITY.REPOSITION,{
+      key:`encounter:block:${challenger.encounterId??"route"}`,
+      destination:desired,speedMultiplier:.5,arrivalRadius:28,
+      commitSeconds:3.5,task:"Moving to block the route",pose:"walk"
+    }));
   }
 
   contactPlanFor(group,enemy,encounter,side){
@@ -486,7 +500,7 @@ export class FactionEncounterSystem{
 
   assignContactPosture(encounter,a,b){
     const now=performance.now()/1000;
-    if(now-encounter.contactPlanAt<7)return;
+    if(now-encounter.contactPlanAt<12)return;
     encounter.contactPlanAt=now;
     encounter.planA=this.contactPlanFor(a,b,encounter,"A");
     encounter.planB=this.contactPlanFor(b,a,encounter,"B");
@@ -496,9 +510,9 @@ export class FactionEncounterSystem{
       capable.forEach((actor,index)=>{
         actor.alertState="contact";
         actor.tacticalPlan=plan;
-        actor.tacticalRole=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
+        actor.tacticalRole ??=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
         actor.tacticalEnemyCenter={...enemyCenter};
-        actor.tacticalPlanUntil=now+12;
+        actor.tacticalPlanUntil=now+18;
       });
       this.game.tacticalFronts?.assign?.(encounter,group,enemy,plan);
     }
@@ -578,7 +592,7 @@ export class FactionEncounterSystem{
 
   assignCombatPlans(encounter,a,b,nearest,delta){
     const now=performance.now()/1000;
-    if(now-encounter.lastPlanAt<14)return;
+    if(now-encounter.lastPlanAt<20)return;
     encounter.lastPlanAt=now;
     encounter.planA=this.chooseSquadPlan(a,b,encounter,"A");
     encounter.planB=this.chooseSquadPlan(b,a,encounter,"B");
@@ -587,9 +601,9 @@ export class FactionEncounterSystem{
       const capable=group.actors.filter(canReceiveOrders);
       capable.forEach((actor,index)=>{
         actor.tacticalPlan=plan;
-        actor.tacticalRole=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
+        actor.tacticalRole ??=/medic|shelter worker/i.test(actor.role??"")?"medic":index===0?"leader":index===1?"base_of_fire":"maneuver";
         actor.tacticalEnemyCenter={...enemyCenter};
-        actor.tacticalPlanUntil=now+14;
+        actor.tacticalPlanUntil=now+24;
       });
       this.game.tacticalFronts?.assign?.(encounter,group,enemy,plan);
     }

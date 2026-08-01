@@ -1,15 +1,16 @@
-import { GameState } from "./game.js?v=12b-contact-cover-triage-20260731";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=12b-contact-cover-triage-20260731";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=12b-contact-cover-triage-20260731";
-import { PerceptionSystem } from "./perception.js?v=12b-contact-cover-triage-20260731";
-import { CombatSystem } from "./combat.js?v=12b-contact-cover-triage-20260731";
-import { AICombatSystem } from "./ai-combat.js?v=12b-contact-cover-triage-20260731";
-import { WoundSystem } from "./wound-system.js?v=12b-contact-cover-triage-20260731";
-import { MedicalSystem } from "./medical-system.js?v=12b-contact-cover-triage-20260731";
-import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12b-contact-cover-triage-20260731";
-import { TacticalFrontSystem } from "./tactical-front.js?v=12b-contact-cover-triage-20260731";
-import { TeamResponseSystem } from "./team-response.js?v=12b-contact-cover-triage-20260731";
-import { CoverStateSystem } from "./cover-state.js?v=12b-contact-cover-triage-20260731";
+import { GameState } from "./game.js?v=12c-intent-commitment-stable-movement-20260731";
+import { ContinuousExcursionController } from "./continuous-excursion.js?v=12c-intent-commitment-stable-movement-20260731";
+import { FactionEncounterSystem } from "./faction-encounters.js?v=12c-intent-commitment-stable-movement-20260731";
+import { PerceptionSystem } from "./perception.js?v=12c-intent-commitment-stable-movement-20260731";
+import { CombatSystem } from "./combat.js?v=12c-intent-commitment-stable-movement-20260731";
+import { AICombatSystem } from "./ai-combat.js?v=12c-intent-commitment-stable-movement-20260731";
+import { WoundSystem } from "./wound-system.js?v=12c-intent-commitment-stable-movement-20260731";
+import { MedicalSystem } from "./medical-system.js?v=12c-intent-commitment-stable-movement-20260731";
+import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12c-intent-commitment-stable-movement-20260731";
+import { TacticalFrontSystem } from "./tactical-front.js?v=12c-intent-commitment-stable-movement-20260731";
+import { TeamResponseSystem } from "./team-response.js?v=12c-intent-commitment-stable-movement-20260731";
+import { CoverStateSystem } from "./cover-state.js?v=12c-intent-commitment-stable-movement-20260731";
+import { ActorIntentSystem } from "./actor-intent.js?v=12c-intent-commitment-stable-movement-20260731";
 
 export class ContinuousGameState extends GameState {
   constructor({scenario="operations"}={}) {
@@ -41,6 +42,7 @@ export class ContinuousGameState extends GameState {
     this.aiCombat = new AICombatSystem(this);
     this.perception = new PerceptionSystem(this);
     this.tacticalFronts = new TacticalFrontSystem(this);
+    this.actorIntents = new ActorIntentSystem(this);
     this.coverStates = new CoverStateSystem(this);
     this.teamResponses = new TeamResponseSystem(this);
     this.encounters = new FactionEncounterSystem(this);
@@ -159,6 +161,7 @@ export class ContinuousGameState extends GameState {
           :0;
 
     try {
+      this.actorIntents.beginFrame();
       super.update(delta, normalizedMove);
 
       const a=this.operator.lookAngle;
@@ -195,8 +198,11 @@ export class ContinuousGameState extends GameState {
       this.coverStates.update(delta);
       this.encounters.update(delta);
       this.teamResponses.update(delta);
-      this.aiCombat.update(delta);
+      // Medical commitment is evaluated before combat so an accepted
+      // treatment action cannot be followed by a same-frame combat move.
       this.medical.update(delta);
+      this.aiCombat.update(delta);
+      this.actorIntents.resolveAll(delta);
     } finally {
       this.operator.moveSpeed=originalSpeed;
     }

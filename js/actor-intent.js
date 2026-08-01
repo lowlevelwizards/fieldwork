@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor } from "./actor-motion.js?v=12a-unified-ai-authority-doctrine-20260731";
+import { moveActorToward, stopActor } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
 
 export const INTENT_PRIORITY={
   PATROL:20,
@@ -12,8 +12,27 @@ export const INTENT_PRIORITY={
   INCAPACITATED:100
 };
 
+const DEFAULT_COMMITMENT={
+  patrol:2.4,
+  investigate:3.2,
+  take_contact_position:3.4,
+  reposition:3.2,
+  support:5.5,
+  open_distance:3.8,
+  cover:3.6,
+  withdraw:7,
+  medical_approach:4.5,
+  hold:1.2
+};
+
 export function createIntent(owner,type,priority,options={}){
-  return {owner,type,priority,...options};
+  return {
+    owner,type,priority,
+    key:options.key??`${owner}:${type}:${options.targetId??""}`,
+    commitSeconds:options.commitSeconds??DEFAULT_COMMITMENT[type]??2.5,
+    interruptMargin:options.interruptMargin??12,
+    ...options
+  };
 }
 
 export function chooseIntent(intents){
@@ -22,13 +41,20 @@ export function chooseIntent(intents){
     .sort((a,b)=>(b.priority??0)-(a.priority??0))[0]??null;
 }
 
+function cloneIntent(intent){
+  return {
+    ...intent,
+    destination:intent.destination?{x:intent.destination.x,y:intent.destination.y}:null
+  };
+}
+
 export function executeMovementIntent(game,actor,intent,delta){
   actor.selectedIntent=intent;
   if(!intent)return false;
   if(intent.type==="hold"||!intent.destination){
     stopActor(actor,intent.pose??null);
     if(intent.task)actor.currentTask=intent.task;
-    return false;
+    return true;
   }
   return moveActorToward(actor,intent.destination,delta,{
     game,
@@ -37,4 +63,88 @@ export function executeMovementIntent(game,actor,intent,delta){
     task:intent.task??intent.type,
     pose:intent.pose??"walk"
   });
+}
+
+export class ActorIntentSystem{
+  constructor(game){
+    this.game=game;
+    this.proposals=new Map();
+    this.frame=0;
+  }
+
+  beginFrame(){
+    this.frame++;
+    this.proposals.clear();
+  }
+
+  submit(actor,intent){
+    if(!actor||!intent)return;
+    if(!this.proposals.has(actor.id))this.proposals.set(actor.id,[]);
+    this.proposals.get(actor.id).push(intent);
+  }
+
+  cancel(actor){
+    if(!actor)return;
+    actor.committedIntent=null;
+    actor.selectedIntent=null;
+    this.proposals.delete(actor.id);
+  }
+
+  select(actor){
+    const now=performance.now()/1000;
+    const proposed=chooseIntent(this.proposals.get(actor.id)??[]);
+    const committed=actor.committedIntent;
+    const committedValid=committed&&
+      now<(committed.expiresAt??Infinity)&&
+      now<(committed.commitUntil??0);
+
+    if(committedValid){
+      if(!proposed)return committed;
+      const same=proposed.key===committed.key;
+      if(same){
+        // Preserve the accepted destination unless the intent explicitly
+        // follows a moving target, such as a casualty.
+        if(proposed.refreshDestination&&proposed.destination){
+          committed.destination={x:proposed.destination.x,y:proposed.destination.y};
+        }
+        return committed;
+      }
+      const required=(committed.priority??0)+(committed.interruptMargin??12);
+      if((proposed.priority??0)<required)return committed;
+    }
+
+    if(!proposed)return null;
+    const accepted=cloneIntent(proposed);
+    accepted.acceptedAt=now;
+    accepted.commitUntil=now+(accepted.commitSeconds??2.5);
+    accepted.expiresAt=now+(accepted.timeoutSeconds??Math.max(accepted.commitSeconds??2.5,8));
+    actor.committedIntent=accepted;
+    return accepted;
+  }
+
+  resolveActor(actor,delta){
+    if(!actor||actor.rescueDrag||actor.beingDragged){
+      this.cancel(actor);
+      return;
+    }
+    if(actor.actionLock?.allowsMovement===false){
+      this.cancel(actor);
+      stopActor(actor);
+      return;
+    }
+    const intent=this.select(actor);
+    if(!intent){
+      actor.selectedIntent=null;
+      return;
+    }
+    const arrived=executeMovementIntent(this.game,actor,intent,delta);
+    if(arrived){
+      actor.committedIntent=null;
+      actor.selectedIntent=null;
+    }
+  }
+
+  resolveAll(delta){
+    for(const actor of this.game.actors)this.resolveActor(actor,delta);
+  }
 }

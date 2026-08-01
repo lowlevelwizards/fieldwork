@@ -82,8 +82,8 @@ export function moveActorToward(actor,target,delta,{
   actor.currentAction=task;
 
   if(distance<=arrivalRadius){
-    actor.x=safeTarget.x;actor.y=safeTarget.y;
     stopActor(actor);
+    actor.motionState="idle";
     return true;
   }
 
@@ -96,15 +96,30 @@ export function moveActorToward(actor,target,delta,{
   actor.vx=nx*speed;actor.vy=ny*speed;
   let nextX=actor.x+nx*step,nextY=actor.y+ny*step;
   if(game&&!isActorPositionClear(game,nextX,nextY,actor.radius??18)){
-    // Tangential slide around the obstacle instead of entering its center.
-    const left={x:actor.x-ny*step,y:actor.y+nx*step};
-    const right={x:actor.x+ny*step,y:actor.y-nx*step};
-    if(isActorPositionClear(game,left.x,left.y,actor.radius??18)){nextX=left.x;nextY=left.y;}
-    else if(isActorPositionClear(game,right.x,right.y,actor.radius??18)){nextX=right.x;nextY=right.y;}
-    else{
-      const safe=projectOutsideObstacles(game,actor.x,actor.y,actor.radius??18,8);
-      nextX=safe.x;nextY=safe.y;actor.moveTarget=null;
+    // Keep the same steering side briefly so obstacle avoidance cannot
+    // alternate left/right every frame and create visible jitter.
+    const now=performance.now()/1000;
+    if(!actor.obstacleSteerSign||now>(actor.obstacleSteerUntil??0)){
+      const left={x:actor.x-ny*step,y:actor.y+nx*step};
+      const right={x:actor.x+ny*step,y:actor.y-nx*step};
+      const leftClear=isActorPositionClear(game,left.x,left.y,actor.radius??18);
+      const rightClear=isActorPositionClear(game,right.x,right.y,actor.radius??18);
+      actor.obstacleSteerSign=leftClear&&!rightClear?-1:rightClear&&!leftClear?1:(actor.id?.length??0)%2?-1:1;
+      actor.obstacleSteerUntil=now+1.1;
     }
+    const sign=actor.obstacleSteerSign;
+    const side={x:actor.x+ny*step*sign,y:actor.y-nx*step*sign};
+    if(isActorPositionClear(game,side.x,side.y,actor.radius??18)){
+      nextX=side.x;nextY=side.y;
+      actor.vx=(nextX-actor.x)/Math.max(delta,.001);
+      actor.vy=(nextY-actor.y)/Math.max(delta,.001);
+    }else{
+      stopActor(actor);
+      actor.obstacleSteerUntil=now+.35;
+      return false;
+    }
+  }else{
+    actor.obstacleSteerSign=null;
   }
   actor.x=nextX;actor.y=nextY;
   actor.walkingPhase=(actor.walkingPhase??0)+delta*(medicalSpeedCap(actor)<.3?2.1:8);

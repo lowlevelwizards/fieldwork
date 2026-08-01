@@ -1,5 +1,6 @@
-import { canTreatSelf, canDrag, isCombatCapable } from "./actor-state.js?v=12b-contact-cover-triage-20260731";
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12b-contact-cover-triage-20260731";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12c-intent-commitment-stable-movement-20260731";
+import { canTreatSelf, canDrag, isCombatCapable } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -191,6 +192,7 @@ export class MedicalSystem{
       startedAt:performance.now()/1000
     };
     actor.operationPausedByEncounter=true;
+    this.game.actorIntents?.cancel?.(actor);
     actor.actionLock=null;
     actor.workPose=patient.id===actor.id?"kneel":"walk";
     actor.workProp=null;
@@ -208,6 +210,7 @@ export class MedicalSystem{
     actor.workProp=null;
     actor.workMedicalItem=null;
     actor.actionLock=null;
+    this.game.actorIntents?.cancel?.(actor);
     if(["medical","kneel"].includes(actor.workPose))actor.workPose=null;
     if(reason)actor.currentTask=reason;
   }
@@ -226,6 +229,7 @@ export class MedicalSystem{
     patient.operationPausedByEncounter=true;
     patient.moveTarget=null;
     actor.operationPausedByEncounter=true;
+    this.game.actorIntents?.cancel?.(actor);
     actor.draggingCasualtyId=patient.id;
     actor.actionLock={owner:"rescue_drag",allowsMovement:true,allowsCombat:false};
     actor.workPose="walk";
@@ -362,13 +366,18 @@ export class MedicalSystem{
         const d=distance(actor,patient);
         if(d>48){
           const urgent=["critical","unconscious"].includes(patient.medical?.condition);
-          moveActorToward(actor,patient,delta,{
-            game:this.game,
-            speedMultiplier:urgent?1.65:1.15,
-            arrivalRadius:44,
+          this.game.actorIntents?.submit?.(actor,createIntent("medical","medical_approach",INTENT_PRIORITY.TREAT,{
+            key:`medical:approach:${patient.id}`,
+            targetId:patient.id,
+            destination:{x:patient.x,y:patient.y},
+            refreshDestination:true,
+            speedMultiplier:urgent?1.35:.9,
+            arrivalRadius:48,
+            commitSeconds:4.5,
+            interruptMargin:11,
             task:`${urgent?"Running":"Moving"} to ${patient.id===this.game.operator.id?"Mara":patient.name}`,
             pose:"walk"
-          });
+          }));
           actor.locomotionMode=urgent?"run":"jog";
           actor.workProp=null;
           actor.workMedicalItem=null;
@@ -379,6 +388,7 @@ export class MedicalSystem{
       }
 
       if(action.phase==="prepare"){
+        this.game.actorIntents?.cancel?.(actor);
         actor.actionLock={owner:"medical",phase:"prepare",allowsMovement:false,allowsCombat:false};
         actor.vx=0;actor.vy=0;
         actor.locomotionMode="idle";
@@ -394,6 +404,7 @@ export class MedicalSystem{
         return;
       }
 
+      this.game.actorIntents?.cancel?.(actor);
       actor.actionLock={owner:"medical",phase:"treat",allowsMovement:false,allowsCombat:false};
       actor.vx=0;actor.vy=0;
       actor.moveTarget=null;

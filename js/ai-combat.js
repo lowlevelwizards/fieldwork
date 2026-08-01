@@ -1,7 +1,7 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12b-contact-cover-triage-20260731";
-import { createIntent, chooseIntent, executeMovementIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12b-contact-cover-triage-20260731";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12b-contact-cover-triage-20260731";
-import { moveActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12b-contact-cover-triage-20260731";
+import { getDoctrine } from "./faction-doctrine.js?v=12c-intent-commitment-stable-movement-20260731";
+import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12c-intent-commitment-stable-movement-20260731";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
@@ -288,14 +288,21 @@ export class AICombatSystem{
       if(actor.alertState==="contact"&&actor.tacticalSlot){
         const slotDistance=Math.hypot(actor.tacticalSlot.x-actor.x,actor.tacticalSlot.y-actor.y);
         if(slotDistance>58){
-          executeMovementIntent(this.game,actor,createIntent("contact","take_contact_position",INTENT_PRIORITY.REPOSITION+5,{
+          this.game.actorIntents?.submit?.(actor,createIntent("contact","take_contact_position",INTENT_PRIORITY.REPOSITION+5,{
+            key:`contact:${actor.tacticalFrontId}:${actor.tacticalSlotPlan}`,
             destination:actor.tacticalSlot,
             speedMultiplier:actor.tacticalPlan==="withdraw"?1.0:.78,
-            arrivalRadius:46,
+            arrivalRadius:54,
+            commitSeconds:4.2,
             task:actor.tacticalPlan==="withdraw"?"Evading confirmed contact":"Taking cover before engagement"
-          }),delta);
+          }));
         }else{
-          stopActor(actor,"brace");
+          this.game.actorIntents?.submit?.(actor,createIntent("contact","hold",INTENT_PRIORITY.REPOSITION+5,{
+            key:`contact:hold:${actor.tacticalFrontId}:${actor.tacticalSlotPlan}`,
+            commitSeconds:2.2,
+            task:actor.tacticalSlotCoverType?"Holding covered contact position":"Holding contact position",
+            pose:"brace"
+          }));
           actor.currentTask=actor.tacticalSlotCoverType?"Holding covered contact position":"Holding contact position";
           if(actor.tacticalEnemyCenter){
             const desired=angleTo(actor,actor.tacticalEnemyCenter);
@@ -309,7 +316,9 @@ export class AICombatSystem{
       const support=actor.supportAssignment;
       if(support&&(support.until??0)>now){
         intents.push(createIntent("team_response","support",INTENT_PRIORITY.SUPPORT,{
-          destination:support.destination,speedMultiplier:1.05,arrivalRadius:58,
+          key:`support:${support.teamId}:${support.aggressorTeamId}`,
+          destination:support.destination,speedMultiplier:1.05,arrivalRadius:64,
+          commitSeconds:6,
           task:support.plan==="support"?"Reinforcing friendly team":"Moving to support flank"
         }));
       }else if(actor.lastKnownEnemyPosition&&actor.contactMemoryUntil>now){
@@ -321,7 +330,9 @@ export class AICombatSystem{
         actor.lookAngle=actor.combatAimAngle;
         if(Math.hypot(memory.x-actor.x,memory.y-actor.y)>380){
           intents.push(createIntent("combat","investigate",INTENT_PRIORITY.INVESTIGATE,{
+            key:`investigate:${Math.round(memory.x/80)}:${Math.round(memory.y/80)}`,
             destination:memory,speedMultiplier:.48,arrivalRadius:360,
+            commitSeconds:3.5,
             task:"Investigating last known position"
           }));
         }
@@ -329,7 +340,8 @@ export class AICombatSystem{
         actor.lastKnownEnemyPosition=null;
         if(actor.moraleState==="steady"&&!actor.encounterId)actor.operationPausedByEncounter=false;
       }
-      executeMovementIntent(this.game,actor,chooseIntent(intents),delta);
+      const selected=chooseIntent(intents);
+      if(selected)this.game.actorIntents?.submit?.(actor,selected);
       return;
     }
 
@@ -359,40 +371,54 @@ export class AICombatSystem{
         y:actor.y-Math.sin(desired)*280
       };
       intents.push(createIntent("morale","withdraw",INTENT_PRIORITY.ESCAPE_FIRE,{
-        destination,speedMultiplier:1.25,arrivalRadius:30,task:"Breaking contact"
+        key:`morale:withdraw:${actor.tacticalFrontId??target.id}`,
+        destination,speedMultiplier:1.25,arrivalRadius:42,commitSeconds:7,
+        task:"Breaking contact"
       }));
     }else if(actor.moraleState==="pinned"){
       const cover=this.game.encounters?.findCover?.(actor,target);
       if(cover)intents.push(createIntent("morale","cover",INTENT_PRIORITY.ESCAPE_FIRE,{
-        destination:cover,speedMultiplier:1.05,arrivalRadius:20,task:"Moving into cover"
+        key:`morale:cover:${Math.round(cover.x/60)}:${Math.round(cover.y/60)}`,
+        destination:cover,speedMultiplier:1.05,arrivalRadius:34,commitSeconds:4,
+        task:"Moving into cover"
       }));
       else intents.push(createIntent("morale","hold",INTENT_PRIORITY.ESCAPE_FIRE,{task:"Pinned"}));
     }else{
       if(slot&&Math.hypot(slot.x-actor.x,slot.y-actor.y)>72){
         intents.push(createIntent("squad","reposition",INTENT_PRIORITY.REPOSITION,{
+          key:`squad:${actor.tacticalFrontId}:${actor.tacticalSlotPlan}`,
           destination:slot,
           speedMultiplier:plan==="withdraw"||plan.startsWith("flank")?1.0:.68,
-          arrivalRadius:54,
+          arrivalRadius:62,
+          commitSeconds:plan==="withdraw"?7:plan.startsWith("flank")?5.5:3.8,
           task:plan==="withdraw"?"Falling back to rally line":
             plan.startsWith("flank")?"Moving to flank cover":
             plan==="push"?"Advancing by bounds":"Taking covered firing position"
         }));
       }
 
-      if(targetDistance<doctrine.minimumRange){
+      const enterDistance=doctrine.minimumRange;
+      const exitDistance=doctrine.minimumRange+110;
+      if(targetDistance<enterDistance)actor.openingDistance=true;
+      else if(targetDistance>exitDistance)actor.openingDistance=false;
+
+      if(actor.openingDistance){
         const fallback=actor.tacticalRallyPoint??{
-          x:actor.x-Math.cos(desired)*150,
-          y:actor.y-Math.sin(desired)*150
+          x:actor.x-Math.cos(desired)*170,
+          y:actor.y-Math.sin(desired)*170
         };
         intents.push(createIntent("combat","open_distance",INTENT_PRIORITY.RETURN_FIRE+4,{
-          destination:fallback,speedMultiplier:.82,arrivalRadius:26,task:"Opening engagement distance"
+          key:`combat:open_distance:${actor.tacticalFrontId??target.id}`,
+          destination:fallback,speedMultiplier:.78,arrivalRadius:38,
+          commitSeconds:4.4,interruptMargin:10,
+          task:"Opening engagement distance"
         }));
       }
     }
 
     const movementIntent=chooseIntent(intents);
-    const moved=movementIntent?executeMovementIntent(this.game,actor,movementIntent,delta):false;
-    const moving=Boolean(movementIntent)&&Math.hypot(actor.vx??0,actor.vy??0)>5;
+    if(movementIntent)this.game.actorIntents?.submit?.(actor,movementIntent);
+    const moving=Boolean(movementIntent)||Math.hypot(actor.vx??0,actor.vy??0)>5;
     const currentSpeed=Math.hypot(actor.vx??0,actor.vy??0);
     const running=currentSpeed>Math.max(70,(actor.moveSpeed??110)*.68);
     const requiredReadiness=moving?.9:.72;

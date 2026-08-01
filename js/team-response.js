@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=11e-combat-authority-team-response-20260731";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12c-intent-commitment-stable-movement-20260731";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
