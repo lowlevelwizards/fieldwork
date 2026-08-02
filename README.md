@@ -1,34 +1,36 @@
-# Fieldwork 2.0J — Observable Activity & Intent Hypotheses
+# Fieldwork 2.0K — Boundaries, Challenge & Warning
 
 Fieldwork is an isometric extraction-survival prototype about small teams doing necessary work in an unstable conflict zone.
 
-Build 2.0J preserves Legacy 1.2H and advances the parallel AI V2 architecture inside the intentional Behavior Lab.
+Build 2.0K preserves Legacy 1.2H and advances the parallel AI V2 architecture inside the intentional Behavior Lab.
 
 ## AI runtimes
 
 - **Legacy 1.2H** — the preserved combat and medical AI research prototype.
-- **AI V2 — Activity & Intent** — teams observe, report, recognize mission interference, select responses, organize procedures, assign temporary roles, derive actor actions, reposition only when a responsibility requires it, and now perceive meaningful activity without gaining access to another actor's hidden purpose.
+- **AI V2 — Challenge & Warning** — teams observe, report, interpret mission interference, select responses, organize procedures, derive actor actions, reposition for explicit responsibilities, interpret visible activity, and now communicate a mission boundary before violence.
 
-## 2.0J vertical slice
+## 2.0K vertical slice
 
-In Fixture 02, the two security operators still reposition once because their original locations cannot fulfill their assigned observation responsibilities. Opposing observers now perceive that movement as evidence rather than reading its true cause.
+In Fixture 02, Northline initially heightens its watch. Once a credible activity update places an unidentified armed presence inside its authored monitoring boundary, the response evaluator selects **Issue Warning**.
 
 The V2 chain is now:
 
 ```text
-personal observation
-→ approximate contact track
-→ meaningful activity classification
-→ cautious intent hypothesis
-→ ReportContactUpdate
-→ communicated team knowledge
+communicated activity evidence
+→ mission boundary activation
+→ Issue Warning response
+→ Challenge Unknown Contact procedure
+→ Challenger role
+→ IssueWarning action
+→ directed raised voice
+→ personal warning-heard memory
 → encounter reassessment
-→ persistent response reaffirmation
+→ Await Response
 ```
 
-Observable activity currently includes stationary, repositioning, approaching, withdrawing, observing, and lost contact. Intent remains explicitly uncertain: no clear intent, monitoring area, improving position, approaching an area of concern, leaving the area, or possible detection.
+Northline's engineer is assigned as Challenger so the established observers can preserve their sectors. The warning is delivered once to valid Commune recipients. The Commune retains **Maintain Concealment** and gains evidence that its presence may have been detected, but no reply or physical response is selected yet.
 
-Activity reports communicate approximate evidence and confidence. They do not expose the other team's mission, procedure, temporary role, action provenance, or true reason for moving.
+Warnings communicate meaning, approximate source direction, confidence, and likely direction. They do not expose hidden missions, procedures, roles, or internal intent.
 
 ## Behavior Lab fixtures
 
@@ -39,4 +41,4 @@ Activity reports communicate approximate evidence and confidence. They do not ex
 
 Only Observation & Concealment currently runs the V2 reasoning chain. Other V2 fixtures remain inert until their own architectural needs justify behavior.
 
-See `docs/architecture/14_OBSERVABLE_ACTIVITY_INTENT_HYPOTHESES.md` for the new evidence and ownership boundaries.
+See `docs/architecture/15_BOUNDARIES_CHALLENGE_WARNING.md` for ownership and scope.
