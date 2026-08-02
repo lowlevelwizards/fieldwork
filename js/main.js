@@ -1,14 +1,14 @@
 import { Camera } from "./camera.js?v=20a-causal-architecture-foundation-20260802";
-import { ContinuousGameState } from "./continuous-game-state.js?v=20b-intentional-behavior-lab-20260802";
+import { ContinuousGameState } from "./continuous-game-state.js?v=20c-tasked-observation-personal-knowledge-20260802";
 import { InputController, CombatInputController } from "./input.js?v=20a-causal-architecture-foundation-20260802";
-import { Renderer } from "./renderer.js?v=20b-intentional-behavior-lab-20260802";
+import { Renderer } from "./renderer.js?v=20c-tasked-observation-personal-knowledge-20260802";
 import { getItemDefinition } from "../data/items.js?v=20a-causal-architecture-foundation-20260802";
 import { findEntity } from "./world-entities.js?v=20a-causal-architecture-foundation-20260802";
 import { validateItemLocations } from "./item-locations.js?v=20a-causal-architecture-foundation-20260802";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20b-intentional-behavior-lab-20260802";
-import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20b-intentional-behavior-lab-20260802";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20c-tasked-observation-personal-knowledge-20260802";
+import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20c-tasked-observation-personal-knowledge-20260802";
 
-const BUILD_ID="2.0B";
+const BUILD_ID="2.0C";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Foundation observer: snapshots, action lifecycle, diagnostics; legacy NPC tactics are disabled."
+    ?"Tasked observation: authored observers form private contact memories; communication and combat response remain disabled."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();
@@ -70,7 +70,9 @@ function startGame(scenario="operations"){
     objective.querySelector(".objective-kicker").textContent=`BEHAVIOR LAB ${fixture.index}`;
     objective.querySelector("strong").textContent=fixture.label;
     objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
-      ?`${fixture.question} Actors are intentionally staged and still while V2 is built atom by atom.`
+      ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
+        ?`${fixture.question} Assigned observers now turn, look, and form personal-only contact memories.`
+        :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
       :`${fixture.question} Legacy 1.2H is running inside this controlled fixture for comparison.`;
     $("#operations-button")?.setAttribute("hidden","");
   }
@@ -140,7 +142,11 @@ function openWorldText(request){if(!request)return;worldTextOpen=true;game.opera
 function closeInspect(){inspectOverlay.hidden=true;worldTextOpen=false;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function openDialogue(request){if(!request)return;dialogueOpen=true;game.operator.lockedByInteraction=true;$("#dialogue-role").textContent=request.actor.role;$("#dialogue-name").textContent=request.actor.name;$("#dialogue-text").textContent=request.text;$("#dialogue-overlay").hidden=false;game.dialogueRequest=null;}function closeDialogue(){dialogueOpen=false;$("#dialogue-overlay").hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function openReport(report){if(!report)return;$("#report-title").textContent=report.title;const lines=$("#report-lines");lines.replaceChildren(...report.lines.map(text=>{const p=document.createElement("p");p.textContent=text;return p;}));reportOverlay.hidden=false;game.operator.lockedByInteraction=true;game.excursion.reportRequest=null;}function closeReport(){reportOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
-function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.scenarioMode==="sandbox"){const fixture=game.sandboxFixture;strong.textContent=fixture.label;copy.textContent=game.aiRuntimeMode==="v2"?`${fixture.question} V2 actors remain staged until a new action system explicitly moves them.`:`${fixture.question} Legacy behavior is running without random patrols or reinforcements.`;return;}if(game.incident.state!=="resolved"){if(game.incident.bandageUsed&&game.incident.waterUsed){strong.textContent="Ada is stabilized";copy.textContent="Assist her to shelter and restore the field radio.";}return;}if(selected&&selected.status!=="completed"){strong.textContent=selected.title;copy.textContent=`Current task: ${selected.tasks.find(t=>["in_progress","blocked"].includes(t.status))?.label??"Respond to conditions"}.`;}else if(game.excursion.state==="available"){strong.textContent="Follow the north trail";copy.textContent="Leave the pull-off on foot and follow the marked trail east toward the culvert.";}else if(game.excursion.state==="outbound"){strong.textContent="Continue to the north culvert";copy.textContent="Stay on the trail. Other field teams are already working ahead.";}else if(game.excursion.state==="at_destination"){strong.textContent="Work is overlapping at the culvert";copy.textContent="Hold rope and rig the debris, mark the hazard, or assist another team.";}else if(game.excursion.state==="returning"){strong.textContent="Return to the pull-off";copy.textContent="Bring recovered cargo into the RETURN marker.";}else{strong.textContent="Safe return";copy.textContent="The field report records what every team accomplished.";}}
+function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.scenarioMode==="sandbox"){const fixture=game.sandboxFixture;strong.textContent=fixture.label;copy.textContent=game.aiRuntimeMode==="v2"
+  ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
+    ?`${fixture.question} Each observer's knowledge remains private until a future report action exists.`
+    :`${fixture.question} This fixture has no authored V2 behavior yet.`
+  :`${fixture.question} Legacy behavior is running without random patrols or reinforcements.`;return;}if(game.incident.state!=="resolved"){if(game.incident.bandageUsed&&game.incident.waterUsed){strong.textContent="Ada is stabilized";copy.textContent="Assist her to shelter and restore the field radio.";}return;}if(selected&&selected.status!=="completed"){strong.textContent=selected.title;copy.textContent=`Current task: ${selected.tasks.find(t=>["in_progress","blocked"].includes(t.status))?.label??"Respond to conditions"}.`;}else if(game.excursion.state==="available"){strong.textContent="Follow the north trail";copy.textContent="Leave the pull-off on foot and follow the marked trail east toward the culvert.";}else if(game.excursion.state==="outbound"){strong.textContent="Continue to the north culvert";copy.textContent="Stay on the trail. Other field teams are already working ahead.";}else if(game.excursion.state==="at_destination"){strong.textContent="Work is overlapping at the culvert";copy.textContent="Hold rope and rig the debris, mark the hazard, or assist another team.";}else if(game.excursion.state==="returning"){strong.textContent="Return to the pull-off";copy.textContent="Bring recovered cargo into the RETURN marker.";}else{strong.textContent="Safe return";copy.textContent="The field report records what every team accomplished.";}}
 function updateCompass(){
  const chip=$("#compass-chip"),heading=$("#compass-heading");
  if(!chip||!heading)return;
@@ -166,8 +172,19 @@ const withdrawing=combatActors.filter(actor=>actor.combatPosture==="withdraw"||a
 const assessments=[...new Set(combatActors.map(actor=>actor.fightAssessmentState).filter(Boolean))].join("/")||"quiet";
 $("#debug-ai-runtime").textContent=game.aiRuntimeLabel??game.aiRuntimeMode;
 $("#debug-fixture").textContent=game.scenarioMode==="sandbox"?`${game.sandboxFixture?.index??"—"} ${game.sandboxFixture?.shortLabel??game.sandboxFixture?.label??"—"}`:"—";
-if(game.aiRuntimeMode==="v2")$("#debug-ai").textContent=game.aiV2?.getDebugSummary?.()??"V2 unavailable";
-else $("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
+if(game.aiRuntimeMode==="v2"){
+ const summary=game.aiV2?.getDebugSummary?.()??"V2 unavailable";
+ const details=game.aiV2?.getDebugDetails?.()??{};
+ $("#debug-ai").textContent=summary;
+ $("#debug-v2-assignment").textContent=details.assignment??"—";
+ $("#debug-v2-personal").textContent=details.personalKnowledge??"none";
+ $("#debug-v2-team").textContent=details.teamKnowledge??"none";
+}else{
+ $("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
+ $("#debug-v2-assignment").textContent="—";
+ $("#debug-v2-personal").textContent="—";
+ $("#debug-v2-team").textContent="—";
+}
 const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
 function updateCombatUI(){
  const combat=game.combat;

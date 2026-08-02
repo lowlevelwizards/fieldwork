@@ -1,4 +1,4 @@
-import { normalizeActionChannels } from "./action-channels.js?v=20a-causal-architecture-foundation-20260802";
+import { normalizeActionChannels } from "./action-channels.js?v=20c-tasked-observation-personal-knowledge-20260802";
 
 export const ACTION_STATES=Object.freeze({
   PROPOSED:"proposed",

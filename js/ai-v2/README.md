@@ -1,33 +1,39 @@
-# AI V2
+# Fieldwork AI V2
 
-AI V2 is a parallel clean architecture. It must not import legacy tactical authorities.
+AI V2 is a parallel causal runtime. It does not import the legacy tactical authorities.
 
-Build 2.0A contains only the foundation:
+## Current milestone: 2.0C
 
-- a read-only world snapshot;
-- an explicit persistent action lifecycle;
-- action channels and scheduling;
-- a bounded decision log;
-- invariant monitoring;
-- a selectable observer runtime.
-
-The V2 observer intentionally does not assign NPC actions yet. Its purpose is to prove the runtime boundary before the damaged-relay vertical slice introduces behavior.
-
-## Dependency direction
+The Observation & Concealment Behavior Lab fixture now runs the first explicit cognitive chain:
 
 ```text
-AI V2 decision layers
-→ explicit adapters
-→ existing physical mechanics
+Authored mission
+→ tasked observation
+→ temporary observer role
+→ persistent ObserveSector action
+→ attention execution
+→ visual evidence
+→ personal contact memory
 ```
 
-Never:
+One observer on each team turns toward an authored sector and may form private contact records. Contact records retain approximate position, confidence, visibility state, and last-observed time.
 
-```text
-AI V2
-→ legacy tactical brain
-```
+There is intentionally no report action and no team-knowledge store yet. Seeing something does not automatically inform teammates or create an encounter.
 
-## First behavior milestone
+## Current modules
 
-The first behavior is the peaceful damaged-relay chain documented in `docs/architecture/05_RELAY_VERTICAL_SLICE.md`.
+- `runtime/` — update boundary and read-only world snapshots.
+- `actions/` — persistent action lifecycle, channels, scheduler, and ObserveSector.
+- `execution/` — narrow physical attention execution.
+- `senses/` — visual evidence from field of view, distance, obstruction, and concealment.
+- `knowledge/` — personal-only contact memory.
+- `diagnostics/` — decision history and invariant monitoring.
+
+## Ownership rules
+
+- Fixture data supplies the upstream reason for the behavior.
+- Actions own behavioral continuity.
+- Executors perform physical changes but do not choose goals.
+- Sensors produce evidence but do not make decisions.
+- Personal knowledge stores beliefs but does not communicate them.
+- The scheduler is the only authority that starts or ends actions.

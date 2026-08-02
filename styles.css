@@ -582,3 +582,20 @@ h1 {
   .runtime-picker small{font-size:.7rem}
   .version{margin-top:12px}
 }
+
+/* 2.0C — observation diagnostics need room for causal explanations. */
+.debug-panel{
+  width:min(330px,calc(100vw - 24px));
+  max-height:calc(100dvh - 90px - var(--safe-top));
+  overflow:auto;
+}
+.debug-panel strong{
+  max-width:210px;
+  text-align:right;
+  overflow-wrap:anywhere;
+  line-height:1.25;
+}
+@media (max-width:620px){
+  .debug-panel{width:min(300px,calc(100vw - 18px));right:9px}
+  .debug-panel strong{max-width:180px}
+}

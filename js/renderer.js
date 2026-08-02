@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20b-intentional-behavior-lab-20260802";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20c-tasked-observation-personal-knowledge-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -24,6 +24,7 @@ export class Renderer{
       this.#drawRoad(ctx,game.map.road);
       this.#drawBloodDecals(ctx,game);
       this.#drawBrush(ctx,game.map.brush);
+      this.#drawAIV2ObservationWorld(ctx,game);
     }else{
       this.#drawRoad(ctx,game.map.road);
       this.#drawTrail(ctx,game.map.trail);
@@ -220,6 +221,7 @@ export class Renderer{
           this.#drawWorkAccessory(ctx,actor);
           this.#drawEncounterIndicator(ctx,actor);
           this.#drawAICombatIndicator(ctx,actor);
+          this.#drawAIV2ActorIndicator(ctx,actor);
           this.#drawCasualtyState(ctx,actor);
         }catch(error){
           console.error("Fieldwork actor render failed",{actorId:actor.id,kitId:actor.kitId,error});
@@ -332,6 +334,61 @@ export class Renderer{
   }finally{ctx.restore();}
  }
 
+
+
+ #drawAIV2ObservationWorld(ctx,game){
+  if(game.aiRuntimeMode!=="v2")return;
+  const observers=game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector");
+  if(!observers.length)return;
+  ctx.save();
+  try{
+   for(const actor of observers){
+    const assignment=actor.aiV2Assignment;
+    const sector=assignment.sector;
+    const angle=Number.isFinite(actor.lookAngle)?actor.lookAngle:Math.atan2(sector.y-actor.y,sector.x-actor.x);
+    const half=(sector.fieldOfViewDegrees??72)*Math.PI/360;
+    const radius=Math.min(1080,sector.maximumRange??1180);
+    const contact=actor.aiV2Debug?.personalKnowledge;
+    const active=Boolean(contact?.currentlyVisible);
+    ctx.fillStyle=active?"rgba(224,154,71,.055)":"rgba(227,218,162,.028)";
+    ctx.strokeStyle=active?"rgba(224,154,71,.30)":"rgba(227,218,162,.17)";
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(actor.x,actor.y);ctx.arc(actor.x,actor.y,radius,angle-half,angle+half);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.strokeStyle="rgba(237,226,180,.30)";ctx.lineWidth=2;ctx.setLineDash([11,13]);
+    ctx.beginPath();ctx.moveTo(actor.x,actor.y);ctx.lineTo(sector.x,sector.y);ctx.stroke();ctx.setLineDash([]);
+    if(contact?.approximatePosition){
+     const position=contact.approximatePosition;
+     ctx.strokeStyle=contact.currentlyVisible?"rgba(231,156,70,.86)":"rgba(218,195,110,.55)";
+     ctx.lineWidth=3;ctx.setLineDash(contact.currentlyVisible?[]:[8,8]);
+     ctx.beginPath();ctx.arc(position.x,position.y,18,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+     ctx.fillStyle="rgba(24,31,27,.78)";ctx.beginPath();ctx.roundRect(position.x-31,position.y-43,62,18,9);ctx.fill();
+     ctx.fillStyle=contact.currentlyVisible?"#e59a47":"#d8c56a";ctx.font="800 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+     ctx.fillText("PERSONAL",position.x,position.y-34);
+    }
+   }
+  }finally{ctx.restore();}
+ }
+
+ #drawAIV2ActorIndicator(ctx,actor){
+  if(this._currentGame?.aiRuntimeMode!=="v2"||actor.aiV2Assignment?.action!=="observe_sector")return;
+  const debug=actor.aiV2Debug;
+  const contact=debug?.personalKnowledge;
+  const x=actor.x,y=actor.y-108;
+  ctx.save();
+  try{
+   ctx.textAlign="center";ctx.textBaseline="middle";
+   ctx.fillStyle="rgba(18,27,22,.88)";
+   ctx.beginPath();ctx.roundRect(x-36,y-10,72,20,10);ctx.fill();
+   ctx.strokeStyle="rgba(226,159,79,.62)";ctx.lineWidth=1.5;ctx.stroke();
+   ctx.fillStyle="#f0e5c8";ctx.font="800 9px system-ui";ctx.fillText("OBSERVE",x,y);
+   const status=contact
+    ?`${contact.currentlyVisible?"VISIBLE":"MEMORY"} ${Math.round(contact.confidence)}%`
+    :"NO CONTACT";
+   ctx.fillStyle=contact?.currentlyVisible?"#e8a051":contact?"#d8c56a":"rgba(235,234,213,.58)";
+   ctx.font="750 8px system-ui";ctx.fillText(status,x,y+16);
+   ctx.fillStyle="rgba(220,226,205,.62)";ctx.font="650 7px system-ui";ctx.fillText("PRIVATE",x,y+27);
+  }finally{ctx.restore();}
+ }
 
  #drawEncounterIndicator(ctx,actor){
   if(actor.medical?.dead||actor.medical?.unconscious||actor.medical?.condition==="critical")return;

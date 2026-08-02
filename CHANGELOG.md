@@ -1,3 +1,17 @@
+# Fieldwork 2.0C
+
+## Tasked Observation & Personal Knowledge
+
+- Added one authored observer assignment per team in the Observation & Concealment fixture.
+- Added the persistent `ObserveSector` V2 action using attention and stance channels.
+- Added a narrow attention executor that turns actors toward assigned sectors without choosing those sectors.
+- Added visual observation evidence using range, field of view, hard obstacles, and brush concealment.
+- Added personal-only contact memory with confidence, approximate position, visible/lost transitions, decay, and forgetting.
+- Added V2 world overlays for observation sectors, private contact markers, and observer status.
+- Added debug readouts for authored assignments, personal knowledge, and intentionally empty team knowledge.
+- Kept all non-observer actors inert and excluded communication, encounters, hostility, cover, and combat response.
+- Added architecture documentation for the complete mission-to-personal-knowledge chain.
+
 # Fieldwork 2.0B
 
 ## Intentional Behavior Lab

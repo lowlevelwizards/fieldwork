@@ -7,14 +7,27 @@ export function captureWorldSnapshot(game,{elapsed=0}={}){
     factionId:actor.factionId??null,
     operationId:actor.operationId??null,
     role:actor.role??null,
+    procedureRole:actor.procedureRole??null,
     x:actor.x,
     y:actor.y,
     vx:actor.vx??0,
     vy:actor.vy??0,
+    facing:actor.facing??null,
+    lookAngle:Number.isFinite(actor.lookAngle)?actor.lookAngle:null,
     conscious:!(actor.medical?.unconscious||actor.medical?.dead),
     dead:Boolean(actor.medical?.dead),
     condition:actor.medical?.condition??"unknown",
-    currentTask:actor.currentTask??null
+    currentTask:actor.currentTask??null,
+    currentAction:actor.currentAction??null,
+    v2Assignment:actor.aiV2Assignment?Object.freeze({
+      mission:actor.aiV2Assignment.mission,
+      task:actor.aiV2Assignment.task,
+      procedure:actor.aiV2Assignment.procedure,
+      phase:actor.aiV2Assignment.phase,
+      role:actor.aiV2Assignment.role,
+      action:actor.aiV2Assignment.action,
+      sector:Object.freeze({...actor.aiV2Assignment.sector})
+    }):null
   }));
 
   const entities=game.entities.map(entity=>({
@@ -32,6 +45,7 @@ export function captureWorldSnapshot(game,{elapsed=0}={}){
     elapsed,
     scenario:game.scenarioMode,
     aiRuntime:game.aiRuntimeMode,
+    fixtureId:game.sandboxFixtureId??null,
     clockMinutes:game.clockMinutes,
     weather:game.weather,
     operator:Object.freeze({

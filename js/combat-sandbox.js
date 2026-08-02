@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20b-intentional-behavior-lab-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20c-tasked-observation-personal-knowledge-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -57,11 +57,37 @@ export const SANDBOX_FIXTURES={
   teams:[
    {
     factionId:"northline",mission:"Inspect reports of movement near the brush line",task:"Observe the southern approach without overextending",facing:"down",
-    actors:[{x:1500,y:430,role:"Security"},{x:1660,y:405,role:"Rifleman"},{x:1820,y:450,role:"Engineer"}]
+    actors:[
+     {x:1500,y:430,role:"Security"},
+     {x:1660,y:405,role:"Rifleman",aiV2Assignment:{
+      mission:"Inspect reports of movement near the brush line",
+      task:"Determine whether anyone is present on the southern approach",
+      procedure:"Observation Watch",
+      phase:"Observe",
+      role:"Observer",
+      action:"observe_sector",
+      reason:"Assigned to watch the southern brush approach before the team commits",
+      sector:{label:"Southern brush approach",x:1390,y:1290,targetFactionId:"commune",maximumRange:1180,fieldOfViewDegrees:72}
+     }},
+     {x:1820,y:450,role:"Engineer"}
+    ]
    },
    {
     factionId:"commune",mission:"Watch the patrol while remaining concealed",task:"Learn the patrol's direction and report it",facing:"up",
-    actors:[{x:1390,y:1290,role:"Scout"},{x:1550,y:1340,role:"Field Medic"},{x:1710,y:1300,role:"Rifleman"}]
+    actors:[
+     {x:1390,y:1290,role:"Scout",aiV2Assignment:{
+      mission:"Watch the patrol while remaining concealed",
+      task:"Determine the patrol's position and direction without revealing the team",
+      procedure:"Observation Watch",
+      phase:"Observe",
+      role:"Observer",
+      action:"observe_sector",
+      reason:"Assigned to watch the northern patrol approach from concealment",
+      sector:{label:"Northern patrol approach",x:1660,y:405,targetFactionId:"northline",maximumRange:1180,fieldOfViewDegrees:72}
+     }},
+     {x:1550,y:1340,role:"Field Medic"},
+     {x:1710,y:1300,role:"Rifleman"}
+    ]
    }
   ]
  },
@@ -206,6 +232,10 @@ function actorFromSpec(faction,teamId,index,spec,fixture){
   sandboxStatic:true,
   medicalPreset:spec.medicalPreset??null,
   squadMission:spec.mission??"hold_fixture",
+  aiV2Assignment:spec.aiV2Assignment?{
+   ...spec.aiV2Assignment,
+   sector:{...spec.aiV2Assignment.sector}
+  }:null,
   alertState:"unaware"
  };
 }
