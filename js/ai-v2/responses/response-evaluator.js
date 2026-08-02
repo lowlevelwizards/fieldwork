@@ -1,5 +1,5 @@
-import { buildTeamDecisionLedger } from "../decisions/team-decision-ledger.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { TEAM_RESPONSE_OPTIONS } from "./response-options.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { buildTeamDecisionLedger } from "../decisions/team-decision-ledger.js";
+import { TEAM_RESPONSE_OPTIONS } from "./response-options.js";
 
 export function evaluateTeamResponses({mission,encounter}={}){
   const ledger=buildTeamDecisionLedger({mission,encounter});

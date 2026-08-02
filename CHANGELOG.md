@@ -1,3 +1,22 @@
+# Fieldwork 2.0M
+
+## Casualty Recovery & Stabilization
+
+- Activated the Casualty Recovery Behavior Lab fixture in AI V2.
+- Added personal friendly-casualty observation and evidence-grounded casualty reporting.
+- Added **Recover Casualty** to the existing team response ledger.
+- Added **Casualty Recovery** with Aid Provider and Security Watch responsibilities.
+- Added persistent `ReportCasualty`, `ApproachCasualty`, `AssessCasualty`, `DragCasualty`, and `StabilizeCasualty` actions.
+- Added exclusive patient claims so only one operator can physically control or treat a casualty at a time.
+- Reused the existing locomotion executor and destination claims for approach and drag movement.
+- Reused the existing wound system for assessment and pressure-dressing treatment.
+- Preserved security observation while the aid provider performs care.
+- Added an evidence-grounded `casualty_stabilized` outcome memory.
+- Kept the casualty critically impaired after bleeding control; stabilization is not full recovery.
+- Added recovery paths, casualty markers, action labels, procedure presentation, and diagnostics.
+- Removed release-specific cache identifiers from internal JavaScript imports; only top-level browser assets remain versioned.
+- Preserved the completed 2.0L observation/withdrawal chain and Legacy 1.2H runtime.
+
 # Fieldwork 2.0L
 
 ## Silent Withdrawal & De-escalation

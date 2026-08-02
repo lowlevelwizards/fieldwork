@@ -1,4 +1,4 @@
-import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js";
 
 function capable(actor){
   const medical=actor?.medical;
@@ -120,6 +120,30 @@ export class TeamProcedureState{
     record.events.push(entry);
     if(record.events.length>20)record.events.splice(0,record.events.length-20);
 
+    if(record.procedureId==="casualty_recovery"){
+      const definition=getProcedureDefinitionForResponse(record.responseId);
+      const nextByEvent={
+        casualty_reached:"assess_condition",
+        casualty_assessed:"move_to_recovery",
+        casualty_moved_to_recovery:"stabilize",
+        casualty_stabilized:"recovery_complete"
+      };
+      if(event==="casualty_recovery_failed"){
+        record.phase=this.#phase(definition,"reassess",now,"The casualty recovery action failed and the team must reconsider its assignments, route, or available supplies.");
+        record.lastUpdatedAt=now;
+        this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,...data});
+        return true;
+      }
+      const expectedPhaseByEvent={casualty_reached:"reach_casualty",casualty_assessed:"assess_condition",casualty_moved_to_recovery:"move_to_recovery",casualty_stabilized:"stabilize"};
+      const nextPhase=nextByEvent[event];
+      if(nextPhase&&record.phase.id===expectedPhaseByEvent[event]){
+        record.phase=this.#phase(definition,nextPhase,now,`The recovery advanced after ${event.replaceAll("_"," ")}.`);
+        if(nextPhase==="recovery_complete")record.completedAt=now;
+        record.lastUpdatedAt=now;
+        this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,...data});
+        return true;
+      }
+    }
     if(record.procedureId==="challenge_unknown_contact"&&event==="warning_delivered"&&record.phase.id==="issue_warning"){
       const definition=getProcedureDefinitionForResponse(record.responseId);
       record.warning={

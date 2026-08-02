@@ -1,4 +1,4 @@
-import { evaluateTeamResponses } from "./response-evaluator.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { evaluateTeamResponses } from "./response-evaluator.js";
 
 const ACTIVE_ENCOUNTER_STATES=new Set(["relevant","potentially_incompatible"]);
 

@@ -28,12 +28,31 @@ function option({id,label,summary,base=0,terms,reason,eligible=null}){
   };
 }
 
-const relevantEncounter=({encounter})=>encounter?.state==="relevant"||encounter?.state==="potentially_incompatible";
+const relevantEncounter=({encounter})=>encounter?.subjectKind!=="friendly_casualty"&&(encounter?.state==="relevant"||encounter?.state==="potentially_incompatible");
+const friendlyCasualtyEligible=({ledger,encounter})=>encounter?.subjectKind==="friendly_casualty"&&ledger.recoveryPlanAvailable>0&&ledger.casualtyUrgency>0;
 const boundaryWarningEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.boundaryTrigger>0;
 const silentWithdrawalEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.warningHeard>0&&ledger.withdrawalPlanAvailable>0;
 const monitorDepartureEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.warningIssued>0&&ledger.departureEvidence>0;
 
 export const TEAM_RESPONSE_OPTIONS=Object.freeze([
+  option({
+    id:"recover_casualty",
+    label:"Recover Casualty",
+    summary:"Organize security, reach the casualty, move them to protected ground, and stop immediate deterioration.",
+    base:.18,
+    eligible:friendlyCasualtyEligible,
+    terms:ledger=>[
+      term("urgency","the casualty is in immediate danger",ledger.casualtyUrgency,.28),
+      term("preservation","recovering the casualty preserves the team",ledger.teamPreservation,.20),
+      term("care_orientation","the mission explicitly values care under pressure",ledger.careOrientation,.18),
+      term("mission_value","the recovery is the current mission",ledger.missionValue,.13),
+      term("recovery_point","a protected recovery point is available",ledger.recoveryPlanAvailable,.09),
+      term("medical_capability","the team has an aid provider and supplies",ledger.medicalCapability,.08),
+      term("time_pressure","delay increases deterioration",ledger.timePressure,.08),
+      term("resource_cost","treatment consumes a finite medical supply",ledger.resourceConservation,-.03)
+    ],
+    reason:ledger=>`A known teammate is in immediate danger, and ${ledger.exitLabel} provides a viable place to move and stabilize them while preserving security.`
+  }),
   option({
     id:"continue_observation",
     label:"Continue Observation",

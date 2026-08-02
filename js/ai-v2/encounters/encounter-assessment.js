@@ -117,3 +117,74 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
     forgetAfter:mission.forgetAfter
   };
 }
+
+
+export function assessFriendlyCasualtyHypothesis({mission,report,now=0}={}){
+  if(!mission||!report)return null;
+  const age=Math.max(0,now-(report.reportedAt??now));
+  const confidence=clamp(report.confidence??0,0,100);
+  const condition=report.assessment?.condition??report.observedCondition??"unknown";
+  const bleeding=Number(report.assessment?.bleeding??0);
+  const blood=Number(report.assessment?.blood??100);
+  const urgency=condition==="unconscious"||condition==="critical"||bleeding>.05?1:condition==="serious"?.7:.35;
+  const stale=age>=mission.staleAfter||confidence<8;
+  const relevanceScore=clamp((confidence/100)*.35+urgency*.65,0,1);
+  const state=stale?ENCOUNTER_STATES.STALE:urgency>=.7?ENCOUNTER_STATES.POTENTIALLY_INCOMPATIBLE:ENCOUNTER_STATES.RELEVANT;
+  const reason=stale
+    ?"The casualty report is too old or uncertain to support a current recovery decision."
+    :report.assessment
+      ?`${report.subjectName??"A teammate"} has been assessed as ${condition}; assisted movement and ${report.assessment.treatmentNeed?.label??"continued care"} are required.`
+      :`${report.subjectName??"A teammate"} is visibly incapacitated in the recovery bay and requires a close assessment.`;
+  return{
+    teamId:mission.teamId,
+    missionId:mission.id,
+    reportId:report.id,
+    reportKind:report.reportKind,
+    subjectId:report.subjectId,
+    subjectName:report.subjectName,
+    subjectKind:"friendly_casualty",
+    sourceActorId:report.sourceActorId,
+    evidenceType:report.assessment?"communicated_casualty_assessment":"communicated_casualty_report",
+    state,
+    previousState:null,
+    missionRelevance:relevanceLabel(relevanceScore),
+    relevanceScore,
+    reportConfidence:confidence,
+    reportAge:age,
+    approximatePosition:{...report.approximatePosition},
+    previousApproximatePosition:null,
+    spatial:spatialAssessment(mission.concernArea,report.approximatePosition),
+    identity:"known_teammate",
+    factionId:mission.factionId,
+    activity:null,
+    activityLabel:null,
+    activityRevision:report.assessmentRevision??0,
+    movementDirection:null,
+    estimatedSpeed:0,
+    intent:"not_applicable",
+    intentHypothesis:null,
+    warningHeard:false,
+    warningIssued:false,
+    departureObserved:false,
+    departureObservedAfterWarning:false,
+    outgoingWarning:null,
+    interferenceKind:"friendly_casualty",
+    interferenceLabel:"Immediate casualty recovery required",
+    casualty:{
+      condition,
+      mobility:report.assessment?.mobility??report.mobility??"unable_to_self_move",
+      urgency:report.urgency??"urgent",
+      bleeding,
+      blood,
+      shock:Number(report.assessment?.shock??0),
+      assessed:Boolean(report.assessment),
+      immediateDanger:Boolean(report.assessment?.immediateDanger??urgency>=.7),
+      treatmentNeed:report.assessment?.treatmentNeed?{...report.assessment.treatmentNeed}:null
+    },
+    reason,
+    response:null,
+    assessedAt:now,
+    lastEvidenceAt:report.reportedAt??now,
+    forgetAfter:mission.forgetAfter
+  };
+}

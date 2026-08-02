@@ -1,5 +1,5 @@
-import { classifyObservedActivity, isMovingActivity } from "../senses/activity-classifier.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { inferIntentHypothesis } from "./intent-hypothesis.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { classifyObservedActivity, isMovingActivity } from "../senses/activity-classifier.js";
+import { inferIntentHypothesis } from "./intent-hypothesis.js";
 
 const clonePoint=point=>point?{x:point.x,y:point.y}:null;
 

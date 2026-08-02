@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -234,9 +234,56 @@ export const SANDBOX_FIXTURES={
    },
    {
     factionId:"commune",mission:"Recover the casualty and preserve the team",task:"Secure access, move the patient, stabilize, and withdraw",facing:"up",
+    aiV2Mission:{
+     id:"commune_casualty_recovery",
+     problemKind:"friendly_casualty",
+     title:"Recover the casualty",
+     objective:"Recognize the injured teammate, preserve security, move them to protected ground, and stop immediate deterioration.",
+     immediateTask:"Recover and stabilize the exposed casualty without abandoning the team's awareness.",
+     successCondition:"The casualty reaches the recovery point and uncontrolled bleeding is stopped.",
+     abortCondition:"The casualty dies, the recovery point becomes unavailable, or the aid provider becomes incapable.",
+     concernArea:{type:"circle",label:"casualty recovery bay",x:3740,y:1035,radius:520,falloff:180},
+     problemSensitivity:1,
+     staleAfter:24,
+     forgetAfter:46,
+     recoveryPlan:{
+      id:"west_rock_recovery",
+      label:"protected recovery point",
+      recoveryPoint:{x:3515,y:1195},
+      securitySector:{label:"Northern casualty approach",x:3760,y:520,maximumRange:900,fieldOfViewDegrees:82},
+      interactionRange:82,
+      observationRange:640,
+      reportRange:520,
+      approachSpeedMultiplier:.8,
+      dragSpeedMultiplier:.46,
+      arrivalRadius:13,
+      claimSpacing:62,
+      stabilizationDuration:3.4
+     },
+     decisionContext:{
+      missionValue:.96,
+      teamPreservation:.94,
+      informationNeed:.45,
+      positionSecurity:.58,
+      concealmentValue:.3,
+      detectionRisk:.25,
+      timePressure:.96,
+      resourceConservation:.35,
+      exitOptions:.72,
+      enemyDisruption:.08,
+      securityOrientation:.72,
+      stealthOrientation:.4,
+      mobilityOrientation:.68,
+      careOrientation:1,
+      positionLabel:"the exposed casualty bay",
+      exitLabel:"the protected recovery point"
+     },
+     responsePolicy:{minimumHold:1.2,reassessEvery:.8,switchMargin:.02},
+     responseBias:{recover_casualty:.28}
+    },
     actors:[
-     {x:3540,y:1325,role:"Security"},
-     {x:3810,y:1360,role:"Field Medic"},
+     {x:3540,y:1325,role:"Security",aiV2CasualtyAssignment:{observe:true,maximumRange:640,fieldOfViewDegrees:170,report:{method:"local_voice",range:520,minimumConfidence:52,reason:"Report the exposed teammate so the team can organize recovery"}}},
+     {x:3810,y:1360,role:"Field Medic",aiV2MedicalSupplies:{pressure_dressing:1,bandage:1,iv_fluids:1}},
      {x:3740,y:965,role:"Rifleman",medicalPreset:"critical"}
     ]
    }
@@ -347,6 +394,11 @@ function actorFromSpec(faction,teamId,index,spec,fixture){
    sector:{...spec.aiV2Assignment.sector},
    report:spec.aiV2Assignment.report?{...spec.aiV2Assignment.report}:null
   }:null,
+  aiV2CasualtyAssignment:spec.aiV2CasualtyAssignment?{
+   ...spec.aiV2CasualtyAssignment,
+   report:spec.aiV2CasualtyAssignment.report?{...spec.aiV2CasualtyAssignment.report}:null
+  }:null,
+  aiV2MedicalSupplies:spec.aiV2MedicalSupplies?{...spec.aiV2MedicalSupplies}:null,
   alertState:"unaware"
  };
 }
@@ -407,6 +459,11 @@ export class CombatSandboxDirector{
       exitPoint:teamSpec.aiV2Mission.withdrawalPlan.exitPoint?{...teamSpec.aiV2Mission.withdrawalPlan.exitPoint}:null,
       roleOffsets:Object.fromEntries(Object.entries(teamSpec.aiV2Mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))
      }:null,
+     recoveryPlan:teamSpec.aiV2Mission.recoveryPlan?{
+      ...teamSpec.aiV2Mission.recoveryPlan,
+      recoveryPoint:teamSpec.aiV2Mission.recoveryPlan.recoveryPoint?{...teamSpec.aiV2Mission.recoveryPlan.recoveryPoint}:null,
+      securitySector:teamSpec.aiV2Mission.recoveryPlan.securitySector?{...teamSpec.aiV2Mission.recoveryPlan.securitySector}:null
+     }:null,
      decisionContext:teamSpec.aiV2Mission.decisionContext?{...teamSpec.aiV2Mission.decisionContext}:null,
      responsePolicy:teamSpec.aiV2Mission.responsePolicy?{...teamSpec.aiV2Mission.responsePolicy}:null,
      responseBias:teamSpec.aiV2Mission.responseBias?{...teamSpec.aiV2Mission.responseBias}:null
@@ -417,8 +474,8 @@ export class CombatSandboxDirector{
  }
  #seedCriticalCasualty(actor){
   const medical=this.game.wounds.ensure(actor);
-  medical.blood=42;
-  medical.shock=54;
+  medical.blood=82;
+  medical.shock=52;
   this.game.wounds.seedWound(actor,{region:"torso",severity:"catastrophic",controlled:false,label:`${this.fixture.id}_seeded_casualty`});
   actor.currentTask="Critical casualty awaiting recovery";
   actor.currentAction="Incapacitated";

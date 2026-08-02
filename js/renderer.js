@@ -1,7 +1,7 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
-import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
-import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js";
+import { drawOperator } from "./presentation/operator-renderer.js";
+import { drawWorldEntity } from "./presentation/world-entity-renderer.js";
+import { findEntity } from "./world-entities.js";
 
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
@@ -342,6 +342,7 @@ export class Renderer{
   const readyActors=game.actors.filter(actor=>actor.aiV2Debug?.activeActions?.includes("HoldReady")&&actor.aiV2HoldReady?.focus);
   const repositioningActors=game.actors.filter(actor=>actor.aiV2Debug?.activeActions?.includes("RepositionForResponsibility")&&actor.aiV2Debug?.reposition?.destination);
   const withdrawingActors=game.actors.filter(actor=>actor.aiV2Debug?.activeActions?.includes("WithdrawToRoute")&&actor.aiV2Debug?.withdrawal?.destination);
+  const recoveryActors=game.actors.filter(actor=>actor.aiV2Debug?.recovery&&actor.aiV2Debug?.activeActions?.some(type=>["ApproachCasualty","AssessCasualty","DragCasualty","StabilizeCasualty"].includes(type)));
   const reports=(game.aiV2?.teamKnowledge?.summary?.()??[]).map(teamEntry=>({
    ...teamEntry,
    reports:game.aiV2?.teamKnowledge?.getTeamContacts?.(teamEntry.teamId)??teamEntry.reports
@@ -351,9 +352,10 @@ export class Renderer{
   const procedures=game.aiV2?.teamProcedures?.summary?.()??[];
   const directedWarnings=game.aiV2?.heardCommunications?.summary?.()??{incoming:[],outgoing:[]};
   const outcomes=game.aiV2?.encounterOutcomes?.summary?.()??[];
+  const casualtyReports=game.aiV2?.casualtyKnowledge?.summary?.()??[];
   const responseByTeam=new Map(responses.map(response=>[response.teamId,response]));
   const procedureByTeam=new Map(procedures.map(procedure=>[procedure.teamId,procedure]));
-  if(!observers.length&&!readyActors.length&&!repositioningActors.length&&!withdrawingActors.length&&!reports.length&&!encounters.length&&!responses.length&&!procedures.length&&!directedWarnings.incoming.length&&!outcomes.length)return;
+  if(!observers.length&&!readyActors.length&&!repositioningActors.length&&!withdrawingActors.length&&!recoveryActors.length&&!reports.length&&!casualtyReports.length&&!encounters.length&&!responses.length&&!procedures.length&&!directedWarnings.incoming.length&&!outcomes.length)return;
   const activeZone=game.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId);
   ctx.save();
   try{
@@ -361,7 +363,7 @@ export class Renderer{
 
    for(const speaker of game.actors){
     const communication=speaker.aiV2Debug?.communication;
-    if(!["transmitting","transmitting_update","issuing_warning"].includes(communication?.status))continue;
+    if(!["transmitting","transmitting_update","issuing_warning","reporting_casualty"].includes(communication?.status))continue;
     const warningLine=communication.status==="issuing_warning";
     ctx.strokeStyle=warningLine?"rgba(232,154,71,.74)":"rgba(235,205,128,.38)";ctx.lineWidth=warningLine?3:2;ctx.setLineDash(warningLine?[12,7]:[5,9]);
     for(const recipientId of communication.recipientIds??[]){
@@ -433,6 +435,34 @@ export class Renderer{
     ctx.fillText("WITHDRAWAL ROUTE",destination.x,destination.y+36);
    }
 
+
+   for(const actor of recoveryActors){
+    const recovery=actor.aiV2Debug.recovery;
+    const destination=recovery?.destination;
+    if(destination){
+     ctx.strokeStyle="rgba(157,183,111,.92)";ctx.lineWidth=recovery.actionType==="DragCasualty"?3.2:2.4;ctx.setLineDash(recovery.actionType==="DragCasualty"?[12,7]:[7,8]);
+     ctx.beginPath();ctx.moveTo(actor.x,actor.y);ctx.lineTo(destination.x,destination.y);ctx.stroke();ctx.setLineDash([]);
+     ctx.beginPath();ctx.arc(destination.x,destination.y,recovery.actionType==="DragCasualty"?23:17,0,Math.PI*2);ctx.stroke();
+    }
+    const casualty=game.actors.find(candidate=>candidate.id===recovery?.casualtyId);
+    if(casualty&&recovery.actionType==="DragCasualty"){
+     ctx.strokeStyle="rgba(238,226,196,.42)";ctx.lineWidth=2;ctx.setLineDash([4,6]);
+     ctx.beginPath();ctx.moveTo(actor.x,actor.y);ctx.lineTo(casualty.x,casualty.y);ctx.stroke();ctx.setLineDash([]);
+    }
+   }
+
+   for(const teamEntry of casualtyReports)for(const report of teamEntry.casualties??[]){
+    const position=report.approximatePosition;if(!position)continue;
+    const stabilized=Number(report.assessment?.bleeding??99)<=.05&&Boolean(report.assessment);
+    const accent=stabilized?"#9db76f":"#e89a47";
+    ctx.strokeStyle=accent;ctx.lineWidth=2.5;ctx.setLineDash([5,6]);
+    ctx.beginPath();ctx.arc(position.x,position.y,31,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(18,27,22,.89)";ctx.beginPath();ctx.roundRect(position.x-52,position.y+39,104,20,10);ctx.fill();
+    ctx.strokeStyle=accent;ctx.lineWidth=1.2;ctx.stroke();
+    ctx.fillStyle=accent;ctx.font="850 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(stabilized?"CASUALTY STABILIZED":"FRIENDLY CASUALTY",position.x,position.y+49);
+   }
+
    for(const teamEntry of reports)for(const report of teamEntry.reports){
     const position=report.approximatePosition;if(!position)continue;
     if(report.reportKind==="activity_update"&&report.previousApproximatePosition){
@@ -468,17 +498,18 @@ export class Renderer{
    for(const teamEntry of outcomes){
     const outcome=teamEntry.outcomes?.[0];
     if(!outcome)continue;
-    const teamActor=game.actors.find(actor=>actor.teamId===teamEntry.teamId);
-    if(teamActor?.factionId!=="commune")continue;
     const mission=game.aiV2?.teamMissions?.get?.(teamEntry.teamId);
-    const point=mission?.withdrawalPlan?.exitPoint;
+    let point=null,title="ENCOUNTER ENDED",detail="WITHDREW WITHOUT VIOLENCE";
+    if(outcome.kind==="casualty_stabilized"){
+     point=mission?.recoveryPlan?.recoveryPoint;title="RECOVERY COMPLETE";detail="IMMEDIATE BLEEDING CONTROLLED";
+    }else point=mission?.withdrawalPlan?.exitPoint;
     if(!point)continue;
-    ctx.fillStyle="rgba(18,27,22,.91)";ctx.beginPath();ctx.roundRect(point.x-64,point.y-68,128,34,11);ctx.fill();
+    ctx.fillStyle="rgba(18,27,22,.91)";ctx.beginPath();ctx.roundRect(point.x-70,point.y-68,140,34,11);ctx.fill();
     ctx.strokeStyle="#9db76f";ctx.lineWidth=1.6;ctx.stroke();
     ctx.fillStyle="#9db76f";ctx.font="850 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillText("ENCOUNTER ENDED",point.x,point.y-57);
+    ctx.fillText(title,point.x,point.y-57);
     ctx.fillStyle="rgba(238,226,196,.72)";ctx.font="700 6.5px system-ui";
-    ctx.fillText("WITHDREW WITHOUT VIOLENCE",point.x,point.y-44);
+    ctx.fillText(detail,point.x,point.y-44);
    }
 
    for(const teamEntry of encounters)for(const encounter of teamEntry.hypotheses){
@@ -486,7 +517,7 @@ export class Renderer{
     const source=game.actors.find(actor=>actor.teamId===teamEntry.teamId);
     const baseColor=source?.factionId==="commune"?"#9db76f":"#ddae58";
     const state=encounter.state??"possible";
-    const label=state==="potentially_incompatible"?"POSSIBLE CONFLICT":state==="relevant"?"MISSION RELEVANT":state==="stale"?"STALE ENCOUNTER":"POSSIBLE ENCOUNTER";
+    const label=encounter.subjectKind==="friendly_casualty"?(state==="stale"?"CASUALTY RESOLVED":"FRIENDLY CASUALTY"):state==="potentially_incompatible"?"POSSIBLE CONFLICT":state==="relevant"?"MISSION RELEVANT":state==="stale"?"STALE ENCOUNTER":"POSSIBLE ENCOUNTER";
     const accent=state==="stale"?"rgba(213,205,157,.58)":baseColor;
     ctx.fillStyle="rgba(18,27,22,.87)";ctx.beginPath();ctx.roundRect(position.x-50,position.y+58,100,18,9);ctx.fill();
     ctx.strokeStyle=accent;ctx.lineWidth=1.25;ctx.stroke();
@@ -520,6 +551,12 @@ export class Renderer{
   const holding=debug?.activeActions?.includes("HoldReady");
   const repositioning=debug?.activeActions?.includes("RepositionForResponsibility");
   const withdrawing=debug?.activeActions?.includes("WithdrawToRoute");
+  const reportingCasualty=debug?.activeActions?.includes("ReportCasualty")&&debug?.communication?.status==="reporting_casualty";
+  const approachingCasualty=debug?.activeActions?.includes("ApproachCasualty");
+  const assessingCasualty=debug?.activeActions?.includes("AssessCasualty");
+  const draggingCasualty=debug?.activeActions?.includes("DragCasualty");
+  const stabilizingCasualty=debug?.activeActions?.includes("StabilizeCasualty");
+  const recoveryFresh=debug?.recovery?.status==="stabilized"&&((this._currentGame?.aiV2?.elapsed??0)-(actor.aiV2Recovery?.completedAt??0)<=5.5);
   const contact=debug?.personalKnowledge;
   const received=debug?.receivedKnowledge;
   const reportingUpdate=debug?.activeActions?.includes("ReportContactUpdate")&&debug?.communication?.status==="transmitting_update";
@@ -528,11 +565,23 @@ export class Renderer{
   const heardWarning=debug?.heardWarning;
   const warningFresh=heardWarning&&((this._currentGame?.aiV2?.elapsed??0)-(heardWarning.heardAt??0)<=5.5);
   const procedureRole=debug?.procedureRole;
-  const showAction=Boolean(observing||holding||repositioning||withdrawing||reporting||reportingUpdate||issuingWarning||warningFresh||received);
+  const showAction=Boolean(observing||holding||repositioning||withdrawing||reporting||reportingUpdate||reportingCasualty||approachingCasualty||assessingCasualty||draggingCasualty||stabilizingCasualty||recoveryFresh||issuingWarning||warningFresh||received);
   if(!showAction&&!procedureRole)return;
   const x=actor.x,y=actor.y-108;
   let title="UNASSIGNED",status="NO ACTION",footer="",accent="rgba(235,234,213,.58)";
-  if(issuingWarning){
+  if(reportingCasualty){
+   title="REPORT CASUALTY";status=`VOICE ${debug.communication.recipientIds?.length??0} · ${Math.round((debug.communication.progress??0)*100)}%`;footer="TEAM RECOVERY";accent="#e89a47";
+  }else if(approachingCasualty){
+   title="APPROACH";status=`MOVING ${Math.round((debug.recovery?.progress??0)*100)}%`;footer="REACH CASUALTY";accent="#9db76f";
+  }else if(assessingCasualty){
+   title="ASSESS";status=`CHECKING ${Math.round((debug.recovery?.progress??0)*100)}%`;footer="CONDITION & MOBILITY";accent="#9db76f";
+  }else if(draggingCasualty){
+   title="DRAG";status=`MOVING ${Math.round((debug.recovery?.progress??0)*100)}%`;footer="TO RECOVERY POINT";accent="#9db76f";
+  }else if(stabilizingCasualty){
+   title="STABILIZE";status=`TREATING ${Math.round((debug.recovery?.progress??0)*100)}%`;footer=String(debug.recovery?.treatmentType??"PRESSURE DRESSING").replaceAll("_"," ").toUpperCase();accent="#9db76f";
+  }else if(recoveryFresh){
+   title="STABILIZED";status="BLEEDING CONTROLLED";footer="FURTHER CARE REQUIRED";accent="#9db76f";
+  }else if(issuingWarning){
    title="ISSUE WARNING";status=`VOICE ${debug.communication.recipientIds?.length??0} · ${Math.round((debug.communication.progress??0)*100)}%`;footer="STOP AND IDENTIFY";accent="#e89a47";
   }else if(warningFresh){
    title="WARNING HEARD";status="STOP AND IDENTIFY";footer="NO REPLY SELECTED";accent="#e89a47";

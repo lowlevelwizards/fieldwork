@@ -1,6 +1,6 @@
-import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { canTreatSelf, canDrag, isCombatCapable } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js";
+import { canTreatSelf, canDrag, isCombatCapable } from "./actor-state.js";
+import { moveActorToward, trailActorToward, stopActor, isImmobileCasualty } from "./actor-motion.js";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 

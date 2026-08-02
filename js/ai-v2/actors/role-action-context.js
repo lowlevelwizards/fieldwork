@@ -61,7 +61,7 @@ function withdrawalMovement({mission,role,actor,zone}){
   };
 }
 
-export function buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,currentObserveAction=null}={}){
+export function buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,currentObserveAction=null}={}){
   const teamActors=(game?.actors??[]).filter(candidate=>candidate.teamId===actor?.teamId&&!candidate.medical?.dead);
   const teamCenter=centroid(teamActors);
   const contactPosition=bestContactPosition({teamKnowledge,teamEncounters,teamId:actor?.teamId,mission,teamCenter});
@@ -73,6 +73,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
   let focus=null;
   let warning=null;
   let movement=null;
+  let recovery=null;
   let label=role?.label??"Assigned responsibility";
 
   if(need==="observe_contact"){
@@ -137,6 +138,41 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
         fieldOfViewDegrees:role.fulfillment.fieldOfViewDegrees??78
       };
     }
+  }else if(need==="observe_recovery_approach"){
+    const authored=mission?.recoveryPlan?.securitySector;
+    if(authored)sector={...authored};
+  }else if(need==="recover_casualty"){
+    const hypothesis=teamEncounters?.getBestTeamHypothesis?.(actor?.teamId)??null;
+    const casualtyId=hypothesis?.subjectKind==="friendly_casualty"?hypothesis.subjectId:null;
+    const casualty=game?.actors?.find(candidate=>candidate.id===casualtyId)??null;
+    const plan=mission?.recoveryPlan;
+    if(casualty&&plan?.recoveryPoint){
+      const interactionRange=plan.interactionRange??82;
+      const angle=Math.atan2(actor.y-casualty.y,actor.x-casualty.x);
+      const approachDestination=clampToZone({
+        x:casualty.x+Math.cos(angle)*Math.max(44,interactionRange*.68),
+        y:casualty.y+Math.sin(angle)*Math.max(44,interactionRange*.68)
+      },zone,24);
+      recovery={
+        casualtyId:casualty.id,
+        casualtyName:casualty.name,
+        casualtyPosition:{x:casualty.x,y:casualty.y},
+        approachDestination,
+        recoveryPoint:{...plan.recoveryPoint},
+        interactionRange,
+        reportRange:plan.reportRange??520,
+        approachSpeedMultiplier:plan.approachSpeedMultiplier??.8,
+        dragSpeedMultiplier:plan.dragSpeedMultiplier??.46,
+        arrivalRadius:plan.arrivalRadius??13,
+        claimSpacing:plan.claimSpacing??62,
+        stabilizationDuration:plan.stabilizationDuration??3.4,
+        assessment:casualtyKnowledge?.getBestTeamCasualty?.(actor.teamId)?.assessment??hypothesis.casualty??null,
+        initialApproachDistance:Math.hypot(approachDestination.x-actor.x,approachDestination.y-actor.y),
+        initialDragDistance:Math.hypot(plan.recoveryPoint.x-actor.x,plan.recoveryPoint.y-actor.y)
+      };
+      focus={...plan.recoveryPoint};
+      label=plan.label??"Recovery point";
+    }
   }
 
   return{
@@ -152,6 +188,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
     focus,
     warning,
     movement,
+    recovery,
     label,
     permissions:{...(procedure?.permissions??{})}
   };

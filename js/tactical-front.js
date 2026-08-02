@@ -1,6 +1,6 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { projectOutsideObstacles } from "./actor-motion.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { getDoctrine } from "./faction-doctrine.js";
+import { projectOutsideObstacles } from "./actor-motion.js";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 

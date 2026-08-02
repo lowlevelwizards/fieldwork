@@ -46,6 +46,7 @@ function copyContext(context={}){
     securityOrientation:clamp(context.securityOrientation??.5),
     stealthOrientation:clamp(context.stealthOrientation??.5),
     mobilityOrientation:clamp(context.mobilityOrientation??.5),
+    careOrientation:clamp(context.careOrientation??.5),
     positionLabel:context.positionLabel??"current position",
     exitLabel:context.exitLabel??"available route"
   };
@@ -55,6 +56,51 @@ export function buildTeamDecisionLedger({mission,encounter}={}){
   if(!mission||!encounter)return null;
   const context=copyContext(mission.decisionContext);
   const informationCertainty=clamp((encounter.reportConfidence??0)/100*.82);
+  if(encounter.subjectKind==="friendly_casualty"){
+    const casualty=encounter.casualty??{};
+    const urgency=casualty.condition==="unconscious"||casualty.condition==="critical"||casualty.immediateDanger?1:casualty.condition==="serious"?.72:.38;
+    return{
+      teamId:mission.teamId,
+      missionId:mission.id,
+      encounterSubjectId:encounter.subjectId,
+      encounterState:encounter.state,
+      subjectKind:"friendly_casualty",
+      missionValue:context.missionValue,
+      teamPreservation:context.teamPreservation,
+      informationNeed:context.informationNeed,
+      informationCertainty,
+      informationUncertainty:1-informationCertainty,
+      encounterRelevance:clamp(encounter.relevanceScore??0),
+      positionSecurity:context.positionSecurity,
+      concealmentValue:context.concealmentValue,
+      detectionRisk:context.detectionRisk,
+      timePressure:Math.max(context.timePressure,urgency),
+      lowTimePressure:1-Math.max(context.timePressure,urgency),
+      resourceConservation:context.resourceConservation,
+      exitOptions:context.exitOptions,
+      enemyDisruption:context.enemyDisruption,
+      securityOrientation:context.securityOrientation,
+      stealthOrientation:context.stealthOrientation,
+      mobilityOrientation:context.mobilityOrientation,
+      careOrientation:context.careOrientation,
+      casualtyUrgency:urgency,
+      casualtyAssessed:casualty.assessed?1:0,
+      casualtyBleeding:clamp((casualty.bleeding??0)/2.8),
+      casualtyMobility:casualty.mobility==="requires_assisted_movement"||casualty.mobility==="unable_to_self_move"?0:1,
+      recoveryPlanAvailable:mission.recoveryPlan?.recoveryPoint?1:0,
+      medicalCapability:1,
+      hostileEvidence:0,
+      unknownIntent:0,
+      activityEvidence:0,
+      boundaryEstablished:0,boundaryInside:0,boundaryProximity:0,boundaryTrigger:0,
+      boundaryLabel:"not applicable",boundaryPolicy:null,boundaryWarningType:null,
+      reversibleCommunicationValue:1,warningHeard:0,warningIssued:0,departureEvidence:0,withdrawalPlanAvailable:0,
+      positionLabel:context.positionLabel,
+      exitLabel:mission.recoveryPlan?.label??context.exitLabel,
+      evidenceLabel:`${Math.round(encounter.reportConfidence??0)}% friendly casualty report`,
+      responseBias:{...(mission.responseBias??{})}
+    };
+  }
   const encounterRelevance=clamp(encounter.relevanceScore??0);
   const hostileEvidence=encounter.intent==="hostile"?1:0;
   const unknownIntent=encounter.intent==="unknown"||encounter.intent==="no_clear_intent"?1:0;

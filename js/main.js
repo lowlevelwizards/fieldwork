@@ -1,14 +1,14 @@
-import { Camera } from "./camera.js?v=20a-causal-architecture-foundation-20260802";
-import { ContinuousGameState } from "./continuous-game-state.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { InputController, CombatInputController } from "./input.js?v=20a-causal-architecture-foundation-20260802";
-import { Renderer } from "./renderer.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { getItemDefinition } from "../data/items.js?v=20a-causal-architecture-foundation-20260802";
-import { findEntity } from "./world-entities.js?v=20a-causal-architecture-foundation-20260802";
-import { validateItemLocations } from "./item-locations.js?v=20a-causal-architecture-foundation-20260802";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { Camera } from "./camera.js";
+import { ContinuousGameState } from "./continuous-game-state.js";
+import { InputController, CombatInputController } from "./input.js";
+import { Renderer } from "./renderer.js";
+import { getItemDefinition } from "../data/items.js";
+import { findEntity } from "./world-entities.js";
+import { validateItemLocations } from "./item-locations.js";
+import { renderItemThumbnail } from "./presentation/item-renderer.js";
+import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js";
 
-const BUILD_ID="2.0L";
+const BUILD_ID="2.0M";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Silent withdrawal and de-escalation: a warned team can disengage in stages, the other team observes departure without pursuit, and both remember the nonviolent outcome."
+    ?"Casualty recovery and stabilization: a witnessed teammate is reported, the team assigns aid and security, moves them to protected ground, and controls immediate bleeding without combat."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();

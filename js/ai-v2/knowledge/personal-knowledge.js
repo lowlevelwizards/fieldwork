@@ -1,4 +1,4 @@
-import { cloneContactTrack, createContactTrack, markContactTrackLost, updateContactTrack } from "./contact-track.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { cloneContactTrack, createContactTrack, markContactTrackLost, updateContactTrack } from "./contact-track.js";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 

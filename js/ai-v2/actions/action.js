@@ -1,4 +1,4 @@
-import { normalizeActionChannels } from "./action-channels.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { normalizeActionChannels } from "./action-channels.js";
 
 export const ACTION_STATES=Object.freeze({
   PROPOSED:"proposed",

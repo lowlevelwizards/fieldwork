@@ -1,4 +1,4 @@
-import { assessEncounterHypothesis, ENCOUNTER_STATES } from "./encounter-assessment.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { assessEncounterHypothesis, assessFriendlyCasualtyHypothesis, ENCOUNTER_STATES } from "./encounter-assessment.js";
 
 export class TeamEncounterMemory{
   constructor({decisionLog=null}={}){
@@ -6,17 +6,21 @@ export class TeamEncounterMemory{
     this.byTeam=new Map();
   }
 
-  update({missions,teamKnowledge,heardCommunications=null,now=0}={}){
+  update({missions,teamKnowledge,casualtyKnowledge=null,heardCommunications=null,now=0}={}){
     const touched=new Set();
     for(const mission of missions?.summary?.()??[]){
-      const reports=teamKnowledge?.getTeamContacts?.(mission.teamId)??[];
+      const reports=mission.problemKind==="friendly_casualty"
+        ?(casualtyKnowledge?.getTeamCasualties?.(mission.teamId)??[])
+        :(teamKnowledge?.getTeamContacts?.(mission.teamId)??[]);
       if(!this.byTeam.has(mission.teamId))this.byTeam.set(mission.teamId,new Map());
       const hypotheses=this.byTeam.get(mission.teamId);
 
-      const heardWarning=heardCommunications?.getLatestForTeam?.(mission.teamId)??null;
-      const outgoingWarning=heardCommunications?.getLatestOutgoing?.(mission.teamId)??null;
+      const heardWarning=mission.problemKind==="friendly_casualty"?null:(heardCommunications?.getLatestForTeam?.(mission.teamId)??null);
+      const outgoingWarning=mission.problemKind==="friendly_casualty"?null:(heardCommunications?.getLatestOutgoing?.(mission.teamId)??null);
       for(const report of reports){
-        const assessed=assessEncounterHypothesis({mission,report,heardWarning,outgoingWarning,now});
+        const assessed=mission.problemKind==="friendly_casualty"
+          ?assessFriendlyCasualtyHypothesis({mission,report,now})
+          :assessEncounterHypothesis({mission,report,heardWarning,outgoingWarning,now});
         if(!assessed)continue;
         const key=assessed.subjectId;
         const existing=hypotheses.get(key);
@@ -97,6 +101,7 @@ export class TeamEncounterMemory{
         intentHypothesis:hypothesis.intentHypothesis?{...hypothesis.intentHypothesis}:null,
         heardWarning:hypothesis.heardWarning?{...hypothesis.heardWarning,targetPoint:hypothesis.heardWarning.targetPoint?{...hypothesis.heardWarning.targetPoint}:null,approximateSourcePosition:hypothesis.heardWarning.approximateSourcePosition?{...hypothesis.heardWarning.approximateSourcePosition}:null,recipientIds:[...(hypothesis.heardWarning.recipientIds??[])]}:null,
         outgoingWarning:hypothesis.outgoingWarning?{...hypothesis.outgoingWarning,targetPoint:hypothesis.outgoingWarning.targetPoint?{...hypothesis.outgoingWarning.targetPoint}:null,approximateSourcePosition:hypothesis.outgoingWarning.approximateSourcePosition?{...hypothesis.outgoingWarning.approximateSourcePosition}:null,recipientIds:[...(hypothesis.outgoingWarning.recipientIds??[])]}:null,
+        casualty:hypothesis.casualty?{...hypothesis.casualty,treatmentNeed:hypothesis.casualty.treatmentNeed?{...hypothesis.casualty.treatmentNeed}:null}:null,
         spatial:{...hypothesis.spatial}
       }))
     }));

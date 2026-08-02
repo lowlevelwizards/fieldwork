@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor } from "../../actor-motion.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { moveActorToward, stopActor } from "../../actor-motion.js";
 
 export class LocomotionExecutor{
   moveToward(actor,target,delta,{game,speedMultiplier=.58,arrivalRadius=10,task="Repositioning",pose="walk"}={}){

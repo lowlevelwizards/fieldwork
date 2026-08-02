@@ -1,6 +1,6 @@
 export class ActorActionEvaluator{
   evaluate(context){
-    const {actor,role,procedure,mission,sector,focus,warning,movement,label}=context??{};
+    const {actor,role,procedure,mission,sector,focus,warning,movement,recovery,label}=context??{};
     if(!role||!procedure)return[];
     const provenance={
       owner:"role_action_runtime",
@@ -26,6 +26,29 @@ export class ActorActionEvaluator{
       phaseLabel:procedure.phase?.label??null,
       provenance
     };
+
+    if(role.fulfillment?.need==="recover_casualty"){
+      if(!recovery?.casualtyId)return[];
+      if(procedure.phase?.id==="reach_casualty"&&procedure.permissions?.relocate){
+        return[{type:"ApproachCasualty",score:1,reason:`${role.label} must reach the known casualty before assessment or treatment can occur.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,casualtyId:recovery.casualtyId,destination:{...recovery.approachDestination},interactionRange:recovery.interactionRange,initialDistance:recovery.initialApproachDistance,policy:{speedMultiplier:recovery.approachSpeedMultiplier,arrivalRadius:recovery.arrivalRadius}}}];
+      }
+      if(procedure.phase?.id==="assess_condition"&&procedure.permissions?.care){
+        return[{type:"AssessCasualty",score:1,reason:`${role.label} must establish the casualty's mobility and treatment need before moving them.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,casualtyId:recovery.casualtyId,interactionRange:recovery.interactionRange,reportRange:recovery.reportRange,duration:1.8}}];
+      }
+      if(procedure.phase?.id==="move_to_recovery"&&procedure.permissions?.drag&&procedure.permissions?.relocate){
+        return[{type:"DragCasualty",score:1,reason:`${role.label} must move the assessed casualty to protected ground.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,casualtyId:recovery.casualtyId,destination:{...recovery.recoveryPoint},interactionRange:recovery.interactionRange,initialDistance:recovery.initialDragDistance,policy:{speedMultiplier:recovery.dragSpeedMultiplier,arrivalRadius:recovery.arrivalRadius,claimSpacing:recovery.claimSpacing}}}];
+      }
+      if(procedure.phase?.id==="stabilize"&&procedure.permissions?.care){
+        return[{type:"StabilizeCasualty",score:1,reason:`${role.label} must apply the treatment identified by the assessment and stop immediate deterioration.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,casualtyId:recovery.casualtyId,interactionRange:recovery.interactionRange,reportRange:recovery.reportRange,duration:recovery.stabilizationDuration}}];
+      }
+      if(procedure.phase?.id==="recovery_complete"&&focus){
+        return[{type:"HoldReady",score:.9,reason:`${role.label} remains beside the stabilized casualty while the recovery outcome is recorded.`,directive:{...common,reason:`${role.label}: recovery complete`,label,focus:{...focus}}}];
+      }
+      return[];
+    }
+    if(role.fulfillment?.need==="observe_recovery_approach"&&sector&&procedure.permissions?.observe){
+      return[{type:"ObserveSector",score:.99,reason:`${role.label} preserves independent awareness while the aid provider performs recovery.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,sector:{...sector}}}];
+    }
 
     if(role.fulfillment?.need==="issue_warning"){
       if(procedure.phase?.id==="issue_warning"&&procedure.permissions?.warn&&warning?.targetPoint){

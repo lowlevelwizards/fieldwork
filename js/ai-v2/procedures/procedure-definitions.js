@@ -13,6 +13,43 @@ function role({id,label,responsibility,selectionReason,fulfillment,preference=()
 function phase(id,label,reason){return Object.freeze({id,label,reason});}
 
 const PROCEDURES=Object.freeze({
+  recover_casualty:Object.freeze({
+    id:"casualty_recovery",
+    label:"Casualty Recovery",
+    responseId:"recover_casualty",
+    description:"Preserve security while one aid provider reaches, assesses, moves, and stabilizes the known casualty.",
+    establishDuration:.55,
+    phases:Object.freeze([
+      phase("establish_responsibilities","Establish Responsibilities","The recovery response requires a dedicated aid provider and a separate security watch."),
+      phase("reach_casualty","Reach Casualty","The aid provider moves to an interaction position beside the casualty while security remains active."),
+      phase("assess_condition","Assess Condition","The aid provider determines mobility, bleeding, and immediate treatment needs before moving the casualty."),
+      phase("move_to_recovery","Move to Recovery Point","The aid provider drags the casualty to the authored protected position."),
+      phase("stabilize","Stabilize","The aid provider applies the treatment indicated by the assessment."),
+      phase("recovery_complete","Recovery Complete","The casualty is on protected ground and immediate deterioration has been stopped."),
+      phase("reassess","Reassess","A failed movement, unavailable supply, or incapable responder requires the team to reconsider the recovery.")
+    ]),
+    activePhaseId:"reach_casualty",
+    permissions:Object.freeze({observe:true,report:true,relocate:true,warn:false,care:true,drag:true,fire:false}),
+    reassessmentTriggers:Object.freeze(["casualty_reached","casualty_assessed","casualty_moved_to_recovery","casualty_stabilized","casualty_recovery_failed","team_member_incapable","mission_changed","hostile_action_observed"]),
+    roles:Object.freeze([
+      role({
+        id:"aid_provider",
+        label:"Aid Provider",
+        responsibility:"Reach the casualty, assess their condition, move them to protected ground, and stop immediate deterioration.",
+        selectionReason:"Prefer the field medic with the required medical supply and preserve the security operator's independent awareness.",
+        fulfillment:{need:"recover_casualty"},
+        preference:actor=>String(actor.role??"").toLowerCase().includes("medic")?120:(actor.aiV2MedicalSupplies?.pressure_dressing??0)>0?80:0
+      }),
+      role({
+        id:"security_watch",
+        label:"Security Watch",
+        responsibility:"Maintain awareness of the casualty approach so the aid provider can work without the whole team fixating on treatment.",
+        selectionReason:"Prefer the capable security-oriented operator who first witnessed and reported the casualty.",
+        fulfillment:{need:"observe_recovery_approach"},
+        preference:actor=>String(actor.role??"").toLowerCase().includes("security")?110:actor.aiV2CasualtyAssignment?.observe?90:0
+      })
+    ])
+  }),
   heighten_watch:Object.freeze({
     id:"security_watch",
     label:"Security Watch",

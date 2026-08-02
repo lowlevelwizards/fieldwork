@@ -1,4 +1,4 @@
-import { getItemDefinition } from "../data/items.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { getItemDefinition } from "../data/items.js";
 
 const ITEM_SIZES = {
   radio_battery: [28, 18],

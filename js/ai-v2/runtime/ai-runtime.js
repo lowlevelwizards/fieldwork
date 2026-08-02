@@ -1,25 +1,29 @@
-import { ActionScheduler } from "../actions/action-scheduler.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { ReportContactAction } from "../actions/report-contact-action.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { ReportContactUpdateAction } from "../actions/report-contact-update-action.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { RoleActionRuntime } from "../actors/role-action-runtime.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { RolePositionRuntime } from "../actors/role-position-runtime.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { CommunicationExecutor } from "../communication/communication-executor.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { DecisionLog } from "../diagnostics/decision-log.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { EncounterOutcomeMemory } from "../encounters/encounter-outcome-memory.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { AttentionExecutor } from "../execution/attention-executor.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { LocomotionExecutor } from "../execution/locomotion-executor.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { HeardCommunicationStore } from "../knowledge/heard-communication.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { TeamMissionStore } from "../missions/team-mission.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { TeamProcedureState } from "../procedures/team-procedure-state.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { DestinationClaimService } from "../position/destination-claim-service.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { PositionQueryService } from "../position/position-query-service.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { TeamResponseState } from "../responses/team-response-state.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { captureWorldSnapshot } from "./world-snapshot.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { ActionScheduler } from "../actions/action-scheduler.js";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js";
+import { ReportContactAction } from "../actions/report-contact-action.js";
+import { ReportContactUpdateAction } from "../actions/report-contact-update-action.js";
+import { ReportCasualtyAction } from "../actions/report-casualty-action.js";
+import { RoleActionRuntime } from "../actors/role-action-runtime.js";
+import { RolePositionRuntime } from "../actors/role-position-runtime.js";
+import { CommunicationExecutor } from "../communication/communication-executor.js";
+import { DecisionLog } from "../diagnostics/decision-log.js";
+import { InvariantMonitor } from "../diagnostics/invariant-monitor.js";
+import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js";
+import { EncounterOutcomeMemory } from "../encounters/encounter-outcome-memory.js";
+import { AttentionExecutor } from "../execution/attention-executor.js";
+import { LocomotionExecutor } from "../execution/locomotion-executor.js";
+import { CasualtyCareExecutor } from "../execution/casualty-care-executor.js";
+import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js";
+import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js";
+import { HeardCommunicationStore } from "../knowledge/heard-communication.js";
+import { CasualtyKnowledgeStore } from "../knowledge/casualty-knowledge.js";
+import { TeamMissionStore } from "../missions/team-mission.js";
+import { TeamProcedureState } from "../procedures/team-procedure-state.js";
+import { DestinationClaimService } from "../position/destination-claim-service.js";
+import { PositionQueryService } from "../position/position-query-service.js";
+import { TeamResponseState } from "../responses/team-response-state.js";
+import { evaluateCasualtyObservation } from "../senses/casualty-observation.js";
+import { captureWorldSnapshot } from "./world-snapshot.js";
 
 export const AI_RUNTIME_MODES=Object.freeze({LEGACY:"legacy",V2:"v2"});
 const stateLabel=state=>String(state??"none").replaceAll("_"," ");
@@ -53,6 +57,7 @@ export class AIV2Runtime{
     this.personalKnowledge=new PersonalKnowledgeStore({decisionLog:this.decisionLog});
     this.teamKnowledge=new TeamKnowledgeStore({decisionLog:this.decisionLog});
     this.heardCommunications=new HeardCommunicationStore({decisionLog:this.decisionLog});
+    this.casualtyKnowledge=new CasualtyKnowledgeStore({decisionLog:this.decisionLog});
     this.teamMissions=new TeamMissionStore();
     this.teamEncounters=new TeamEncounterMemory({decisionLog:this.decisionLog});
     this.encounterOutcomes=new EncounterOutcomeMemory({decisionLog:this.decisionLog});
@@ -64,24 +69,27 @@ export class AIV2Runtime{
     this.rolePositions=new RolePositionRuntime({scheduler:this.scheduler,positionQueries:this.positionQueries,destinationClaims:this.destinationClaims,decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
     this.locomotion=new LocomotionExecutor();
+    this.casualtyCare=new CasualtyCareExecutor();
     this.communication=new CommunicationExecutor();
     this.visibleByObserver=new Map();
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"silent_withdrawal_deescalation",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"casualty_recovery_stabilization",scenario:game.scenarioMode}});
   }
 
   update(delta){
     this.elapsed+=delta;
     this.visibleByObserver=new Map();
     this.teamMissions.syncFromGame(this.game);
+    this.#updateCasualtyObservations(delta);
     this.#ensureAuthoredObservationActions();
     this.scheduler.update(delta,{now:this.elapsed,context:this.#context(this.elapsed)});
     this.personalKnowledge.update(delta,{now:this.elapsed,visibleByObserver:this.visibleByObserver});
     this.teamKnowledge.update(delta,{now:this.elapsed});
     this.#ensureContactReports();
     this.#ensureContactUpdateReports();
-    this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,heardCommunications:this.heardCommunications,now:this.elapsed});
+    this.#ensureCasualtyReports();
+    this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,casualtyKnowledge:this.casualtyKnowledge,heardCommunications:this.heardCommunications,now:this.elapsed});
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamResponses,now:this.elapsed});
     this.roleActions.update({
@@ -90,6 +98,7 @@ export class AIV2Runtime{
       teamMissions:this.teamMissions,
       teamKnowledge:this.teamKnowledge,
       teamEncounters:this.teamEncounters,
+      casualtyKnowledge:this.casualtyKnowledge,
       now:this.elapsed,
       context:this.#context(this.elapsed)
     });
@@ -104,6 +113,7 @@ export class AIV2Runtime{
       teamProcedures:this.teamProcedures,
       teamEncounters:this.teamEncounters,
       heardCommunications:this.heardCommunications,
+      casualtyKnowledge:this.casualtyKnowledge,
       now:this.elapsed
     });
     this.#updateActorDiagnostics();
@@ -118,6 +128,7 @@ export class AIV2Runtime{
       roleActions:this.roleActions.summary(),
       rolePositions:this.rolePositions.summary(),
       destinationClaims:this.destinationClaims.summary(this.elapsed),
+      patientClaims:this.casualtyCare.summary(),
       scheduler:this.scheduler
     });
   }
@@ -128,12 +139,13 @@ export class AIV2Runtime{
     const ready=scheduler.byType.HoldReady??0;
     const repositioning=scheduler.byType.RepositionForResponsibility??0;
     const withdrawing=scheduler.byType.WithdrawToRoute??0;
+    const recovery=(scheduler.byType.ApproachCasualty??0)+(scheduler.byType.AssessCasualty??0)+(scheduler.byType.DragCasualty??0)+(scheduler.byType.StabilizeCasualty??0);
     const visible=this.personalKnowledge.summary().reduce((sum,entry)=>sum+entry.contacts.filter(contact=>contact.currentlyVisible).length,0);
-    const reporting=(scheduler.byType.ReportContact??0)+(scheduler.byType.ReportContactUpdate??0);
+    const reporting=(scheduler.byType.ReportContact??0)+(scheduler.byType.ReportContactUpdate??0)+(scheduler.byType.ReportCasualty??0);
     const issuingWarnings=scheduler.byType.IssueWarning??0;
     const activityUpdates=this.teamKnowledge.activityReportCount();
     const activeEncounterCount=this.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${reporting} reporting · ${issuingWarnings} warning · ${this.heardCommunications.count()} heard warning(s) · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} response(s) · ${this.teamProcedures.count()} procedure(s) · ${this.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${recovery} recovering casualty · ${reporting} reporting · ${issuingWarnings} warning · ${this.heardCommunications.count()} heard warning(s) · ${this.casualtyKnowledge.count()} casualty record(s) · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} response(s) · ${this.teamProcedures.count()} procedure(s) · ${this.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
   }
 
   getDebugDetails(){
@@ -150,6 +162,8 @@ export class AIV2Runtime{
       return contact?`${actor.name}: ${contact.level} ${Math.round(contact.confidence)}% · ${stateLabel(contact.track?.currentActivity)} · ${stateLabel(contact.track?.intentHypothesis?.id)}`:`${actor.name}: none`;
     }).join(" · ")||"none";
     const communication=this.game.actors.map(actor=>{
+      const casualtyReport=this.scheduler.getAction(actor.id,"ReportCasualty");
+      if(casualtyReport)return `${actor.name}: casualty report ${Math.round(casualtyReport.progress*100)}% · ${casualtyReport.casualtySnapshot?.subjectName??"teammate"}`;
       const warning=this.scheduler.getAction(actor.id,"IssueWarning");
       if(warning)return `${actor.name}: directed warning ${Math.round(warning.progress*100)}% · ${warning.directive?.message??"challenge"}`;
       const update=this.scheduler.getAction(actor.id,"ReportContactUpdate");
@@ -162,11 +176,17 @@ export class AIV2Runtime{
       if(delivered)return `${actor.name}: delivered to ${actor.aiV2Communication.recipientIds.length}`;
       return null;
     }).filter(Boolean).join(" · ")||"none";
-    const shared=this.teamKnowledge.summary().flatMap(entry=>entry.reports.map(report=>{
+    const sharedContacts=this.teamKnowledge.summary().flatMap(entry=>entry.reports.map(report=>{
       const faction=this.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
       const evidence=report.reportKind==="activity_update"?` · ${stateLabel(report.activity)} · ${stateLabel(report.intentHypothesis?.id)}`:"";
       return `${faction}: ${report.classification.replaceAll("_"," ")} ${Math.round(report.confidence)}%${evidence} via ${report.recipientIds.length} recipient(s)`;
-    })).join(" · ")||"none — no report delivered";
+    }));
+    const sharedCasualties=this.casualtyKnowledge.summary().flatMap(entry=>entry.casualties.map(report=>{
+      const faction=this.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
+      const treatment=report.assessment?.treatmentNeed?.type?` · needs ${stateLabel(report.assessment.treatmentNeed.type)}`:"";
+      return `${faction}: ${report.subjectName} ${stateLabel(report.observedCondition)}${treatment} via ${report.recipientIds.length} recipient(s)`;
+    }));
+    const shared=[...sharedContacts,...sharedCasualties].join(" · ")||"none — no report delivered";
     const encounters=this.teamEncounters.summary().flatMap(entry=>entry.hypotheses.map(hypothesis=>{
       const faction=this.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
       const activity=hypothesis.activity?` · ${stateLabel(hypothesis.activity)} / ${stateLabel(hypothesis.intent)}`:"";
@@ -195,6 +215,34 @@ export class AIV2Runtime{
       return `${faction}: ${outcome.label} · ${outcome.summary}`;
     })).join(" · ")||"none — no encounter outcome remembered";
     return{assignment:actionAssignments,personalKnowledge:contacts,activity,communication,teamKnowledge:shared,encounter:encounters,response:responses,procedure:procedures,position:positions,outcome:outcomes};
+  }
+
+  #updateCasualtyObservations(delta){
+    for(const observer of this.game.actors){
+      const assignment=observer.aiV2CasualtyAssignment;
+      if(!assignment?.observe||observer.medical?.dead||observer.medical?.unconscious)continue;
+      const visibleIds=new Set();
+      const casualties=this.game.actors.filter(candidate=>candidate.id!==observer.id&&candidate.teamId===observer.teamId&&["critical","unconscious","serious"].includes(candidate.medical?.condition));
+      for(const casualty of casualties){
+        const evidence=evaluateCasualtyObservation(this.game,observer,casualty,{maximumRange:assignment.maximumRange??640,fieldOfViewDegrees:assignment.fieldOfViewDegrees??170});
+        if(!evidence.visible)continue;
+        visibleIds.add(casualty.id);
+        this.casualtyKnowledge.observe({observer,casualty,evidence,now:this.elapsed,delta});
+      }
+      this.casualtyKnowledge.markNotVisible(observer.id,visibleIds,this.elapsed);
+    }
+  }
+
+  #ensureCasualtyReports(){
+    for(const actor of this.game.actors){
+      const assignment=actor.aiV2CasualtyAssignment;
+      if(!assignment?.observe||this.scheduler.hasAction(actor.id,"ReportCasualty"))continue;
+      const casualty=this.casualtyKnowledge.getBestPersonalCasualty(actor.id);
+      if(!casualty?.currentlyVisible||casualty.confidence<(assignment.report?.minimumConfidence??52))continue;
+      if(this.casualtyKnowledge.hasInitialReport(actor.teamId,actor.id,casualty.subjectId))continue;
+      const action=new ReportCasualtyAction({actorId:actor.id,casualty,assignment});
+      this.scheduler.start(action,{now:this.elapsed,context:this.#context(this.elapsed)});
+    }
   }
 
   #ensureAuthoredObservationActions(){
@@ -256,6 +304,8 @@ export class AIV2Runtime{
         personalKnowledge:this.personalKnowledge,
         teamKnowledge:this.teamKnowledge,
         heardCommunications:this.heardCommunications,
+        casualtyKnowledge:this.casualtyKnowledge,
+        casualtyCare:this.casualtyCare,
         teamMissions:this.teamMissions,
         teamEncounters:this.teamEncounters,
         encounterOutcomes:this.encounterOutcomes,
@@ -280,6 +330,8 @@ export class AIV2Runtime{
       const repositionAction=actions.find(action=>action.type==="RepositionForResponsibility")??null;
       const withdrawalAction=actions.find(action=>action.type==="WithdrawToRoute")??null;
       const warningAction=actions.find(action=>action.type==="IssueWarning")??null;
+      const casualtyReportAction=actions.find(action=>action.type==="ReportCasualty")??null;
+      const recoveryAction=actions.find(action=>["ApproachCasualty","AssessCasualty","DragCasualty","StabilizeCasualty"].includes(action.type))??null;
       const assignment=actor.aiV2Assignment??null;
       const contact=this.personalKnowledge.getBestContact(actor.id);
       const received=this.teamKnowledge.getBestReceivedContact(actor.id);
@@ -291,7 +343,10 @@ export class AIV2Runtime{
       const procedureRole=this.teamProcedures.getActorRole(actor.id);
       const roleAction=this.roleActions.get(actor.id);
       const rolePosition=this.rolePositions.get(actor.id);
-      const reporting=warningAction??actions.find(action=>action.type==="ReportContactUpdate")??actions.find(action=>action.type==="ReportContact")??null;
+      const reporting=warningAction??casualtyReportAction??actions.find(action=>action.type==="ReportContactUpdate")??actions.find(action=>action.type==="ReportContact")??null;
+      const personalCasualty=this.casualtyKnowledge.getBestPersonalCasualty(actor.id);
+      const receivedCasualty=this.casualtyKnowledge.getLatestReceived(actor.id);
+      const teamCasualty=this.casualtyKnowledge.getBestTeamCasualty(actor.teamId);
       const sourceActor=received?this.game.actors.find(candidate=>candidate.id===received.sourceActorId):null;
       const heardWarning=this.heardCommunications.getLatestForActor(actor.id);
       const encounterOutcome=this.encounterOutcomes.getLatest(actor.teamId);
@@ -323,6 +378,18 @@ export class AIV2Runtime{
           routeLabel:withdrawalAction.directive.routeLabel,roleId:withdrawalAction.directive.roleId,roleLabel:withdrawalAction.directive.roleLabel,
           stageId:withdrawalAction.directive.phaseId
         }:actor.aiV2Withdrawal?{...actor.aiV2Withdrawal,destination:actor.aiV2Withdrawal.destination?{...actor.aiV2Withdrawal.destination}:null}:null,
+        recovery:recoveryAction?{
+          actionType:recoveryAction.type,
+          status:actor.aiV2Recovery?.status??"active",
+          phase:actor.aiV2Recovery?.phase??teamProcedure?.phase?.id??null,
+          progress:recoveryAction.progress??actor.aiV2Recovery?.progress??0,
+          casualtyId:recoveryAction.directive?.casualtyId??actor.aiV2Recovery?.casualtyId??null,
+          destination:recoveryAction.directive?.destination?{...recoveryAction.directive.destination}:actor.aiV2Recovery?.destination?{...actor.aiV2Recovery.destination}:null,
+          treatmentType:actor.aiV2Recovery?.treatmentType??null
+        }:actor.aiV2Recovery?{...actor.aiV2Recovery,destination:actor.aiV2Recovery.destination?{...actor.aiV2Recovery.destination}:null}:null,
+        personalCasualty:personalCasualty?{...personalCasualty,approximatePosition:{...personalCasualty.approximatePosition},assessment:personalCasualty.assessment?{...personalCasualty.assessment}:null}:null,
+        receivedCasualty:receivedCasualty?{...receivedCasualty,approximatePosition:{...receivedCasualty.approximatePosition},assessment:receivedCasualty.assessment?{...receivedCasualty.assessment}:null}:null,
+        teamCasualty:teamCasualty?{...teamCasualty,approximatePosition:{...teamCasualty.approximatePosition},assessment:teamCasualty.assessment?{...teamCasualty.assessment}:null}:null,
         positionRequirement:rolePosition?{
           ...rolePosition,acceptedPosition:rolePosition.acceptedPosition?{...rolePosition.acceptedPosition}:null,
           destination:rolePosition.destination?{...rolePosition.destination}:null,
@@ -343,10 +410,10 @@ export class AIV2Runtime{
           intentHypothesis:contact.track?.intentHypothesis?{...contact.track.intentHypothesis}:null
         }:null,
         communication:reporting?{
-          status:reporting.type==="IssueWarning"?"issuing_warning":reporting.type==="ReportContactUpdate"?"transmitting_update":"transmitting",
-          reportKind:reporting.type==="IssueWarning"?"directed_warning":reporting.type==="ReportContactUpdate"?"activity_update":"initial_contact",
+          status:reporting.type==="IssueWarning"?"issuing_warning":reporting.type==="ReportCasualty"?"reporting_casualty":reporting.type==="ReportContactUpdate"?"transmitting_update":"transmitting",
+          reportKind:reporting.type==="IssueWarning"?"directed_warning":reporting.type==="ReportCasualty"?"casualty_initial":reporting.type==="ReportContactUpdate"?"activity_update":"initial_contact",
           method:reporting.transmission?.method??(reporting.type==="IssueWarning"?"raised_voice":"local_voice"),progress:reporting.progress,
-          recipientIds:[...(reporting.transmission?.recipientIds??[])],subjectId:reporting.contactSnapshot?.subjectId??reporting.directive?.subjectId??null,
+          recipientIds:[...(reporting.transmission?.recipientIds??[])],subjectId:reporting.contactSnapshot?.subjectId??reporting.casualtySnapshot?.subjectId??reporting.directive?.subjectId??null,
           activity:reporting.contactSnapshot?.activity??null,activityRevision:reporting.contactSnapshot?.activityRevision??0,
           message:reporting.directive?.message??null,targetPoint:reporting.directive?.targetPoint?{...reporting.directive.targetPoint}:null
         }:actor.aiV2Communication?{...actor.aiV2Communication,recipientIds:[...(actor.aiV2Communication.recipientIds??[])]}:null,
@@ -371,7 +438,8 @@ export class AIV2Runtime{
           identity:encounter.identity,intent:encounter.intent,intentHypothesis:encounter.intentHypothesis?{...encounter.intentHypothesis}:null,
           activity:encounter.activity??null,activityLabel:encounter.activityLabel??null,activityRevision:encounter.activityRevision??0,
           interferenceLabel:encounter.interferenceLabel,response:response?.selected?.id??null,
-          warningHeard:Boolean(encounter.warningHeard),warningIssued:Boolean(encounter.warningIssued),departureObserved:Boolean(encounter.departureObserved),departureObservedAfterWarning:Boolean(encounter.departureObservedAfterWarning)
+          warningHeard:Boolean(encounter.warningHeard),warningIssued:Boolean(encounter.warningIssued),departureObserved:Boolean(encounter.departureObserved),departureObservedAfterWarning:Boolean(encounter.departureObservedAfterWarning),
+          subjectKind:encounter.subjectKind??"external_contact",casualty:encounter.casualty?{...encounter.casualty,treatmentNeed:encounter.casualty.treatmentNeed?{...encounter.casualty.treatmentNeed}:null}:null
         }:null,
         teamResponse:response?{
           id:response.selected.id,label:response.selected.label,score:response.selected.score,reason:response.selected.reason,
@@ -383,7 +451,7 @@ export class AIV2Runtime{
           reassessmentTriggers:[...teamProcedure.reassessmentTriggers],roles:teamProcedure.roles.map(role=>({...role,fulfillment:role.fulfillment?{...role.fulfillment}:null}))
         }:null,
         encounterOutcome:encounterOutcome?{...encounterOutcome,facts:[...encounterOutcome.facts],evidence:[...encounterOutcome.evidence]}:null,
-        runtimeStage:"silent_withdrawal_deescalation"
+        runtimeStage:"casualty_recovery_stabilization"
       };
     }
   }

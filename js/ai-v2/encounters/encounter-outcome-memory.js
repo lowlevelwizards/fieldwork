@@ -17,9 +17,30 @@ export class EncounterOutcomeMemory{
 
   update({game,teamProcedures,teamEncounters,heardCommunications,now=0}={}){
     for(const procedure of teamProcedures?.summary?.()??[]){
-      if(procedure.procedureId!=="break_contact_quietly"||procedure.phase?.id!=="withdrawal_complete")continue;
       const key=`${procedure.teamId}:${procedure.startedAt}`;
       if(this.completedProcedures.has(key))continue;
+      if(procedure.procedureId==="casualty_recovery"&&procedure.phase?.id==="recovery_complete"){
+        const casualtyRole=procedure.roles.find(role=>role.roleId==="aid_provider");
+        const teamActors=(game?.actors??[]).filter(actor=>actor.teamId===procedure.teamId);
+        const casualty=teamActors.find(actor=>["critical","unconscious","serious"].includes(actor.medical?.condition)&&actor.id!==casualtyRole?.actorId)??null;
+        const assessment=casualty?game?.wounds?.getAssessment?.(casualty):null;
+        if(!casualty||!assessment||assessment.bleeding>.05)continue;
+        this.completedProcedures.add(key);
+        const outcome=this.#remember({
+          teamId:procedure.teamId,
+          counterpartTeamId:null,
+          kind:"casualty_stabilized",
+          label:"Casualty stabilized",
+          summary:`${casualty.name} was recovered to protected ground and immediate bleeding was controlled. Further evacuation or care is still required.`,
+          facts:["friendly casualty reported","casualty assessed","casualty moved to protected ground","uncontrolled bleeding stopped","casualty remains impaired"],
+          evidence:[procedure.procedureId,casualty.id],
+          subjectId:casualty.id,
+          now
+        });
+        casualty.aiV2RecoveryMemory={...outcome,facts:[...outcome.facts],evidence:[...outcome.evidence]};
+        continue;
+      }
+      if(procedure.procedureId!=="break_contact_quietly"||procedure.phase?.id!=="withdrawal_complete")continue;
 
       const incoming=heardCommunications?.getLatestForTeam?.(procedure.teamId)??null;
       const sourceTeamId=incoming?.sourceTeamId??null;
@@ -51,11 +72,12 @@ export class EncounterOutcomeMemory{
     }
   }
 
-  #remember({teamId,counterpartTeamId,kind,label,summary,facts,evidence,now}){
+  #remember({teamId,counterpartTeamId,kind,label,summary,facts,evidence,subjectId=null,now}){
     const outcome={
       id:`v2_outcome_${nextOutcomeSequence++}`,
       teamId,counterpartTeamId,kind,label,summary,
       facts:[...facts],evidence:[...evidence],
+      subjectId,
       createdAt:now,
       violent:false,
       resolved:true

@@ -5,7 +5,7 @@ export class InvariantMonitor{
     this.signature="";
   }
 
-  inspect(snapshot,{now=0,procedures=[],roleActions=[],rolePositions=[],destinationClaims=[],scheduler=null}={}){
+  inspect(snapshot,{now=0,procedures=[],roleActions=[],rolePositions=[],destinationClaims=[],patientClaims=[],scheduler=null}={}){
     const violations=[];
     const ids=new Set();
     for(const actor of snapshot.actors){
@@ -43,9 +43,17 @@ export class InvariantMonitor{
       if(claimActors.has(claim.actorId))violations.push({code:"duplicate_destination_claim",actorId:claim.actorId});
       claimActors.add(claim.actorId);
       if(!ids.has(claim.actorId))violations.push({code:"unknown_destination_claim_actor",actorId:claim.actorId});
-      if(scheduler&&!scheduler.hasAction(claim.actorId,"RepositionForResponsibility")&&!scheduler.hasAction(claim.actorId,"WithdrawToRoute")){
+      if(scheduler&&!scheduler.hasAction(claim.actorId,"RepositionForResponsibility")&&!scheduler.hasAction(claim.actorId,"WithdrawToRoute")&&!scheduler.hasAction(claim.actorId,"ApproachCasualty")&&!scheduler.hasAction(claim.actorId,"DragCasualty")){
         violations.push({code:"destination_claim_without_movement_action",actorId:claim.actorId});
       }
+    }
+
+    const claimedPatients=new Set();
+    for(const claim of patientClaims){
+      if(claimedPatients.has(claim.patientId))violations.push({code:"duplicate_patient_claim",patientId:claim.patientId});
+      claimedPatients.add(claim.patientId);
+      if(!ids.has(claim.patientId)||!ids.has(claim.actorId))violations.push({code:"unknown_patient_claim_actor",patientId:claim.patientId,actorId:claim.actorId});
+      if(scheduler&&!scheduler.hasAction(claim.actorId,"DragCasualty")&&!scheduler.hasAction(claim.actorId,"StabilizeCasualty"))violations.push({code:"patient_claim_without_care_action",patientId:claim.patientId,actorId:claim.actorId});
     }
 
     for(const procedure of procedures){

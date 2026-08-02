@@ -1,7 +1,7 @@
-import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { createIntent, INTENT_PRIORITY } from "./actor-intent.js";
+import { getDoctrine, relationshipBetween, areBelligerents } from "./faction-doctrine.js";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canReceiveOrders } from "./actor-state.js";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js";
 const STATE_ORDER=["unaware","aware","alerted","contact","threatening","disengaging"];
 function pairKey(a,b){return [a,b].sort().join(":");}
 function relation(a,b){return relationshipBetween(a,b);}

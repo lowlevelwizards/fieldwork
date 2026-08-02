@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor } from "./actor-motion.js?v=12g-combat-posture-fight-assessment-20260801";
+import { moveActorToward, stopActor } from "./actor-motion.js";
 
 export const INTENT_PRIORITY={
   PATROL:20,

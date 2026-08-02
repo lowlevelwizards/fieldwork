@@ -1,29 +1,29 @@
-import { GameState } from "./game.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { PerceptionSystem } from "./perception.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CombatSystem } from "./combat.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { AICombatSystem } from "./ai-combat.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { WoundSystem } from "./wound-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { MedicalSystem } from "./medical-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CombatSandboxDirector, sandboxMap, getSandboxFixture, SANDBOX_FIXTURE_IDS } from "./combat-sandbox.js?v=20l-silent-withdrawal-deescalation-20260802";
-import { TacticalFrontSystem } from "./tactical-front.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { TeamResponseSystem } from "./team-response.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CoverStateSystem } from "./cover-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { ActorIntentSystem } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CoverNetworkSystem } from "./cover-network.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { TeamCombatContextSystem } from "./team-combat-context.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { FireTeamControllerSystem } from "./fire-team-controller.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { FightAssessmentSystem } from "./fight-assessment.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CombatPostureSystem } from "./combat-posture.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { GameState } from "./game.js";
+import { ContinuousExcursionController } from "./continuous-excursion.js";
+import { FactionEncounterSystem } from "./faction-encounters.js";
+import { PerceptionSystem } from "./perception.js";
+import { CombatSystem } from "./combat.js";
+import { AICombatSystem } from "./ai-combat.js";
+import { WoundSystem } from "./wound-system.js";
+import { MedicalSystem } from "./medical-system.js";
+import { CombatSandboxDirector, sandboxMap, getSandboxFixture, SANDBOX_FIXTURE_IDS } from "./combat-sandbox.js";
+import { TacticalFrontSystem } from "./tactical-front.js";
+import { TeamResponseSystem } from "./team-response.js";
+import { CoverStateSystem } from "./cover-state.js";
+import { ActorIntentSystem } from "./actor-intent.js";
+import { CoverNetworkSystem } from "./cover-network.js";
+import { TeamCombatContextSystem } from "./team-combat-context.js";
+import { FireTeamControllerSystem } from "./fire-team-controller.js";
+import { FightAssessmentSystem } from "./fight-assessment.js";
+import { CombatPostureSystem } from "./combat-posture.js";
+import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js";
 
 export class ContinuousGameState extends GameState {
   constructor({scenario="operations",aiRuntime=AI_RUNTIME_MODES.LEGACY,sandboxFixture=SANDBOX_FIXTURE_IDS.OPEN_CONTACT}={}) {
     super();
     this.scenarioMode=scenario;
     this.aiRuntimeMode=aiRuntime===AI_RUNTIME_MODES.V2?AI_RUNTIME_MODES.V2:AI_RUNTIME_MODES.LEGACY;
-    this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 — Silent Withdrawal":"Legacy 1.2H";
+    this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 — Casualty Recovery":"Legacy 1.2H";
     if(scenario==="sandbox"){
       const fixture=getSandboxFixture(sandboxFixture);
       this.map=sandboxMap;

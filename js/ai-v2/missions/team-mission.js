@@ -59,6 +59,31 @@ function normalizeWithdrawalPlan(plan){
   };
 }
 
+
+function normalizeRecoveryPlan(plan){
+  if(!plan?.recoveryPoint)return null;
+  return{
+    id:plan.id??"casualty_recovery_plan",
+    label:plan.label??"recovery point",
+    recoveryPoint:{x:finite(plan.recoveryPoint.x,0),y:finite(plan.recoveryPoint.y,0)},
+    securitySector:plan.securitySector?{
+      label:plan.securitySector.label??"recovery approach",
+      x:finite(plan.securitySector.x,0),
+      y:finite(plan.securitySector.y,0),
+      maximumRange:Math.max(120,finite(plan.securitySector.maximumRange,900)),
+      fieldOfViewDegrees:clamp(plan.securitySector.fieldOfViewDegrees??82,20,180)
+    }:null,
+    interactionRange:Math.max(48,finite(plan.interactionRange,82)),
+    observationRange:Math.max(120,finite(plan.observationRange,640)),
+    reportRange:Math.max(120,finite(plan.reportRange,520)),
+    approachSpeedMultiplier:clamp(plan.approachSpeedMultiplier??.8,.2,1.2),
+    dragSpeedMultiplier:clamp(plan.dragSpeedMultiplier??.46,.18,.8),
+    arrivalRadius:Math.max(5,finite(plan.arrivalRadius,13)),
+    claimSpacing:Math.max(24,finite(plan.claimSpacing,62)),
+    stabilizationDuration:Math.max(.8,finite(plan.stabilizationDuration,3.4))
+  };
+}
+
 function normalizeDecisionContext(context={}){
   const bounded=(key,fallback)=>clamp(context[key]??fallback,0,1);
   return{
@@ -75,6 +100,7 @@ function normalizeDecisionContext(context={}){
     securityOrientation:bounded("securityOrientation",.5),
     stealthOrientation:bounded("stealthOrientation",.5),
     mobilityOrientation:bounded("mobilityOrientation",.5),
+    careOrientation:bounded("careOrientation",.5),
     positionLabel:context.positionLabel??"current position",
     exitLabel:context.exitLabel??"available route"
   };
@@ -98,6 +124,7 @@ function normalizeMission(team){
   return{
     id:authored.id??`v2_mission_${team.id}`,
     teamId:team.id,
+    problemKind:authored.problemKind??"external_contact",
     factionId:team.factionId??null,
     title:authored.title??team.mission??"Authored team mission",
     objective:authored.objective??team.mission??"Complete the assigned mission",
@@ -105,7 +132,7 @@ function normalizeMission(team){
     successCondition:authored.successCondition??null,
     abortCondition:authored.abortCondition??null,
     concernArea:cloneArea(authored.concernArea),
-    missionSensitivity:clamp(authored.missionSensitivity??.75,0,1),
+    missionSensitivity:clamp(authored.missionSensitivity??authored.problemSensitivity??.75,0,1),
     minimumRelevantConfidence:clamp(authored.minimumRelevantConfidence??8,0,100),
     incompatibleConfidence:clamp(authored.incompatibleConfidence??18,0,100),
     staleAfter:Math.max(1,authored.staleAfter??18),
@@ -117,6 +144,7 @@ function normalizeMission(team){
     }:null,
     boundary:normalizeBoundary(authored.boundary),
     withdrawalPlan:normalizeWithdrawalPlan(authored.withdrawalPlan),
+    recoveryPlan:normalizeRecoveryPlan(authored.recoveryPlan),
     decisionContext:normalizeDecisionContext(authored.decisionContext),
     responsePolicy:normalizeResponsePolicy(authored.responsePolicy),
     responseBias:normalizeResponseBias(authored.responseBias)
@@ -151,6 +179,7 @@ export class TeamMissionStore{
       interference:mission.interference?{...mission.interference}:null,
       boundary:mission.boundary?{...mission.boundary,area:mission.boundary.area?{...mission.boundary.area}:null,allowedActivities:[...mission.boundary.allowedActivities]}:null,
       withdrawalPlan:mission.withdrawalPlan?{...mission.withdrawalPlan,exitPoint:{...mission.withdrawalPlan.exitPoint},roleOffsets:Object.fromEntries(Object.entries(mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))}:null,
+      recoveryPlan:mission.recoveryPlan?{...mission.recoveryPlan,recoveryPoint:{...mission.recoveryPlan.recoveryPoint},securitySector:mission.recoveryPlan.securitySector?{...mission.recoveryPlan.securitySector}:null}:null,
       decisionContext:{...mission.decisionContext},
       responsePolicy:{...mission.responsePolicy},
       responseBias:{...mission.responseBias}
