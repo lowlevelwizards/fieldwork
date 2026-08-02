@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20e-mission-relevance-encounter-recognition-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -57,6 +57,25 @@ export const SANDBOX_FIXTURES={
   teams:[
    {
     factionId:"northline",mission:"Inspect reports of movement near the brush line",task:"Observe the southern approach without overextending",facing:"down",
+    aiV2Mission:{
+     id:"northline_observation_security",
+     title:"Secure the southern approach",
+     objective:"Maintain awareness of the southern approach and identify uncontrolled armed movement before it reaches the team.",
+     immediateTask:"Determine whether a reported group occupies the monitored approach.",
+     successCondition:"The approach remains observed and relevant armed movement is recognized.",
+     abortCondition:"The team can no longer maintain observation of the approach.",
+     concernArea:{type:"circle",label:"southern monitored approach",x:1390,y:1290,radius:520,falloff:260},
+     missionSensitivity:.92,
+     minimumRelevantConfidence:8,
+     incompatibleConfidence:18,
+     staleAfter:18,
+     forgetAfter:38,
+     interference:{
+      kind:"uncontrolled_armed_presence",
+      label:"May compromise approach security",
+      reason:"An unknown armed group is inside the approach Northline is responsible for monitoring."
+     }
+    },
     actors:[
      {x:1500,y:430,role:"Security"},
      {x:1660,y:405,role:"Rifleman",aiV2Assignment:{
@@ -75,6 +94,25 @@ export const SANDBOX_FIXTURES={
    },
    {
     factionId:"commune",mission:"Watch the patrol while remaining concealed",task:"Learn the patrol's direction and report it",facing:"up",
+    aiV2Mission:{
+     id:"commune_concealed_watch",
+     title:"Maintain concealed observation",
+     objective:"Observe the northern patrol while preserving concealment and the option to withdraw unseen.",
+     immediateTask:"Determine whether the reported group can compromise the concealed watch.",
+     successCondition:"Useful patrol information is retained without exposing the team.",
+     abortCondition:"The concealed position is compromised or a safe withdrawal is no longer available.",
+     concernArea:{type:"circle",label:"northern patrol observation area",x:1660,y:405,radius:520,falloff:260},
+     missionSensitivity:.88,
+     minimumRelevantConfidence:8,
+     incompatibleConfidence:18,
+     staleAfter:18,
+     forgetAfter:38,
+     interference:{
+      kind:"concealment_compromise",
+      label:"May compromise concealed observation",
+      reason:"An unknown armed group occupies the patrol area under observation and may discover the concealed watch."
+     }
+    },
     actors:[
      {x:1390,y:1290,role:"Scout",aiV2Assignment:{
       mission:"Watch the patrol while remaining concealed",
@@ -284,7 +322,12 @@ export class CombatSandboxDirector{
     memberIds:members,
     mission:teamSpec.mission,
     task:teamSpec.task,
-    fixtureId:this.fixture.id
+    fixtureId:this.fixture.id,
+    aiV2Mission:teamSpec.aiV2Mission?{
+     ...teamSpec.aiV2Mission,
+     concernArea:teamSpec.aiV2Mission.concernArea?{...teamSpec.aiV2Mission.concernArea}:null,
+     interference:teamSpec.aiV2Mission.interference?{...teamSpec.aiV2Mission.interference}:null
+    }:null
    });
   }
   this.game.pushMessage(`${this.fixture.index} ${this.fixture.label} — ${this.fixture.question}`,4.8);

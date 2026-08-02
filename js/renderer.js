@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20e-mission-relevance-encounter-recognition-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -340,7 +340,8 @@ export class Renderer{
   if(game.aiRuntimeMode!=="v2")return;
   const observers=game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector");
   const reports=game.aiV2?.teamKnowledge?.summary?.()??[];
-  if(!observers.length&&!reports.length)return;
+  const encounters=game.aiV2?.teamEncounters?.summary?.()??[];
+  if(!observers.length&&!reports.length&&!encounters.length)return;
   const activeZone=game.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId);
   ctx.save();
   try{
@@ -391,6 +392,25 @@ export class Renderer{
     ctx.fillStyle="rgba(24,31,27,.80)";ctx.beginPath();ctx.roundRect(position.x-38,position.y+34,76,18,9);ctx.fill();
     ctx.fillStyle=color;ctx.font="800 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
     ctx.fillText("TEAM REPORT",position.x,position.y+43);
+   }
+
+   for(const teamEntry of encounters)for(const encounter of teamEntry.hypotheses){
+    const position=encounter.approximatePosition;if(!position)continue;
+    const source=game.actors.find(actor=>actor.teamId===teamEntry.teamId);
+    const baseColor=source?.factionId==="commune"?"#9db76f":"#ddae58";
+    const state=encounter.state??"possible";
+    const label=state==="potentially_incompatible"?"POSSIBLE CONFLICT"
+      :state==="relevant"?"MISSION RELEVANT"
+      :state==="stale"?"STALE ENCOUNTER"
+      :"POSSIBLE ENCOUNTER";
+    const accent=state==="stale"?"rgba(213,205,157,.58)":baseColor;
+    ctx.fillStyle="rgba(18,27,22,.87)";
+    ctx.beginPath();ctx.roundRect(position.x-50,position.y+58,100,18,9);ctx.fill();
+    ctx.strokeStyle=accent;ctx.lineWidth=1.25;ctx.stroke();
+    ctx.fillStyle=accent;ctx.font="800 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(label,position.x,position.y+67);
+    ctx.fillStyle="rgba(224,226,205,.60)";ctx.font="700 6.5px system-ui";
+    ctx.fillText("NO RESPONSE SELECTED",position.x,position.y+82);
    }
   }finally{ctx.restore();}
  }

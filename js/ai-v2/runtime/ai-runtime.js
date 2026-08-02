@@ -1,18 +1,24 @@
-import { ActionScheduler } from "../actions/action-scheduler.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { ReportContactAction } from "../actions/report-contact-action.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { CommunicationExecutor } from "../communication/communication-executor.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { DecisionLog } from "../diagnostics/decision-log.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { AttentionExecutor } from "../execution/attention-executor.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { captureWorldSnapshot } from "./world-snapshot.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
+import { ActionScheduler } from "../actions/action-scheduler.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { ReportContactAction } from "../actions/report-contact-action.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { CommunicationExecutor } from "../communication/communication-executor.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { DecisionLog } from "../diagnostics/decision-log.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { AttentionExecutor } from "../execution/attention-executor.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { TeamMissionStore } from "../missions/team-mission.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { captureWorldSnapshot } from "./world-snapshot.js?v=20e-mission-relevance-encounter-recognition-20260802";
 
 export const AI_RUNTIME_MODES=Object.freeze({
   LEGACY:"legacy",
   V2:"v2"
 });
+
+function stateLabel(state){
+  return String(state??"none").replaceAll("_"," ");
+}
 
 export class AIV2Runtime{
   constructor(game){
@@ -20,11 +26,13 @@ export class AIV2Runtime{
     this.elapsed=0;
     this.snapshotAccumulator=0;
     this.snapshotInterval=.25;
-    this.decisionLog=new DecisionLog({limit:700});
+    this.decisionLog=new DecisionLog({limit:900});
     this.invariants=new InvariantMonitor({decisionLog:this.decisionLog});
     this.scheduler=new ActionScheduler({decisionLog:this.decisionLog});
     this.personalKnowledge=new PersonalKnowledgeStore({decisionLog:this.decisionLog});
     this.teamKnowledge=new TeamKnowledgeStore({decisionLog:this.decisionLog});
+    this.teamMissions=new TeamMissionStore();
+    this.teamEncounters=new TeamEncounterMemory({decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
     this.communication=new CommunicationExecutor();
     this.visibleByObserver=new Map();
@@ -33,18 +41,20 @@ export class AIV2Runtime{
     this.decisionLog.record({
       type:"runtime_started",
       time:0,
-      data:{mode:"v2",stage:"contact_reporting_shared_team_knowledge",scenario:game.scenarioMode}
+      data:{mode:"v2",stage:"mission_relevance_encounter_recognition",scenario:game.scenarioMode}
     });
   }
 
   update(delta){
     this.elapsed+=delta;
     this.visibleByObserver=new Map();
+    this.teamMissions.syncFromGame(this.game);
     this.#ensureObservationActions();
     this.scheduler.update(delta,{now:this.elapsed,context:this.#context(this.elapsed)});
     this.personalKnowledge.update(delta,{now:this.elapsed,visibleByObserver:this.visibleByObserver});
     this.teamKnowledge.update(delta,{now:this.elapsed});
     this.#ensureContactReports();
+    this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,now:this.elapsed});
     this.#updateActorDiagnostics();
 
     this.snapshotAccumulator+=delta;
@@ -59,7 +69,8 @@ export class AIV2Runtime{
     const observers=this.game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector").length;
     const visible=this.personalKnowledge.summary().reduce((sum,entry)=>sum+entry.contacts.filter(contact=>contact.currentlyVisible).length,0);
     const reporting=scheduler.byType.ReportContact??0;
-    return `${observers} observing · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${this.teamKnowledge.recipientCount()} received · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
+    const activeEncounterCount=this.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
+    return `${observers} observing · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
   }
 
   getDebugDetails(){
@@ -81,11 +92,16 @@ export class AIV2Runtime{
       const faction=this.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
       return `${faction}: ${report.classification.replaceAll("_"," ")} ${Math.round(report.confidence)}% via ${report.recipientIds.length} recipient(s)`;
     })).join(" · ")||"none — no report delivered";
+    const encounters=this.teamEncounters.summary().flatMap(entry=>entry.hypotheses.map(hypothesis=>{
+      const faction=this.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
+      return `${faction}: ${stateLabel(hypothesis.state)} · ${hypothesis.missionRelevance} relevance · ${hypothesis.reason}`;
+    })).join(" · ")||"none — no mission-relevant report";
     return{
       assignment:assignments,
       personalKnowledge:contacts,
       communication,
-      teamKnowledge:shared
+      teamKnowledge:shared,
+      encounter:encounters
     };
   }
 
@@ -122,6 +138,8 @@ export class AIV2Runtime{
         communication:this.communication,
         personalKnowledge:this.personalKnowledge,
         teamKnowledge:this.teamKnowledge,
+        teamMissions:this.teamMissions,
+        teamEncounters:this.teamEncounters,
         visibleByObserver:this.visibleByObserver
       }
     };
@@ -135,11 +153,15 @@ export class AIV2Runtime{
       const contact=this.personalKnowledge.getBestContact(actor.id);
       const received=this.teamKnowledge.getBestReceivedContact(actor.id);
       const teamContact=this.teamKnowledge.getBestTeamContact(actor.teamId);
+      const teamMission=this.teamMissions.get(actor.teamId);
+      const encounter=this.teamEncounters.getBestTeamHypothesis(actor.teamId);
       const reporting=actions.find(action=>action.type==="ReportContact")??null;
       const sourceActor=received?this.game.actors.find(candidate=>candidate.id===received.sourceActorId):null;
       actor.aiV2Debug={
-        mission:assignment?.mission??actor.squadMission??null,
-        task:assignment?.task??actor.currentTask??null,
+        mission:teamMission?.title??assignment?.mission??actor.squadMission??null,
+        missionObjective:teamMission?.objective??assignment?.mission??null,
+        missionSuccessCondition:teamMission?.successCondition??null,
+        task:assignment?.task??teamMission?.immediateTask??actor.currentTask??null,
         procedure:assignment?.procedure??null,
         procedurePhase:assignment?.phase??null,
         role:assignment?.role??null,
@@ -188,7 +210,19 @@ export class AIV2Runtime{
           recipientIds:[...teamContact.recipientIds],
           independentlyConfirmed:false
         }:null,
-        runtimeStage:"contact_reporting_shared_team_knowledge"
+        encounter:encounter?{
+          state:encounter.state,
+          missionRelevance:encounter.missionRelevance,
+          relevanceScore:encounter.relevanceScore,
+          reason:encounter.reason,
+          reportConfidence:encounter.reportConfidence,
+          reportAge:encounter.reportAge,
+          identity:encounter.identity,
+          intent:encounter.intent,
+          interferenceLabel:encounter.interferenceLabel,
+          response:null
+        }:null,
+        runtimeStage:"mission_relevance_encounter_recognition"
       };
     }
   }

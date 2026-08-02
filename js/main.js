@@ -1,14 +1,14 @@
 import { Camera } from "./camera.js?v=20a-causal-architecture-foundation-20260802";
-import { ContinuousGameState } from "./continuous-game-state.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
+import { ContinuousGameState } from "./continuous-game-state.js?v=20e-mission-relevance-encounter-recognition-20260802";
 import { InputController, CombatInputController } from "./input.js?v=20a-causal-architecture-foundation-20260802";
-import { Renderer } from "./renderer.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
+import { Renderer } from "./renderer.js?v=20e-mission-relevance-encounter-recognition-20260802";
 import { getItemDefinition } from "../data/items.js?v=20a-causal-architecture-foundation-20260802";
 import { findEntity } from "./world-entities.js?v=20a-causal-architecture-foundation-20260802";
 import { validateItemLocations } from "./item-locations.js?v=20a-causal-architecture-foundation-20260802";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20e-mission-relevance-encounter-recognition-20260802";
 
-const BUILD_ID="2.0D";
+const BUILD_ID="2.0E";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Contact reporting: observers form private memories, speak nearby reports, and create second-hand team knowledge; encounters and combat response remain disabled."
+    ?"Mission relevance: teams compare delivered reports to authored mission areas, form uncertain encounter hypotheses, and still select no tactical response."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();
@@ -71,7 +71,7 @@ function startGame(scenario="operations"){
     objective.querySelector("strong").textContent=fixture.label;
     objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
       ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
-        ?`${fixture.question} Assigned observers now look, report credible contacts by local voice, and create second-hand team knowledge.`
+        ?`${fixture.question} Assigned observers report contacts; each team now judges whether the report matters to its own mission without choosing a response.`
         :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
       :`${fixture.question} Legacy 1.2H is running inside this controlled fixture for comparison.`;
     $("#operations-button")?.setAttribute("hidden","");
@@ -144,7 +144,7 @@ function openDialogue(request){if(!request)return;dialogueOpen=true;game.operato
 function openReport(report){if(!report)return;$("#report-title").textContent=report.title;const lines=$("#report-lines");lines.replaceChildren(...report.lines.map(text=>{const p=document.createElement("p");p.textContent=text;return p;}));reportOverlay.hidden=false;game.operator.lockedByInteraction=true;game.excursion.reportRequest=null;}function closeReport(){reportOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.scenarioMode==="sandbox"){const fixture=game.sandboxFixture;strong.textContent=fixture.label;copy.textContent=game.aiRuntimeMode==="v2"
   ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
-    ?`${fixture.question} Observers report credible contacts locally; recipients remain still and retain second-hand knowledge.`
+    ?`${fixture.question} Teams compare delivered reports to their authored missions and recognize mission-relevant encounters without selecting a response.`
     :`${fixture.question} This fixture has no authored V2 behavior yet.`
   :`${fixture.question} Legacy behavior is running without random patrols or reinforcements.`;return;}if(game.incident.state!=="resolved"){if(game.incident.bandageUsed&&game.incident.waterUsed){strong.textContent="Ada is stabilized";copy.textContent="Assist her to shelter and restore the field radio.";}return;}if(selected&&selected.status!=="completed"){strong.textContent=selected.title;copy.textContent=`Current task: ${selected.tasks.find(t=>["in_progress","blocked"].includes(t.status))?.label??"Respond to conditions"}.`;}else if(game.excursion.state==="available"){strong.textContent="Follow the north trail";copy.textContent="Leave the pull-off on foot and follow the marked trail east toward the culvert.";}else if(game.excursion.state==="outbound"){strong.textContent="Continue to the north culvert";copy.textContent="Stay on the trail. Other field teams are already working ahead.";}else if(game.excursion.state==="at_destination"){strong.textContent="Work is overlapping at the culvert";copy.textContent="Hold rope and rig the debris, mark the hazard, or assist another team.";}else if(game.excursion.state==="returning"){strong.textContent="Return to the pull-off";copy.textContent="Bring recovered cargo into the RETURN marker.";}else{strong.textContent="Safe return";copy.textContent="The field report records what every team accomplished.";}}
 function updateCompass(){
@@ -180,12 +180,14 @@ if(game.aiRuntimeMode==="v2"){
  $("#debug-v2-personal").textContent=details.personalKnowledge??"none";
  $("#debug-v2-communication").textContent=details.communication??"none";
  $("#debug-v2-team").textContent=details.teamKnowledge??"none";
+ $("#debug-v2-encounter").textContent=details.encounter??"none";
 }else{
  $("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
  $("#debug-v2-assignment").textContent="—";
  $("#debug-v2-personal").textContent="—";
  $("#debug-v2-communication").textContent="—";
  $("#debug-v2-team").textContent="—";
+ $("#debug-v2-encounter").textContent="—";
 }
 const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
 function updateCombatUI(){

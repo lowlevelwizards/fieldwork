@@ -1,3 +1,16 @@
+# Fieldwork 2.0E
+
+## Mission Relevance & Encounter Recognition
+
+- Added authored V2 team missions with objective, immediate task, success and abort conditions, concern areas, mission sensitivity, and explicit interference reasons.
+- Added a team mission store that reads mission data without issuing actor commands.
+- Added mission-relative encounter assessment based only on successfully communicated team reports.
+- Added independent team encounter hypotheses with possible, relevant, potentially incompatible, and stale states.
+- Added persistent encounter memory that cites its evidence and decays after supporting reports become stale.
+- Added world and debug presentation for mission relevance, possible conflict, stale encounters, and the explicit absence of a selected response.
+- Kept identity and intent unknown and excluded hostility, movement, cover, targeting, procedures, and combat response.
+- Added architecture documentation for the shared-report-to-encounter-recognition chain.
+
 # Fieldwork 2.0D
 
 ## Contact Reporting & Shared Team Knowledge
