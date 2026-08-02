@@ -1,25 +1,37 @@
-import { ActionScheduler } from "../actions/action-scheduler.js?v=20g-team-procedures-phases-roles-20260802";
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20g-team-procedures-phases-roles-20260802";
-import { ReportContactAction } from "../actions/report-contact-action.js?v=20g-team-procedures-phases-roles-20260802";
-import { CommunicationExecutor } from "../communication/communication-executor.js?v=20g-team-procedures-phases-roles-20260802";
-import { DecisionLog } from "../diagnostics/decision-log.js?v=20g-team-procedures-phases-roles-20260802";
-import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20g-team-procedures-phases-roles-20260802";
-import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20g-team-procedures-phases-roles-20260802";
-import { AttentionExecutor } from "../execution/attention-executor.js?v=20g-team-procedures-phases-roles-20260802";
-import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20g-team-procedures-phases-roles-20260802";
-import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20g-team-procedures-phases-roles-20260802";
-import { TeamMissionStore } from "../missions/team-mission.js?v=20g-team-procedures-phases-roles-20260802";
-import { TeamProcedureState } from "../procedures/team-procedure-state.js?v=20g-team-procedures-phases-roles-20260802";
-import { TeamResponseState } from "../responses/team-response-state.js?v=20g-team-procedures-phases-roles-20260802";
-import { captureWorldSnapshot } from "./world-snapshot.js?v=20g-team-procedures-phases-roles-20260802";
+import { ActionScheduler } from "../actions/action-scheduler.js?v=20h-procedure-driven-actor-actions-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20h-procedure-driven-actor-actions-20260802";
+import { ReportContactAction } from "../actions/report-contact-action.js?v=20h-procedure-driven-actor-actions-20260802";
+import { RoleActionRuntime } from "../actors/role-action-runtime.js?v=20h-procedure-driven-actor-actions-20260802";
+import { CommunicationExecutor } from "../communication/communication-executor.js?v=20h-procedure-driven-actor-actions-20260802";
+import { DecisionLog } from "../diagnostics/decision-log.js?v=20h-procedure-driven-actor-actions-20260802";
+import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20h-procedure-driven-actor-actions-20260802";
+import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20h-procedure-driven-actor-actions-20260802";
+import { AttentionExecutor } from "../execution/attention-executor.js?v=20h-procedure-driven-actor-actions-20260802";
+import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20h-procedure-driven-actor-actions-20260802";
+import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20h-procedure-driven-actor-actions-20260802";
+import { TeamMissionStore } from "../missions/team-mission.js?v=20h-procedure-driven-actor-actions-20260802";
+import { TeamProcedureState } from "../procedures/team-procedure-state.js?v=20h-procedure-driven-actor-actions-20260802";
+import { TeamResponseState } from "../responses/team-response-state.js?v=20h-procedure-driven-actor-actions-20260802";
+import { captureWorldSnapshot } from "./world-snapshot.js?v=20h-procedure-driven-actor-actions-20260802";
 
-export const AI_RUNTIME_MODES=Object.freeze({
-  LEGACY:"legacy",
-  V2:"v2"
-});
+export const AI_RUNTIME_MODES=Object.freeze({LEGACY:"legacy",V2:"v2"});
+const stateLabel=state=>String(state??"none").replaceAll("_"," ");
 
-function stateLabel(state){
-  return String(state??"none").replaceAll("_"," ");
+function authoredObservationDirective(actor){
+  const assignment=actor?.aiV2Assignment;
+  if(assignment?.action!=="observe_sector"||!assignment.sector)return null;
+  return{
+    ...assignment,
+    sector:{...assignment.sector},
+    report:assignment.report?{...assignment.report}:null,
+    provenance:{
+      owner:"fixture_assignment",
+      source:"authored_task",
+      roleLabel:assignment.role??"Observer",
+      procedureLabel:assignment.procedure??"Observation Watch",
+      phaseLabel:assignment.phase??"Observe"
+    }
+  };
 }
 
 export class AIV2Runtime{
@@ -28,7 +40,7 @@ export class AIV2Runtime{
     this.elapsed=0;
     this.snapshotAccumulator=0;
     this.snapshotInterval=.25;
-    this.decisionLog=new DecisionLog({limit:900});
+    this.decisionLog=new DecisionLog({limit:1200});
     this.invariants=new InvariantMonitor({decisionLog:this.decisionLog});
     this.scheduler=new ActionScheduler({decisionLog:this.decisionLog});
     this.personalKnowledge=new PersonalKnowledgeStore({decisionLog:this.decisionLog});
@@ -37,23 +49,20 @@ export class AIV2Runtime{
     this.teamEncounters=new TeamEncounterMemory({decisionLog:this.decisionLog});
     this.teamResponses=new TeamResponseState({decisionLog:this.decisionLog});
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
+    this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
     this.communication=new CommunicationExecutor();
     this.visibleByObserver=new Map();
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
-    this.invariants.inspect(this.snapshot,{now:0,procedures:[]});
-    this.decisionLog.record({
-      type:"runtime_started",
-      time:0,
-      data:{mode:"v2",stage:"team_procedures_phases_roles",scenario:game.scenarioMode}
-    });
+    this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"procedure_driven_actor_actions",scenario:game.scenarioMode}});
   }
 
   update(delta){
     this.elapsed+=delta;
     this.visibleByObserver=new Map();
     this.teamMissions.syncFromGame(this.game);
-    this.#ensureObservationActions();
+    this.#ensureAuthoredObservationActions();
     this.scheduler.update(delta,{now:this.elapsed,context:this.#context(this.elapsed)});
     this.personalKnowledge.update(delta,{now:this.elapsed,visibleByObserver:this.visibleByObserver});
     this.teamKnowledge.update(delta,{now:this.elapsed});
@@ -61,34 +70,54 @@ export class AIV2Runtime{
     this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,now:this.elapsed});
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamResponses,now:this.elapsed});
+    this.roleActions.update({
+      game:this.game,
+      teamProcedures:this.teamProcedures,
+      teamMissions:this.teamMissions,
+      teamKnowledge:this.teamKnowledge,
+      teamEncounters:this.teamEncounters,
+      now:this.elapsed,
+      context:this.#context(this.elapsed)
+    });
     this.#updateActorDiagnostics();
 
     this.snapshotAccumulator+=delta;
     if(this.snapshotAccumulator<this.snapshotInterval)return;
     this.snapshotAccumulator%=this.snapshotInterval;
     this.snapshot=captureWorldSnapshot(this.game,{elapsed:this.elapsed});
-    this.invariants.inspect(this.snapshot,{now:this.elapsed,procedures:this.teamProcedures.summary()});
+    this.invariants.inspect(this.snapshot,{
+      now:this.elapsed,
+      procedures:this.teamProcedures.summary(),
+      roleActions:this.roleActions.summary(),
+      scheduler:this.scheduler
+    });
   }
 
   getDebugSummary(){
     const scheduler=this.scheduler.summary();
-    const observers=this.game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector").length;
+    const observers=scheduler.byType.ObserveSector??0;
+    const ready=scheduler.byType.HoldReady??0;
     const visible=this.personalKnowledge.summary().reduce((sum,entry)=>sum+entry.contacts.filter(contact=>contact.currentlyVisible).length,0);
     const reporting=scheduler.byType.ReportContact??0;
     const activeEncounterCount=this.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} selected response(s) · ${this.teamProcedures.count()} active procedure(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${ready} holding ready · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} response(s) · ${this.teamProcedures.count()} procedure(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
   }
 
   getDebugDetails(){
-    const observers=this.game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector");
-    const assignments=observers.length
-      ?observers.map(actor=>`${actor.name}: ${actor.aiV2Assignment.role}`).join(" · ")
-      :"No authored V2 assignment in this fixture";
-    const contacts=observers.map(actor=>{
+    const actionAssignments=this.game.actors.map(actor=>{
+      const primary=this.scheduler.getPrimaryAction(actor.id);
+      const role=this.teamProcedures.getActorRole(actor.id);
+      if(!primary&&!role)return null;
+      const source=primary?.metadata?.provenance?.source??"none";
+      return `${actor.name}: ${primary?.type??"unassigned"}${role?` for ${role.label}`:""} · ${source}`;
+    }).filter(Boolean).join(" · ")||"No V2 actor responsibilities in this fixture";
+    const observingActors=this.game.actors.filter(actor=>this.scheduler.hasAction(actor.id,"ObserveSector"));
+    const contacts=observingActors.map(actor=>{
       const contact=this.personalKnowledge.getBestContact(actor.id);
-      return contact?`${actor.name}: ${contact.level} ${Math.round(contact.confidence)}%`: `${actor.name}: none`;
+      return contact?`${actor.name}: ${contact.level} ${Math.round(contact.confidence)}%`:`${actor.name}: none`;
     }).join(" · ")||"none";
-    const communication=observers.map(actor=>{
+    const authoredObservers=this.game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector");
+    const communication=authoredObservers.map(actor=>{
       const report=this.scheduler.getAction(actor.id,"ReportContact");
       if(report)return `${actor.name}: voice report ${Math.round(report.progress*100)}%`;
       const delivered=actor.aiV2Communication?.status==="delivered";
@@ -112,22 +141,15 @@ export class AIV2Runtime{
       const roles=procedure.roles.map(role=>`${role.actorName??"unfilled"}: ${role.label}`).join(", ");
       return `${faction}: ${procedure.label} · ${procedure.phase.label} · ${roles}`;
     }).join(" · ")||"none — no team procedure assigned";
-    return{
-      assignment:assignments,
-      personalKnowledge:contacts,
-      communication,
-      teamKnowledge:shared,
-      encounter:encounters,
-      response:responses,
-      procedure:procedures
-    };
+    return{assignment:actionAssignments,personalKnowledge:contacts,communication,teamKnowledge:shared,encounter:encounters,response:responses,procedure:procedures};
   }
 
-  #ensureObservationActions(){
+  #ensureAuthoredObservationActions(){
     for(const actor of this.game.actors){
-      const assignment=actor.aiV2Assignment;
-      if(!assignment||assignment.action!=="observe_sector"||this.scheduler.hasAction(actor.id,"ObserveSector"))continue;
-      const action=new ObserveSectorAction({actorId:actor.id,assignment});
+      const directive=authoredObservationDirective(actor);
+      if(!directive||this.scheduler.hasAction(actor.id,"ObserveSector"))continue;
+      if(this.teamProcedures.getActorRole(actor.id))continue;
+      const action=new ObserveSectorAction({actorId:actor.id,assignment:directive});
       this.scheduler.start(action,{now:this.elapsed,context:this.#context(this.elapsed)});
     }
   }
@@ -160,6 +182,7 @@ export class AIV2Runtime{
         teamEncounters:this.teamEncounters,
         teamResponses:this.teamResponses,
         teamProcedures:this.teamProcedures,
+        roleActions:this.roleActions,
         visibleByObserver:this.visibleByObserver
       }
     };
@@ -169,6 +192,8 @@ export class AIV2Runtime{
     for(const actor of this.game.actors){
       const actions=this.scheduler.getActions(actor.id);
       const primary=this.scheduler.getPrimaryAction(actor.id);
+      const observeAction=actions.find(action=>action.type==="ObserveSector")??null;
+      const holdAction=actions.find(action=>action.type==="HoldReady")??null;
       const assignment=actor.aiV2Assignment??null;
       const contact=this.personalKnowledge.getBestContact(actor.id);
       const received=this.teamKnowledge.getBestReceivedContact(actor.id);
@@ -178,102 +203,67 @@ export class AIV2Runtime{
       const response=this.teamResponses.get(actor.teamId);
       const teamProcedure=this.teamProcedures.get(actor.teamId);
       const procedureRole=this.teamProcedures.getActorRole(actor.id);
+      const roleAction=this.roleActions.get(actor.id);
       const reporting=actions.find(action=>action.type==="ReportContact")??null;
       const sourceActor=received?this.game.actors.find(candidate=>candidate.id===received.sourceActorId):null;
+      if(!observeAction)actor.aiV2Observation=null;
+      if(!holdAction)actor.aiV2HoldReady=null;
       actor.aiV2Debug={
         mission:teamMission?.title??assignment?.mission??actor.squadMission??null,
         missionObjective:teamMission?.objective??assignment?.mission??null,
         missionSuccessCondition:teamMission?.successCondition??null,
-        task:assignment?.task??teamMission?.immediateTask??actor.currentTask??null,
+        task:roleAction?.reason??assignment?.task??teamMission?.immediateTask??actor.currentTask??null,
         procedure:teamProcedure?.label??assignment?.procedure??null,
         procedurePhase:teamProcedure?.phase?.label??assignment?.phase??null,
         role:procedureRole?.label??assignment?.role??null,
         procedureRole:procedureRole?{
-          roleId:procedureRole.roleId,
-          label:procedureRole.label,
-          responsibility:procedureRole.responsibility,
-          selectionReason:procedureRole.selectionReason,
-          procedureId:procedureRole.procedureId,
-          procedureLabel:procedureRole.procedureLabel,
-          phase:{...procedureRole.phase},
-          permissions:{...procedureRole.permissions}
+          roleId:procedureRole.roleId,label:procedureRole.label,responsibility:procedureRole.responsibility,
+          selectionReason:procedureRole.selectionReason,fulfillment:procedureRole.fulfillment?{...procedureRole.fulfillment}:null,
+          procedureId:procedureRole.procedureId,procedureLabel:procedureRole.procedureLabel,
+          phase:{...procedureRole.phase},permissions:{...procedureRole.permissions}
         }:null,
+        roleAction:roleAction?{...roleAction,candidates:roleAction.candidates.map(candidate=>({...candidate}))}:null,
         primaryAction:primary?.type??"UNASSIGNED",
         activeActions:actions.map(action=>action.type),
         actionId:primary?.id??null,
         actionReason:primary?.purpose??null,
-        attentionSector:assignment?.sector?.label??null,
+        actionProvenance:primary?.metadata?.provenance?{...primary.metadata.provenance}:null,
+        attentionSector:observeAction?.assignment?.sector?.label??holdAction?.directive?.label??assignment?.sector?.label??null,
         visibleContact:contact?.currentlyVisible?contact.subjectId:null,
         personalKnowledge:contact?{
-          subjectId:contact.subjectId,
-          classification:contact.classification,
-          identity:contact.identity,
-          level:contact.level,
-          confidence:contact.confidence,
-          currentlyVisible:contact.currentlyVisible,
-          approximatePosition:{...contact.approximatePosition},
-          lastObservedAt:contact.lastObservedAt
+          subjectId:contact.subjectId,classification:contact.classification,identity:contact.identity,level:contact.level,
+          confidence:contact.confidence,currentlyVisible:contact.currentlyVisible,
+          approximatePosition:{...contact.approximatePosition},lastObservedAt:contact.lastObservedAt
         }:null,
         communication:reporting?{
-          status:"transmitting",
-          method:reporting.transmission?.method??"local_voice",
-          progress:reporting.progress,
-          recipientIds:[...(reporting.transmission?.recipientIds??[])],
-          subjectId:reporting.contactSnapshot?.subjectId??null
+          status:"transmitting",method:reporting.transmission?.method??"local_voice",progress:reporting.progress,
+          recipientIds:[...(reporting.transmission?.recipientIds??[])],subjectId:reporting.contactSnapshot?.subjectId??null
         }:actor.aiV2Communication?{...actor.aiV2Communication,recipientIds:[...(actor.aiV2Communication.recipientIds??[])]}:null,
         receivedKnowledge:received?{
-          reportId:received.id,
-          subjectId:received.subjectId,
-          classification:received.classification,
-          identity:received.identity,
-          confidence:received.confidence,
-          approximatePosition:{...received.approximatePosition},
-          sourceActorId:received.sourceActorId,
-          sourceName:sourceActor?.name??received.sourceActorId,
-          method:received.method,
-          reportedAt:received.reportedAt,
-          independentlyConfirmed:false
+          reportId:received.id,subjectId:received.subjectId,classification:received.classification,identity:received.identity,
+          confidence:received.confidence,approximatePosition:{...received.approximatePosition},sourceActorId:received.sourceActorId,
+          sourceName:sourceActor?.name??received.sourceActorId,method:received.method,reportedAt:received.reportedAt,independentlyConfirmed:false
         }:null,
         teamKnowledge:teamContact?{
-          reportId:teamContact.id,
-          subjectId:teamContact.subjectId,
-          confidence:teamContact.confidence,
-          approximatePosition:{...teamContact.approximatePosition},
-          sourceActorId:teamContact.sourceActorId,
-          recipientIds:[...teamContact.recipientIds],
-          independentlyConfirmed:false
+          reportId:teamContact.id,subjectId:teamContact.subjectId,confidence:teamContact.confidence,
+          approximatePosition:{...teamContact.approximatePosition},sourceActorId:teamContact.sourceActorId,
+          recipientIds:[...teamContact.recipientIds],independentlyConfirmed:false
         }:null,
         encounter:encounter?{
-          state:encounter.state,
-          missionRelevance:encounter.missionRelevance,
-          relevanceScore:encounter.relevanceScore,
-          reason:encounter.reason,
-          reportConfidence:encounter.reportConfidence,
-          reportAge:encounter.reportAge,
-          identity:encounter.identity,
-          intent:encounter.intent,
-          interferenceLabel:encounter.interferenceLabel,
-          response:response?.selected?.id??null
+          state:encounter.state,missionRelevance:encounter.missionRelevance,relevanceScore:encounter.relevanceScore,
+          reason:encounter.reason,reportConfidence:encounter.reportConfidence,reportAge:encounter.reportAge,
+          identity:encounter.identity,intent:encounter.intent,interferenceLabel:encounter.interferenceLabel,response:response?.selected?.id??null
         }:null,
         teamResponse:response?{
-          id:response.selected.id,
-          label:response.selected.label,
-          score:response.selected.score,
-          reason:response.selected.reason,
-          selectedAt:response.selectedAt,
-          candidates:response.candidates.map(candidate=>({id:candidate.id,label:candidate.label,score:candidate.score})),
-          ledger:{...response.ledger,responseBias:{...(response.ledger?.responseBias??{})}},
-          procedure:teamProcedure?.procedureId??null
+          id:response.selected.id,label:response.selected.label,score:response.selected.score,reason:response.selected.reason,
+          selectedAt:response.selectedAt,candidates:response.candidates.map(candidate=>({id:candidate.id,label:candidate.label,score:candidate.score})),
+          ledger:{...response.ledger,responseBias:{...(response.ledger?.responseBias??{})}},procedure:teamProcedure?.procedureId??null
         }:null,
         teamProcedure:teamProcedure?{
-          id:teamProcedure.procedureId,
-          label:teamProcedure.label,
-          phase:{...teamProcedure.phase},
-          permissions:{...teamProcedure.permissions},
-          reassessmentTriggers:[...teamProcedure.reassessmentTriggers],
-          roles:teamProcedure.roles.map(role=>({...role}))
+          id:teamProcedure.procedureId,label:teamProcedure.label,phase:{...teamProcedure.phase},permissions:{...teamProcedure.permissions},
+          reassessmentTriggers:[...teamProcedure.reassessmentTriggers],roles:teamProcedure.roles.map(role=>({...role,fulfillment:role.fulfillment?{...role.fulfillment}:null}))
         }:null,
-        runtimeStage:"team_procedures_phases_roles"
+        runtimeStage:"procedure_driven_actor_actions"
       };
     }
   }

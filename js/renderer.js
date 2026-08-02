@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20g-team-procedures-phases-roles-20260802";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20h-procedure-driven-actor-actions-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -338,14 +338,15 @@ export class Renderer{
 
  #drawAIV2ObservationWorld(ctx,game){
   if(game.aiRuntimeMode!=="v2")return;
-  const observers=game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector");
+  const observers=game.actors.filter(actor=>actor.aiV2Debug?.activeActions?.includes("ObserveSector")&&actor.aiV2Observation?.sector);
+  const readyActors=game.actors.filter(actor=>actor.aiV2Debug?.activeActions?.includes("HoldReady")&&actor.aiV2HoldReady?.focus);
   const reports=game.aiV2?.teamKnowledge?.summary?.()??[];
   const encounters=game.aiV2?.teamEncounters?.summary?.()??[];
   const responses=game.aiV2?.teamResponses?.summary?.()??[];
   const procedures=game.aiV2?.teamProcedures?.summary?.()??[];
   const responseByTeam=new Map(responses.map(response=>[response.teamId,response]));
   const procedureByTeam=new Map(procedures.map(procedure=>[procedure.teamId,procedure]));
-  if(!observers.length&&!reports.length&&!encounters.length&&!responses.length&&!procedures.length)return;
+  if(!observers.length&&!readyActors.length&&!reports.length&&!encounters.length&&!responses.length&&!procedures.length)return;
   const activeZone=game.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId);
   ctx.save();
   try{
@@ -363,18 +364,20 @@ export class Renderer{
    }
 
    for(const actor of observers){
-    const assignment=actor.aiV2Assignment;
-    const sector=assignment.sector;
+    const sector=actor.aiV2Observation.sector;
+    const roleId=actor.aiV2Debug?.procedureRole?.roleId??"authored_observer";
+    const isPrimary=roleId==="primary_observer"||roleId==="concealed_observer"||roleId==="authored_observer";
     const angle=Number.isFinite(actor.lookAngle)?actor.lookAngle:Math.atan2(sector.y-actor.y,sector.x-actor.x);
     const half=(sector.fieldOfViewDegrees??72)*Math.PI/360;
-    const radius=Math.min(1080,sector.maximumRange??1180);
+    const radius=Math.min(isPrimary?1080:820,sector.maximumRange??1180);
     const contact=actor.aiV2Debug?.personalKnowledge;
     const active=Boolean(contact?.currentlyVisible);
-    ctx.fillStyle=active?"rgba(224,154,71,.055)":"rgba(227,218,162,.028)";
-    ctx.strokeStyle=active?"rgba(224,154,71,.30)":"rgba(227,218,162,.17)";
-    ctx.lineWidth=2;
+    const base=actor.factionId==="commune"?"157,183,111":"221,174,88";
+    ctx.fillStyle=active?`rgba(${base},.055)`:isPrimary?`rgba(${base},.030)`:`rgba(${base},.020)`;
+    ctx.strokeStyle=active?`rgba(${base},.34)`:isPrimary?`rgba(${base},.20)`:`rgba(${base},.14)`;
+    ctx.lineWidth=isPrimary?2:1.5;
     ctx.beginPath();ctx.moveTo(actor.x,actor.y);ctx.arc(actor.x,actor.y,radius,angle-half,angle+half);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.strokeStyle="rgba(237,226,180,.30)";ctx.lineWidth=2;ctx.setLineDash([11,13]);
+    ctx.strokeStyle=isPrimary?"rgba(237,226,180,.30)":"rgba(220,226,205,.20)";ctx.lineWidth=isPrimary?2:1.5;ctx.setLineDash([11,13]);
     ctx.beginPath();ctx.moveTo(actor.x,actor.y);ctx.lineTo(sector.x,sector.y);ctx.stroke();ctx.setLineDash([]);
     if(contact?.approximatePosition){
      const position=contact.approximatePosition;
@@ -385,6 +388,15 @@ export class Renderer{
      ctx.fillStyle=contact.currentlyVisible?"#e59a47":"#d8c56a";ctx.font="800 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
      ctx.fillText("PERSONAL",position.x,position.y-34);
     }
+   }
+
+   for(const actor of readyActors){
+    const focus=actor.aiV2HoldReady.focus;
+    const angle=Math.atan2(focus.y-actor.y,focus.x-actor.x);
+    const endX=actor.x+Math.cos(angle)*115,endY=actor.y+Math.sin(angle)*115;
+    const accent=actor.factionId==="commune"?"rgba(157,183,111,.42)":"rgba(221,174,88,.42)";
+    ctx.strokeStyle=accent;ctx.lineWidth=2;ctx.setLineDash([5,8]);
+    ctx.beginPath();ctx.moveTo(actor.x,actor.y);ctx.lineTo(endX,endY);ctx.stroke();ctx.setLineDash([]);
    }
 
    for(const teamEntry of reports)for(const report of teamEntry.reports){
@@ -403,16 +415,11 @@ export class Renderer{
     const source=game.actors.find(actor=>actor.teamId===teamEntry.teamId);
     const baseColor=source?.factionId==="commune"?"#9db76f":"#ddae58";
     const state=encounter.state??"possible";
-    const label=state==="potentially_incompatible"?"POSSIBLE CONFLICT"
-      :state==="relevant"?"MISSION RELEVANT"
-      :state==="stale"?"STALE ENCOUNTER"
-      :"POSSIBLE ENCOUNTER";
+    const label=state==="potentially_incompatible"?"POSSIBLE CONFLICT":state==="relevant"?"MISSION RELEVANT":state==="stale"?"STALE ENCOUNTER":"POSSIBLE ENCOUNTER";
     const accent=state==="stale"?"rgba(213,205,157,.58)":baseColor;
-    ctx.fillStyle="rgba(18,27,22,.87)";
-    ctx.beginPath();ctx.roundRect(position.x-50,position.y+58,100,18,9);ctx.fill();
+    ctx.fillStyle="rgba(18,27,22,.87)";ctx.beginPath();ctx.roundRect(position.x-50,position.y+58,100,18,9);ctx.fill();
     ctx.strokeStyle=accent;ctx.lineWidth=1.25;ctx.stroke();
-    ctx.fillStyle=accent;ctx.font="800 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillText(label,position.x,position.y+67);
+    ctx.fillStyle=accent;ctx.font="800 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,position.x,position.y+67);
     const response=responseByTeam.get(teamEntry.teamId)??null;
     ctx.fillStyle=response?accent:"rgba(224,226,205,.60)";ctx.font="800 6.5px system-ui";
     ctx.fillText(response?response.selected.label.toUpperCase():"NO RESPONSE SELECTED",position.x,position.y+82);
@@ -422,9 +429,7 @@ export class Renderer{
      if(procedure){
       ctx.fillText(`PROCEDURE ${procedure.label.toUpperCase()}`,position.x,position.y+94);
       ctx.fillText(`PHASE ${procedure.phase.label.toUpperCase()}`,position.x,position.y+104);
-     }else{
-      ctx.fillText(`DECISION ${Math.round(response.selected.score*100)} · NO PROCEDURE`,position.x,position.y+94);
-     }
+     }else ctx.fillText(`DECISION ${Math.round(response.selected.score*100)} · NO PROCEDURE`,position.x,position.y+94);
     }
    }
   }finally{ctx.restore();}
@@ -433,50 +438,44 @@ export class Renderer{
  #drawAIV2ActorIndicator(ctx,actor){
   if(this._currentGame?.aiRuntimeMode!=="v2")return;
   const debug=actor.aiV2Debug;
-  const isObserver=actor.aiV2Assignment?.action==="observe_sector";
+  const observing=debug?.activeActions?.includes("ObserveSector");
+  const holding=debug?.activeActions?.includes("HoldReady");
   const contact=debug?.personalKnowledge;
   const received=debug?.receivedKnowledge;
   const reporting=debug?.activeActions?.includes("ReportContact")&&debug?.communication?.status==="transmitting";
   const procedureRole=debug?.procedureRole;
-  const showKnowledge=Boolean(isObserver||received||reporting);
-  if(!showKnowledge&&!procedureRole)return;
+  const showAction=Boolean(observing||holding||reporting||received);
+  if(!showAction&&!procedureRole)return;
   const x=actor.x,y=actor.y-108;
-  let title="OBSERVE",status="NO CONTACT",footer="PRIVATE",accent="#e8a051";
+  let title="UNASSIGNED",status="NO ACTION",footer="",accent="rgba(235,234,213,.58)";
   if(reporting){
-   title="REPORT";
-   status=`VOICE ${debug.communication.recipientIds?.length??0} · ${Math.round((debug.communication.progress??0)*100)}%`;
-   footer="SHARING";accent="#e6c46f";
-  }else if(isObserver){
-   status=contact?`${contact.currentlyVisible?"VISIBLE":"MEMORY"} ${Math.round(contact.confidence)}%`:"NO CONTACT";
-   footer=contact?"PRIVATE":"WATCHING";
-   accent=contact?.currentlyVisible?"#e8a051":contact?"#d8c56a":"rgba(235,234,213,.58)";
+   title="REPORT";status=`VOICE ${debug.communication.recipientIds?.length??0} · ${Math.round((debug.communication.progress??0)*100)}%`;footer="SHARING";accent="#e6c46f";
+  }else if(holding){
+   title="HOLD READY";status=(debug.attentionSector??"READY SECTOR").toUpperCase();footer=procedureRole?.label?.toUpperCase()??"AVAILABLE";accent=actor.factionId==="commune"?"#9db76f":"#ddae58";
+  }else if(observing){
+   title="OBSERVE";status=contact?`${contact.currentlyVisible?"VISIBLE":"MEMORY"} ${Math.round(contact.confidence)}%`:"SCANNING";
+   footer=(debug.attentionSector??procedureRole?.label??"WATCHING").toUpperCase();accent=contact?.currentlyVisible?"#e8a051":actor.factionId==="commune"?"#9db76f":"#ddae58";
   }else if(received){
-   title="RECEIVED";
-   status=`REPORT ${Math.round(received.confidence)}%`;
-   footer=`FROM ${(received.sourceName??"TEAM").split(" ")[0].toUpperCase()}`;
-   accent="#9db76f";
+   title="RECEIVED";status=`REPORT ${Math.round(received.confidence)}%`;footer=`FROM ${(received.sourceName??"TEAM").split(" ")[0].toUpperCase()}`;accent="#9db76f";
   }
   ctx.save();
   try{
    ctx.textAlign="center";ctx.textBaseline="middle";
-   if(showKnowledge){
-    ctx.fillStyle="rgba(18,27,22,.88)";
-    ctx.beginPath();ctx.roundRect(x-42,y-10,84,20,10);ctx.fill();
+   if(showAction){
+    ctx.font="800 9px system-ui";
+    const panelWidth=Math.max(84,Math.min(132,ctx.measureText(title).width+30));
+    ctx.fillStyle="rgba(18,27,22,.88)";ctx.beginPath();ctx.roundRect(x-panelWidth/2,y-10,panelWidth,20,10);ctx.fill();
     ctx.strokeStyle=accent;ctx.lineWidth=1.5;ctx.stroke();
-    ctx.fillStyle="#f0e5c8";ctx.font="800 9px system-ui";ctx.fillText(title,x,y);
-    ctx.fillStyle=accent;ctx.font="750 8px system-ui";ctx.fillText(status,x,y+16);
-    ctx.fillStyle="rgba(220,226,205,.62)";ctx.font="650 7px system-ui";ctx.fillText(footer,x,y+27);
+    ctx.fillStyle="#f0e5c8";ctx.fillText(title,x,y);
+    ctx.fillStyle=accent;ctx.font="750 7.5px system-ui";ctx.fillText(status,x,y+16);
+    ctx.fillStyle="rgba(220,226,205,.62)";ctx.font="650 6.5px system-ui";ctx.fillText(footer,x,y+27);
    }
    if(procedureRole){
     const roleAccent=actor.factionId==="commune"?"#9db76f":"#ddae58";
-    const label=procedureRole.label.toUpperCase();
-    ctx.font="800 7px system-ui";
-    const width=Math.max(58,Math.min(112,ctx.measureText(label).width+18));
-    const roleY=actor.y+58;
-    ctx.fillStyle="rgba(18,27,22,.88)";
-    ctx.beginPath();ctx.roundRect(actor.x-width/2,roleY-8,width,16,8);ctx.fill();
-    ctx.strokeStyle=roleAccent;ctx.lineWidth=1.1;ctx.stroke();
-    ctx.fillStyle=roleAccent;ctx.fillText(label,actor.x,roleY);
+    const label=procedureRole.label.toUpperCase();ctx.font="800 7px system-ui";
+    const width=Math.max(58,Math.min(112,ctx.measureText(label).width+18));const roleY=actor.y+58;
+    ctx.fillStyle="rgba(18,27,22,.88)";ctx.beginPath();ctx.roundRect(actor.x-width/2,roleY-8,width,16,8);ctx.fill();
+    ctx.strokeStyle=roleAccent;ctx.lineWidth=1.1;ctx.stroke();ctx.fillStyle=roleAccent;ctx.fillText(label,actor.x,roleY);
    }
   }finally{ctx.restore();}
  }

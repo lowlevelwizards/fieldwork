@@ -1,4 +1,4 @@
-import { evaluateTeamResponses } from "./response-evaluator.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { evaluateTeamResponses } from "./response-evaluator.js?v=20h-procedure-driven-actor-actions-20260802";
 
 const ACTIVE_ENCOUNTER_STATES=new Set(["relevant","potentially_incompatible"]);
 

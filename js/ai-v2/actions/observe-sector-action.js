@@ -1,18 +1,29 @@
-import { AIV2Action } from "./action.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { ACTION_CHANNELS } from "./action-channels.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
-import { evaluateVisualObservation } from "../senses/visual-observation.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
+import { AIV2Action } from "./action.js?v=20h-procedure-driven-actor-actions-20260802";
+import { ACTION_CHANNELS } from "./action-channels.js?v=20h-procedure-driven-actor-actions-20260802";
+import { evaluateVisualObservation } from "../senses/visual-observation.js?v=20h-procedure-driven-actor-actions-20260802";
+
+function cloneAssignment(assignment={}){
+  return{
+    ...assignment,
+    sector:assignment.sector?{...assignment.sector}:null,
+    report:assignment.report?{...assignment.report}:null,
+    provenance:assignment.provenance?{...assignment.provenance}:null
+  };
+}
 
 export class ObserveSectorAction extends AIV2Action{
   constructor({actorId,assignment}={}){
+    const normalized=cloneAssignment(assignment);
     super({
       type:"ObserveSector",
       actorId,
-      purpose:assignment?.reason??"Gather information about the assigned sector",
+      purpose:normalized?.reason??"Gather information about the assigned sector",
       channels:[ACTION_CHANNELS.ATTENTION,ACTION_CHANNELS.STANCE],
       primary:true,
-      metadata:{assignment:{...assignment,sector:{...(assignment?.sector??{})}}}
+      displayPriority:30,
+      metadata:{assignment:normalized,provenance:normalized.provenance??null}
     });
-    this.assignment=assignment;
+    this.assignment=normalized;
     this.elapsed=0;
     this.visibleSubjectIds=new Set();
     this.lastEvidenceBySubject=new Map();
@@ -25,25 +36,31 @@ export class ObserveSectorAction extends AIV2Action{
 
   canContinue({game}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
-    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&actor.aiV2Assignment?.action==="observe_sector");
+    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.assignment?.sector);
+  }
+
+  adoptDirective(assignment,{now=0,context={}}={}){
+    const previous=this.assignment;
+    this.assignment=cloneAssignment(assignment);
+    this.purpose=this.assignment.reason??this.purpose;
+    this.metadata.assignment=cloneAssignment(this.assignment);
+    this.metadata.provenance=this.assignment.provenance?{...this.assignment.provenance}:null;
+    this.#applyActorContext(context?.game,now);
+    return{
+      changed:JSON.stringify(previous)!==JSON.stringify(this.assignment),
+      previous,
+      current:this.assignment
+    };
   }
 
   start(now,context){
     super.start(now,context);
-    const actor=context?.game?.actors?.find(candidate=>candidate.id===this.actorId);
-    if(actor){
-      actor.currentTask=this.assignment.task;
-      actor.currentAction="Observing assigned sector";
-      actor.procedureRole=this.assignment.role;
-      actor.aiV2Procedure=this.assignment.procedure;
-      actor.aiV2ProcedurePhase=this.assignment.phase;
-      actor.aiV2ActionReason=this.purpose;
-    }
+    this.#applyActorContext(context?.game,now);
   }
 
   update(delta,{game,services,now=0}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
-    if(!actor)return {status:"failed",reason:"actor_missing"};
+    if(!actor)return{status:"failed",reason:"actor_missing"};
     this.elapsed+=delta;
     this.progress=Math.min(1,this.elapsed/2.5);
     const sector=this.assignment.sector;
@@ -75,10 +92,24 @@ export class ObserveSectorAction extends AIV2Action{
     services.visibleByObserver.set(actor.id,visibleIds);
     actor.aiV2Observation={
       sector:{...sector},
+      sectorLabel:sector.label??"Assigned sector",
       settled:attention.settled,
       turnError:attention.error,
-      visibleSubjectIds:[...visibleIds]
+      visibleSubjectIds:[...visibleIds],
+      provenance:this.assignment.provenance?{...this.assignment.provenance}:null
     };
     return null;
+  }
+
+  #applyActorContext(game,now){
+    const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
+    if(!actor)return;
+    actor.currentTask=this.assignment.task??actor.currentTask;
+    actor.currentAction="Observing assigned sector";
+    actor.procedureRole=this.assignment.roleLabel??this.assignment.role??actor.procedureRole;
+    actor.aiV2Procedure=this.assignment.procedureLabel??this.assignment.procedure??actor.aiV2Procedure;
+    actor.aiV2ProcedurePhase=this.assignment.phaseLabel??this.assignment.phase??actor.aiV2ProcedurePhase;
+    actor.aiV2ActionReason=this.purpose;
+    actor.aiV2ActionAssignedAt=now;
   }
 }

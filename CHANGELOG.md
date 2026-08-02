@@ -1,3 +1,20 @@
+# Fieldwork 2.0H
+
+## Procedure-Driven Actor Actions
+
+- Added a role-action context layer that combines procedure responsibility, mission, shared knowledge, and local geometry without issuing commands.
+- Added an actor action evaluator that translates role fulfillment needs into readable action candidates.
+- Added a role-action runtime that reconciles actor proposals through the scheduler and preserves valid actions instead of restarting them.
+- Added `HoldReady` for Team Reserve and Withdrawal Reserve responsibilities.
+- Primary and concealed observers now transfer their existing `ObserveSector` actions to procedural ownership without changing action IDs.
+- Alternate Security and Local Security now observe distinct approaches rather than duplicating the primary observer.
+- All six operators in Fixture 02 now have meaningful persistent actions while remaining physically stationary.
+- Added action provenance from mission, response, procedure, phase, and role through to the active action.
+- Added deliberate release behavior when roles change or procedures end, including returning still-valid observer actions to their authored task.
+- Added role-action ownership invariants, action diagnostics, world-facing indicators, alternate observation sectors, and ready-facing markers.
+- Kept movement, cover selection, targeting, aiming, firing, and hostility classification excluded.
+- Added architecture documentation for the role-to-action-to-execution chain.
+
 # Fieldwork 2.0G
 
 ## Team Procedures, Phases & Temporary Roles

@@ -1,11 +1,11 @@
-import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js?v=20g-team-procedures-phases-roles-20260802";
+import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js?v=20h-procedure-driven-actor-actions-20260802";
 
 function capable(actor){
   const medical=actor?.medical;
   return Boolean(actor?.id&&!medical?.dead&&!medical?.unconscious&&medical?.condition!=="critical");
 }
 
-function cloneRole(role){return role?{...role}:null;}
+function cloneRole(role){return role?{...role,fulfillment:role.fulfillment?{...role.fulfillment}:null}:null;}
 function cloneProcedure(record){
   if(!record)return null;
   return{
@@ -41,6 +41,7 @@ function assignRoles(definition,teamActors){
       actorName:actor?.name??null,
       responsibility:roleSpec.responsibility,
       selectionReason:roleSpec.selectionReason,
+      fulfillment:roleSpec.fulfillment?{...roleSpec.fulfillment}:null,
       status:actor?"assigned":"unfilled"
     });
   }
@@ -50,7 +51,7 @@ function assignRoles(definition,teamActors){
 function assignmentsValid(record,actorsById){
   const assignedIds=new Set();
   for(const role of record.roles){
-    if(!role.actorId)return false;
+    if(!role.actorId)continue;
     if(assignedIds.has(role.actorId))return false;
     assignedIds.add(role.actorId);
     if(!capable(actorsById.get(role.actorId)))return false;
