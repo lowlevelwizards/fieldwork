@@ -1,21 +1,48 @@
-# Fieldwork 0.5A — Care Under Pressure
+# Fieldwork 2.0A — Causal Architecture Foundation
 
 A phone-first browser prototype built with HTML, CSS, ES modules, and Canvas 2D.
 
-## Field test loop
+## Current architecture milestone
 
-- Find Ada injured beside the maintenance truck.
-- Assess her condition.
-- Search the site for a bandage, water, and the radio battery.
-- Hold the bandage and use it on Ada.
-- Assist her to the break table.
-- Install the battery in the empty radio cradle.
+Build 2.0A preserves the working 1.2H combat AI as a legacy research runtime and introduces a parallel AI V2 foundation.
 
-The incident uses physical item custody, actor condition states, assisted movement, in-world treatment, and a reusable incident controller. No build tools are required.
+The title screen now allows either runtime to be selected:
+
+- **Legacy 1.2H** — existing combat, cover, team-response, and medical AI.
+- **AI V2 Foundation** — read-only world snapshots, persistent action lifecycle, action channels, scheduling, decision logging, and invariant monitoring. NPC tactical decisions are intentionally disabled until the first causal vertical slice is implemented.
+
+The architectural source of truth lives under `docs/architecture/`.
+
+## Causal spine
+
+```text
+FACT
+→ VALUE
+→ NEED
+→ GOAL
+→ OPERATION
+→ MISSION
+→ TASK
+→ KNOWLEDGE
+→ ENCOUNTER
+→ RESPONSE
+→ PROCEDURE
+→ ROLE
+→ ACTION
+→ EXECUTION
+→ CONSEQUENCE
+→ MEMORY
+→ NEW FACT
+```
+
+## Next behavior milestone
+
+The first AI V2 behavior will be the peaceful damaged-relay vertical slice documented in `docs/architecture/05_RELAY_VERTICAL_SLICE.md`.
 
 ## Controls
 
 - Touch joystick or WASD: move
 - Context button or E: interact/use
 - Pack button or B: backpack
+- O: operations board
 - Escape: close panels

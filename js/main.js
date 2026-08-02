@@ -1,14 +1,14 @@
-import { Camera } from "./camera.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { ContinuousGameState } from "./continuous-game-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { InputController, CombatInputController } from "./input.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { Renderer } from "./renderer.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { getItemDefinition } from "../data/items.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { findEntity } from "./world-entities.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { validateItemLocations } from "./item-locations.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { Camera } from "./camera.js?v=20a-causal-architecture-foundation-20260802";
+import { ContinuousGameState } from "./continuous-game-state.js?v=20a-causal-architecture-foundation-20260802";
+import { InputController, CombatInputController } from "./input.js?v=20a-causal-architecture-foundation-20260802";
+import { Renderer } from "./renderer.js?v=20a-causal-architecture-foundation-20260802";
+import { getItemDefinition } from "../data/items.js?v=20a-causal-architecture-foundation-20260802";
+import { findEntity } from "./world-entities.js?v=20a-causal-architecture-foundation-20260802";
+import { validateItemLocations } from "./item-locations.js?v=20a-causal-architecture-foundation-20260802";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20a-causal-architecture-foundation-20260802";
 
-const BUILD_ID="1.2H";
-const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
+const BUILD_ID="2.0A";
+const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
 $("#title-build-id").textContent=BUILD_ID;
@@ -16,7 +16,22 @@ $("#debug-build").textContent=declaredBuild===BUILD_ID?BUILD_ID:`HTML ${declared
 if(declaredBuild!==BUILD_ID){console.error("Fieldwork build mismatch",{html:declaredBuild,javascript:BUILD_ID});setTimeout(()=>alert(`Fieldwork cache mismatch detected.\nHTML: ${declaredBuild}\nJavaScript: ${BUILD_ID}\nReload the page once.`),50);}
 console.info(`Fieldwork ${BUILD_ID} loaded`,{href:location.href,time:new Date().toISOString()});
 
-const camera=new Camera();let game=new ContinuousGameState({scenario:"operations"});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
+const AI_RUNTIME_STORAGE_KEY="fieldwork.aiRuntime";
+const requestedRuntime=new URLSearchParams(location.search).get("ai");
+function readStoredAIRuntime(){try{return localStorage.getItem(AI_RUNTIME_STORAGE_KEY);}catch{return null;}}
+function writeStoredAIRuntime(value){try{localStorage.setItem(AI_RUNTIME_STORAGE_KEY,value);}catch{}}
+const storedRuntime=readStoredAIRuntime();
+const initialRuntime=requestedRuntime==="v2"||requestedRuntime==="legacy"?requestedRuntime:storedRuntime==="v2"?"v2":"legacy";
+aiRuntimeSelect.value=initialRuntime;
+function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
+function updateAIRuntimeDescription(){
+  aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
+    ?"Foundation observer: snapshots, action lifecycle, diagnostics; legacy NPC tactics are disabled."
+    :"Preserved 1.2H research prototype with the existing combat and medical AI.";
+}
+updateAIRuntimeDescription();
+
+const camera=new Camera();let game=new ContinuousGameState({scenario:"operations",aiRuntime:selectedAIRuntime()});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
 const sandboxButton=$("#sandbox-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
 let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
 function resizeAndCenter(reason="viewport"){
@@ -26,7 +41,9 @@ function resizeAndCenter(reason="viewport"){
 }
 function startGame(scenario="operations"){
   if(started)return;
-  game=new ContinuousGameState({scenario});
+  const aiRuntime=selectedAIRuntime();
+  writeStoredAIRuntime(aiRuntime);
+  game=new ContinuousGameState({scenario,aiRuntime});
   titleScreen.classList.remove("screen--active");
   gameScreen.classList.add("screen--active");
   started=true;
@@ -36,7 +53,9 @@ function startGame(scenario="operations"){
   if(scenario==="sandbox"){
     objective.querySelector(".objective-kicker").textContent="COMBAT SANDBOX";
     objective.querySelector("strong").textContent="Three-way tactical test";
-    objective.querySelector("span:last-child").textContent="Northline enters from the north, Freelancers from the south, and Commune from the west. Reinforcements replace lost teams.";
+    objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
+      ?"AI V2 foundation is observing the sandbox. Legacy NPC tactical decisions are intentionally disabled in this build."
+      :"Northline enters from the north, Freelancers from the south, and Commune from the west. Reinforcements replace lost teams.";
     $("#operations-button")?.setAttribute("hidden","");
   }
   objectiveTimer=setTimeout(()=>objective.classList.add("objective-card--collapsed"),5200);
@@ -129,7 +148,9 @@ const reversals=combatActors.reduce((sum,actor)=>sum+(actor.intentReversals??0),
 const stalled=combatActors.filter(actor=>actor.combatStalled).length;
 const withdrawing=combatActors.filter(actor=>actor.combatPosture==="withdraw"||actor.combatPosture==="regroup").length;
 const assessments=[...new Set(combatActors.map(actor=>actor.fightAssessmentState).filter(Boolean))].join("/")||"quiet";
-$("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
+$("#debug-ai-runtime").textContent=game.aiRuntimeLabel??game.aiRuntimeMode;
+if(game.aiRuntimeMode==="v2")$("#debug-ai").textContent=game.aiV2?.getDebugSummary?.()??"V2 unavailable";
+else $("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
 const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
 function updateCombatUI(){
  const combat=game.combat;
@@ -200,6 +221,10 @@ document.addEventListener("dblclick",event=>event.preventDefault(),{passive:fals
 document.addEventListener("gesturestart",event=>event.preventDefault(),{passive:false});
 document.addEventListener("gesturechange",event=>event.preventDefault(),{passive:false});
 document.addEventListener("gestureend",event=>event.preventDefault(),{passive:false});
+aiRuntimeSelect.addEventListener("change",()=>{
+  writeStoredAIRuntime(selectedAIRuntime());
+  updateAIRuntimeDescription();
+});
 beginButton.addEventListener("click",()=>startGame("operations"));sandboxButton.addEventListener("click",()=>startGame("sandbox"));
 $("#backpack-button").addEventListener("click",event=>{event.preventDefault();event.stopPropagation();inventoryOpen?closeInventory():openInventory();});
 $("#inventory-close").addEventListener("click",closeInventory);

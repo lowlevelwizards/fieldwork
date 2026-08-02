@@ -1,3 +1,15 @@
+# Fieldwork 2.0A
+
+## Causal Architecture Foundation
+
+- Preserved the 1.2H combat AI as the default legacy research runtime.
+- Added a title-screen selector for Legacy 1.2H and AI V2 Foundation.
+- Added an intentionally non-tactical AI V2 observer runtime so the new architecture can be built in parallel without importing legacy tactical authorities.
+- Added read-only world snapshots, a persistent action lifecycle, explicit action channels, an action scheduler, bounded decision logging, and invariant monitoring.
+- Added architecture documents for Fieldwork purpose, causal grammar, layer contracts, state ownership, runtime order, and the first damaged-relay vertical slice.
+- Added legacy-runtime documentation identifying the active files, proven mechanics, and authority overlaps.
+- Updated build identity and README for the 2.0A foundation.
+
 # Fieldwork 1.2E
 
 ## Fire Teams, Suppression & Movement Authority

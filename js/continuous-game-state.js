@@ -16,11 +16,14 @@ import { TeamCombatContextSystem } from "./team-combat-context.js?v=12h-reactive
 import { FireTeamControllerSystem } from "./fire-team-controller.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { FightAssessmentSystem } from "./fight-assessment.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { CombatPostureSystem } from "./combat-posture.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js?v=20a-causal-architecture-foundation-20260802";
 
 export class ContinuousGameState extends GameState {
-  constructor({scenario="operations"}={}) {
+  constructor({scenario="operations",aiRuntime=AI_RUNTIME_MODES.LEGACY}={}) {
     super();
     this.scenarioMode=scenario;
+    this.aiRuntimeMode=aiRuntime===AI_RUNTIME_MODES.V2?AI_RUNTIME_MODES.V2:AI_RUNTIME_MODES.LEGACY;
+    this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 Foundation":"Legacy 1.2H";
     if(scenario==="sandbox"){
       this.map=sandboxMap;
       this.entities=this.entities.filter(entity=>entity.type==="item"&&["bandage","pressure_dressing","tourniquet"].includes(entity.definitionId));
@@ -56,6 +59,7 @@ export class ContinuousGameState extends GameState {
     this.combatPostures = new CombatPostureSystem(this);
     this.teamResponses = new TeamResponseSystem(this);
     this.encounters = new FactionEncounterSystem(this);
+    this.aiV2 = this.aiRuntimeMode===AI_RUNTIME_MODES.V2?new AIV2Runtime(this):null;
     const phases = [
       { name: "New Moon", illumination: 0.0 },
       { name: "Crescent Moon", illumination: 0.25 },
@@ -171,7 +175,7 @@ export class ContinuousGameState extends GameState {
           :0;
 
     try {
-      this.actorIntents.beginFrame();
+      if(this.aiRuntimeMode===AI_RUNTIME_MODES.LEGACY)this.actorIntents.beginFrame();
       super.update(delta, normalizedMove);
 
       const a=this.operator.lookAngle;
@@ -204,19 +208,28 @@ export class ContinuousGameState extends GameState {
         this.combat.toggleAim(false);
       }
       this.combat.update(delta, move);
-      this.perception.update(delta);
-      this.encounters.update(delta);
-      this.teamCombatContexts.update(delta);
-      this.coverNetwork.update(delta);
-      this.coverStates.update(delta);
-      this.fireTeams.update(delta);
-      this.combatPostures.update(delta);
-      this.teamResponses.update(delta);
-      // Medical commitment is evaluated before combat so an accepted
-      // treatment action cannot be followed by a same-frame combat move.
-      this.medical.update(delta);
-      this.aiCombat.update(delta);
-      this.actorIntents.resolveAll(delta);
+      if(this.aiRuntimeMode===AI_RUNTIME_MODES.LEGACY){
+        this.perception.update(delta);
+        this.encounters.update(delta);
+        this.teamCombatContexts.update(delta);
+        this.coverNetwork.update(delta);
+        this.coverStates.update(delta);
+        this.fireTeams.update(delta);
+        this.combatPostures.update(delta);
+        this.teamResponses.update(delta);
+        // Medical commitment is evaluated before combat so an accepted
+        // treatment action cannot be followed by a same-frame combat move.
+        this.medical.update(delta);
+        this.aiCombat.update(delta);
+        this.actorIntents.resolveAll(delta);
+      }else{
+        // AI V2 2.0A is an observer foundation. Player-facing drag and
+        // treatment mechanics remain available, while legacy NPC tactical
+        // authorities are deliberately not advanced.
+        this.medical.updateDrag(delta);
+        this.medical.updatePlayer(delta);
+        this.aiV2.update(delta);
+      }
     } finally {
       this.operator.moveSpeed=originalSpeed;
     }
