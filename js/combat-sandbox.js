@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20g-team-procedures-phases-roles-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={

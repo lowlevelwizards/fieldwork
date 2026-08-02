@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20g-team-procedures-phases-roles-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -342,8 +342,10 @@ export class Renderer{
   const reports=game.aiV2?.teamKnowledge?.summary?.()??[];
   const encounters=game.aiV2?.teamEncounters?.summary?.()??[];
   const responses=game.aiV2?.teamResponses?.summary?.()??[];
+  const procedures=game.aiV2?.teamProcedures?.summary?.()??[];
   const responseByTeam=new Map(responses.map(response=>[response.teamId,response]));
-  if(!observers.length&&!reports.length&&!encounters.length&&!responses.length)return;
+  const procedureByTeam=new Map(procedures.map(procedure=>[procedure.teamId,procedure]));
+  if(!observers.length&&!reports.length&&!encounters.length&&!responses.length&&!procedures.length)return;
   const activeZone=game.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId);
   ctx.save();
   try{
@@ -415,8 +417,14 @@ export class Renderer{
     ctx.fillStyle=response?accent:"rgba(224,226,205,.60)";ctx.font="800 6.5px system-ui";
     ctx.fillText(response?response.selected.label.toUpperCase():"NO RESPONSE SELECTED",position.x,position.y+82);
     if(response){
+     const procedure=procedureByTeam.get(teamEntry.teamId)??null;
      ctx.fillStyle="rgba(224,226,205,.55)";ctx.font="700 6px system-ui";
-     ctx.fillText(`DECISION ${Math.round(response.selected.score*100)} · NO PROCEDURE`,position.x,position.y+94);
+     if(procedure){
+      ctx.fillText(`PROCEDURE ${procedure.label.toUpperCase()}`,position.x,position.y+94);
+      ctx.fillText(`PHASE ${procedure.phase.label.toUpperCase()}`,position.x,position.y+104);
+     }else{
+      ctx.fillText(`DECISION ${Math.round(response.selected.score*100)} · NO PROCEDURE`,position.x,position.y+94);
+     }
     }
    }
   }finally{ctx.restore();}
@@ -429,7 +437,9 @@ export class Renderer{
   const contact=debug?.personalKnowledge;
   const received=debug?.receivedKnowledge;
   const reporting=debug?.activeActions?.includes("ReportContact")&&debug?.communication?.status==="transmitting";
-  if(!isObserver&&!received&&!reporting)return;
+  const procedureRole=debug?.procedureRole;
+  const showKnowledge=Boolean(isObserver||received||reporting);
+  if(!showKnowledge&&!procedureRole)return;
   const x=actor.x,y=actor.y-108;
   let title="OBSERVE",status="NO CONTACT",footer="PRIVATE",accent="#e8a051";
   if(reporting){
@@ -449,12 +459,25 @@ export class Renderer{
   ctx.save();
   try{
    ctx.textAlign="center";ctx.textBaseline="middle";
-   ctx.fillStyle="rgba(18,27,22,.88)";
-   ctx.beginPath();ctx.roundRect(x-42,y-10,84,20,10);ctx.fill();
-   ctx.strokeStyle=accent;ctx.lineWidth=1.5;ctx.stroke();
-   ctx.fillStyle="#f0e5c8";ctx.font="800 9px system-ui";ctx.fillText(title,x,y);
-   ctx.fillStyle=accent;ctx.font="750 8px system-ui";ctx.fillText(status,x,y+16);
-   ctx.fillStyle="rgba(220,226,205,.62)";ctx.font="650 7px system-ui";ctx.fillText(footer,x,y+27);
+   if(showKnowledge){
+    ctx.fillStyle="rgba(18,27,22,.88)";
+    ctx.beginPath();ctx.roundRect(x-42,y-10,84,20,10);ctx.fill();
+    ctx.strokeStyle=accent;ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle="#f0e5c8";ctx.font="800 9px system-ui";ctx.fillText(title,x,y);
+    ctx.fillStyle=accent;ctx.font="750 8px system-ui";ctx.fillText(status,x,y+16);
+    ctx.fillStyle="rgba(220,226,205,.62)";ctx.font="650 7px system-ui";ctx.fillText(footer,x,y+27);
+   }
+   if(procedureRole){
+    const roleAccent=actor.factionId==="commune"?"#9db76f":"#ddae58";
+    const label=procedureRole.label.toUpperCase();
+    ctx.font="800 7px system-ui";
+    const width=Math.max(58,Math.min(112,ctx.measureText(label).width+18));
+    const roleY=actor.y+58;
+    ctx.fillStyle="rgba(18,27,22,.88)";
+    ctx.beginPath();ctx.roundRect(actor.x-width/2,roleY-8,width,16,8);ctx.fill();
+    ctx.strokeStyle=roleAccent;ctx.lineWidth=1.1;ctx.stroke();
+    ctx.fillStyle=roleAccent;ctx.fillText(label,actor.x,roleY);
+   }
   }finally{ctx.restore();}
  }
 

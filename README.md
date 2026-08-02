@@ -1,15 +1,15 @@
-# Fieldwork 2.0F — Response Evaluation & Decision Ledger
+# Fieldwork 2.0G — Team Procedures, Phases & Temporary Roles
 
 A phone-first browser prototype built with HTML, CSS, ES modules, and Canvas 2D.
 
 ## Current architecture milestone
 
-Build 2.0F keeps the intentional Behavior Lab and extends AI V2 from encounter recognition into explicit team decision-making. Each team compares a mission-relevant contact against a readable ledger of mission value, preservation, information, position, concealment, time, resources, and exit options.
+Build 2.0G keeps the intentional Behavior Lab and extends AI V2 from team response selection into explicit coordination structure. Each selected response now creates a persistent procedure, a named phase, temporary responsibilities, permissions, and reassessment triggers without directly controlling actors.
 
 The title screen allows either runtime to be selected:
 
 - **Legacy 1.2H** — the existing combat, cover, team-response, and medical AI, run inside controlled fixtures.
-- **AI V2 — Response Evaluation** — designated observers can observe and report; teams can recognize mission interference and select a persistent nonviolent response without issuing actor actions.
+- **AI V2 — Team Procedures** — designated observers can observe and report; teams recognize mission interference, select a response, and organize temporary responsibilities without issuing new actor actions.
 
 ## Behavior Lab fixtures
 
@@ -65,13 +65,16 @@ MISSION
 → DECISION LEDGER
 → RESPONSE CANDIDATES
 → SELECTED TEAM RESPONSE
+→ TEAM PROCEDURE
+→ PROCEDURE PHASE
+→ TEMPORARY ROLES
 ```
 
-Northline selects **Heighten Watch**. The Commune selects **Maintain Concealment**. Both selections remain persistent, cite their tradeoffs, and disappear when their supporting encounter evidence becomes stale.
+Northline's **Heighten Watch** response creates **Security Watch** with Primary Observer, Alternate Security, and Team Reserve responsibilities. The Commune's **Maintain Concealment** response creates **Concealed Observation** with Concealed Observer, Local Security, and Withdrawal Reserve responsibilities.
 
-No procedure is assigned yet. Every actor remains physically still, and no V2 target selection, aiming, or firing occurs.
+Procedures and roles remain persistent, exclusive, and deliberately reassignable if an operator becomes incapable. Every actor remains physically still, and no V2 target selection, aiming, movement, or firing occurs.
 
-The next missing capability is procedure formation: a selected response must be translated into phases, temporary responsibilities, and permissions before actors receive new actions.
+The next missing capability is actor interpretation: each operator must propose a local action that fulfills their assigned responsibility without the procedure directly controlling their body.
 
 ## Controls
 

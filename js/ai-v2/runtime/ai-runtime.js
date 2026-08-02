@@ -1,16 +1,17 @@
-import { ActionScheduler } from "../actions/action-scheduler.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { ReportContactAction } from "../actions/report-contact-action.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { CommunicationExecutor } from "../communication/communication-executor.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { DecisionLog } from "../diagnostics/decision-log.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { AttentionExecutor } from "../execution/attention-executor.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { TeamMissionStore } from "../missions/team-mission.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { TeamResponseState } from "../responses/team-response-state.js?v=20f-response-evaluation-decision-ledger-20260802";
-import { captureWorldSnapshot } from "./world-snapshot.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { ActionScheduler } from "../actions/action-scheduler.js?v=20g-team-procedures-phases-roles-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20g-team-procedures-phases-roles-20260802";
+import { ReportContactAction } from "../actions/report-contact-action.js?v=20g-team-procedures-phases-roles-20260802";
+import { CommunicationExecutor } from "../communication/communication-executor.js?v=20g-team-procedures-phases-roles-20260802";
+import { DecisionLog } from "../diagnostics/decision-log.js?v=20g-team-procedures-phases-roles-20260802";
+import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20g-team-procedures-phases-roles-20260802";
+import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20g-team-procedures-phases-roles-20260802";
+import { AttentionExecutor } from "../execution/attention-executor.js?v=20g-team-procedures-phases-roles-20260802";
+import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20g-team-procedures-phases-roles-20260802";
+import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20g-team-procedures-phases-roles-20260802";
+import { TeamMissionStore } from "../missions/team-mission.js?v=20g-team-procedures-phases-roles-20260802";
+import { TeamProcedureState } from "../procedures/team-procedure-state.js?v=20g-team-procedures-phases-roles-20260802";
+import { TeamResponseState } from "../responses/team-response-state.js?v=20g-team-procedures-phases-roles-20260802";
+import { captureWorldSnapshot } from "./world-snapshot.js?v=20g-team-procedures-phases-roles-20260802";
 
 export const AI_RUNTIME_MODES=Object.freeze({
   LEGACY:"legacy",
@@ -35,15 +36,16 @@ export class AIV2Runtime{
     this.teamMissions=new TeamMissionStore();
     this.teamEncounters=new TeamEncounterMemory({decisionLog:this.decisionLog});
     this.teamResponses=new TeamResponseState({decisionLog:this.decisionLog});
+    this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
     this.communication=new CommunicationExecutor();
     this.visibleByObserver=new Map();
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
-    this.invariants.inspect(this.snapshot,{now:0});
+    this.invariants.inspect(this.snapshot,{now:0,procedures:[]});
     this.decisionLog.record({
       type:"runtime_started",
       time:0,
-      data:{mode:"v2",stage:"response_evaluation_decision_ledger",scenario:game.scenarioMode}
+      data:{mode:"v2",stage:"team_procedures_phases_roles",scenario:game.scenarioMode}
     });
   }
 
@@ -58,13 +60,14 @@ export class AIV2Runtime{
     this.#ensureContactReports();
     this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,now:this.elapsed});
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,now:this.elapsed});
+    this.teamProcedures.update({game:this.game,teamResponses:this.teamResponses,now:this.elapsed});
     this.#updateActorDiagnostics();
 
     this.snapshotAccumulator+=delta;
     if(this.snapshotAccumulator<this.snapshotInterval)return;
     this.snapshotAccumulator%=this.snapshotInterval;
     this.snapshot=captureWorldSnapshot(this.game,{elapsed:this.elapsed});
-    this.invariants.inspect(this.snapshot,{now:this.elapsed});
+    this.invariants.inspect(this.snapshot,{now:this.elapsed,procedures:this.teamProcedures.summary()});
   }
 
   getDebugSummary(){
@@ -73,7 +76,7 @@ export class AIV2Runtime{
     const visible=this.personalKnowledge.summary().reduce((sum,entry)=>sum+entry.contacts.filter(contact=>contact.currentlyVisible).length,0);
     const reporting=scheduler.byType.ReportContact??0;
     const activeEncounterCount=this.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} selected response(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} selected response(s) · ${this.teamProcedures.count()} active procedure(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
   }
 
   getDebugDetails(){
@@ -104,13 +107,19 @@ export class AIV2Runtime{
       const alternatives=response.candidates.slice(1,4).map(candidate=>`${candidate.label} ${Math.round(candidate.score*100)}`).join(", ");
       return `${faction}: ${response.selected.label} ${Math.round(response.selected.score*100)} · ${response.selected.reason}${alternatives?` · next: ${alternatives}`:""}`;
     }).join(" · ")||"none — no team response selected";
+    const procedures=this.teamProcedures.summary().map(procedure=>{
+      const faction=this.game.actors.find(actor=>actor.teamId===procedure.teamId)?.factionId??procedure.teamId;
+      const roles=procedure.roles.map(role=>`${role.actorName??"unfilled"}: ${role.label}`).join(", ");
+      return `${faction}: ${procedure.label} · ${procedure.phase.label} · ${roles}`;
+    }).join(" · ")||"none — no team procedure assigned";
     return{
       assignment:assignments,
       personalKnowledge:contacts,
       communication,
       teamKnowledge:shared,
       encounter:encounters,
-      response:responses
+      response:responses,
+      procedure:procedures
     };
   }
 
@@ -150,6 +159,7 @@ export class AIV2Runtime{
         teamMissions:this.teamMissions,
         teamEncounters:this.teamEncounters,
         teamResponses:this.teamResponses,
+        teamProcedures:this.teamProcedures,
         visibleByObserver:this.visibleByObserver
       }
     };
@@ -166,6 +176,8 @@ export class AIV2Runtime{
       const teamMission=this.teamMissions.get(actor.teamId);
       const encounter=this.teamEncounters.getBestTeamHypothesis(actor.teamId);
       const response=this.teamResponses.get(actor.teamId);
+      const teamProcedure=this.teamProcedures.get(actor.teamId);
+      const procedureRole=this.teamProcedures.getActorRole(actor.id);
       const reporting=actions.find(action=>action.type==="ReportContact")??null;
       const sourceActor=received?this.game.actors.find(candidate=>candidate.id===received.sourceActorId):null;
       actor.aiV2Debug={
@@ -173,9 +185,19 @@ export class AIV2Runtime{
         missionObjective:teamMission?.objective??assignment?.mission??null,
         missionSuccessCondition:teamMission?.successCondition??null,
         task:assignment?.task??teamMission?.immediateTask??actor.currentTask??null,
-        procedure:assignment?.procedure??null,
-        procedurePhase:assignment?.phase??null,
-        role:assignment?.role??null,
+        procedure:teamProcedure?.label??assignment?.procedure??null,
+        procedurePhase:teamProcedure?.phase?.label??assignment?.phase??null,
+        role:procedureRole?.label??assignment?.role??null,
+        procedureRole:procedureRole?{
+          roleId:procedureRole.roleId,
+          label:procedureRole.label,
+          responsibility:procedureRole.responsibility,
+          selectionReason:procedureRole.selectionReason,
+          procedureId:procedureRole.procedureId,
+          procedureLabel:procedureRole.procedureLabel,
+          phase:{...procedureRole.phase},
+          permissions:{...procedureRole.permissions}
+        }:null,
         primaryAction:primary?.type??"UNASSIGNED",
         activeActions:actions.map(action=>action.type),
         actionId:primary?.id??null,
@@ -241,9 +263,17 @@ export class AIV2Runtime{
           selectedAt:response.selectedAt,
           candidates:response.candidates.map(candidate=>({id:candidate.id,label:candidate.label,score:candidate.score})),
           ledger:{...response.ledger,responseBias:{...(response.ledger?.responseBias??{})}},
-          procedure:null
+          procedure:teamProcedure?.procedureId??null
         }:null,
-        runtimeStage:"response_evaluation_decision_ledger"
+        teamProcedure:teamProcedure?{
+          id:teamProcedure.procedureId,
+          label:teamProcedure.label,
+          phase:{...teamProcedure.phase},
+          permissions:{...teamProcedure.permissions},
+          reassessmentTriggers:[...teamProcedure.reassessmentTriggers],
+          roles:teamProcedure.roles.map(role=>({...role}))
+        }:null,
+        runtimeStage:"team_procedures_phases_roles"
       };
     }
   }

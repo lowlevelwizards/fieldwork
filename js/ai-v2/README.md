@@ -2,7 +2,7 @@
 
 AI V2 is a parallel causal runtime. It does not import the legacy tactical authorities.
 
-## Current milestone: 2.0F
+## Current milestone: 2.0G
 
 The Observation & Concealment Behavior Lab fixture now runs this explicit cognitive chain:
 
@@ -23,11 +23,14 @@ Authored mission
 → team decision ledger
 → scored response candidates
 → persistent selected response
+→ team procedure
+→ named phase
+→ temporary roles and permissions
 ```
 
-Each team evaluates only its authored mission and its own communicated encounter hypothesis. Northline selects **Heighten Watch**; the Commune selects **Maintain Concealment**.
+Each team evaluates only its authored mission and its own communicated encounter hypothesis. Northline selects **Heighten Watch**, which creates **Security Watch**. The Commune selects **Maintain Concealment**, which creates **Concealed Observation**.
 
-A response is still only a team decision. There is intentionally no procedure, role reassignment, movement, cover seeking, target selection, aiming, or firing.
+The procedure runtime owns phases, temporary responsibilities, permissions, reassessment triggers, and deliberate replacement of an incapable role holder. It intentionally does not start actor actions. Newly assigned security and reserve actors remain still, and there is no movement, cover seeking, target selection, aiming, or firing.
 
 ## Current modules
 
@@ -41,6 +44,7 @@ A response is still only a team decision. There is intentionally no procedure, r
 - `encounters/` — mission-relative assessment and persistent uncertain encounter hypotheses.
 - `decisions/` — the descriptive team decision ledger.
 - `responses/` — response definitions, evaluation, selection persistence, switching, and invalidation.
+- `procedures/` — response-to-procedure mapping, phases, exclusive temporary roles, permissions, persistence, reassignment, and invalidation.
 - `diagnostics/` — decision history and invariant monitoring.
 
 ## Ownership rules
@@ -54,4 +58,5 @@ A response is still only a team decision. There is intentionally no procedure, r
 - Encounter assessment describes why a report matters but does not command a response.
 - The decision ledger describes tradeoffs but does not choose or execute behavior.
 - Response evaluation compares options; response state owns persistence and invalidation.
+- Procedure state owns phases, temporary responsibilities, permissions, and reassessment triggers, but cannot start actions.
 - The scheduler remains the only authority that starts or ends actor actions.

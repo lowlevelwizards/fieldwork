@@ -1,3 +1,17 @@
+# Fieldwork 2.0G
+
+## Team Procedures, Phases & Temporary Roles
+
+- Added a dedicated team procedure runtime that translates selected responses into explicit coordination structures.
+- Added **Security Watch** for Northline's Heighten Watch response and **Concealed Observation** for the Commune's Maintain Concealment response.
+- Added named procedure phases with explicit entry reasons, including Establish Responsibilities, Maintain Watch, Maintain Contact, and Reassess.
+- Added temporary role assignment for Primary Observer, Alternate Security, Team Reserve, Concealed Observer, Local Security, and Withdrawal Reserve.
+- Added deterministic, exclusive role selection with stable assignments and deliberate reassignment when an actor becomes incapable.
+- Added procedure permissions and reassessment triggers while keeping procedures unable to start actor actions, move actors, choose cover, target, or fire.
+- Added world role labels, procedure and phase presentation, debug summaries, decision-log events, and procedure ownership invariants.
+- Kept all newly assigned security and reserve actors physically still; only the two previously authored observers continue their existing actions.
+- Added architecture documentation for the response-to-procedure-to-role chain.
+
 # Fieldwork 2.0F
 
 ## Response Evaluation & Decision Ledger
