@@ -1,3 +1,18 @@
+# Fieldwork 2.0D
+
+## Contact Reporting & Shared Team Knowledge
+
+- Added the persistent `ReportContact` V2 action with timed local-voice delivery.
+- Added authored reporting policies for voice range, credibility threshold, and reporting purpose.
+- Added a narrow communication executor that determines valid recipients without deciding tactical meaning.
+- Added received second-hand contact knowledge with source, approximate position, reduced confidence, report age, and explicit non-confirmation.
+- Added a team knowledge store populated only by successfully delivered reports.
+- Added concurrent action presentation: observers continue `ObserveSector` while `ReportContact` temporarily becomes the readable primary action.
+- Added communication links, shared-report markers, recipient indicators, and expanded V2 diagnostics.
+- Clipped V2 observation overlays to the active Behavior Lab fixture for clearer inspection.
+- Kept recipients inert and excluded encounter recognition, hostility, cover response, and combat.
+- Added architecture documentation for the personal-observation-to-shared-report chain.
+
 # Fieldwork 2.0C
 
 ## Tasked Observation & Personal Knowledge

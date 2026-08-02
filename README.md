@@ -1,20 +1,20 @@
-# Fieldwork 2.0C — Tasked Observation & Personal Knowledge
+# Fieldwork 2.0D — Contact Reporting & Shared Team Knowledge
 
 A phone-first browser prototype built with HTML, CSS, ES modules, and Canvas 2D.
 
 ## Current architecture milestone
 
-Build 2.0C keeps the intentional Behavior Lab and introduces the first narrow AI V2 cognitive chain inside fixture 02: an authored observation responsibility produces a persistent action and private contact memory.
+Build 2.0D keeps the intentional Behavior Lab and extends the first AI V2 cognitive chain inside fixture 02. An authored observer now forms a private contact memory, deliberately reports a credible contact by local voice, and creates second-hand knowledge only for teammates who actually receive the report.
 
 The title screen allows either runtime to be selected:
 
 - **Legacy 1.2H** — the existing combat, cover, team-response, and medical AI, now run inside controlled fixtures.
-- **AI V2 — Tasked Observation** — one designated observer per team can turn toward an authored sector, gather visual evidence, and retain personal-only contact memory. Communication, team knowledge, encounters, and combat responses remain intentionally disabled.
+- **AI V2 — Contact Reporting** — designated observers can observe and report. Recipients retain reported knowledge without personally confirming the contact. Encounter recognition, hostility, cover response, and combat remain intentionally disabled.
 
 ## Behavior Lab fixtures
 
 1. **Open Contact** — recognition, reaction, opportunity fire, and first movement toward safety.
-2. **Observation & Concealment** — facing, sight, concealment, personal knowledge, and communication.
+2. **Observation & Concealment** — facing, sight, concealment, personal knowledge, communication, and second-hand knowledge.
 3. **Cover & Position** — directional cover, finite positions, reservations, and position persistence.
 4. **Casualty Recovery** — casualty recognition, security, dragging, treatment, and withdrawal.
 
@@ -56,9 +56,15 @@ MISSION
 → ObserveSector
 → visual evidence
 → PERSONAL KNOWLEDGE
+→ ReportContact
+→ local voice execution
+→ RECEIVED KNOWLEDGE
+→ SHARED TEAM REPORT
 ```
 
-The contact remains private to the observer. The next missing capability is an explicit `ReportContact` action that can transfer selected knowledge to a teammate; it should not be added until 2.0C is visually verified.
+The report transfers the observer's belief rather than exact world truth. It retains an approximate position, reduced confidence, source, age, method, and recipient list. Teammates remain physically inert after receiving it.
+
+The next missing capability is encounter recognition: the team knows another group may be present, but has not yet decided whether that presence interferes with its mission.
 
 ## Controls
 
