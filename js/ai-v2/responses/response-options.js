@@ -1,0 +1,165 @@
+const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
+
+function term(id,label,value,weight,{invert=false}={}){
+  const normalized=clamp(invert?1-value:value);
+  return{id,label,value:normalized,weight,contribution:normalized*weight};
+}
+
+function scoreFrom(terms,base=0,bias=0){
+  const raw=base+terms.reduce((sum,item)=>sum+item.contribution,0)+bias;
+  return clamp(raw);
+}
+
+function option({id,label,summary,base=0,terms,reason,eligible=null}){
+  return{
+    id,label,summary,
+    evaluate({ledger,mission,encounter}){
+      if(eligible&&!eligible({ledger,mission,encounter}))return null;
+      const contributions=terms(ledger);
+      const bias=clamp(ledger.responseBias?.[id]??0,-.35,.35);
+      const score=scoreFrom(contributions,base,bias);
+      return{
+        id,label,summary,score,bias,
+        contributions:contributions.map(item=>({...item})),
+        reason:reason(ledger),
+        eligible:true
+      };
+    }
+  };
+}
+
+const relevantEncounter=({encounter})=>encounter?.state==="relevant"||encounter?.state==="potentially_incompatible";
+
+export const TEAM_RESPONSE_OPTIONS=Object.freeze([
+  option({
+    id:"continue_observation",
+    label:"Continue Observation",
+    summary:"Keep gathering information without changing the team's posture.",
+    base:.08,
+    eligible:relevantEncounter,
+    terms:ledger=>[
+      term("mission_value","mission remains worthwhile",ledger.missionValue,.20),
+      term("information_need","more information is useful",ledger.informationNeed,.22),
+      term("uncertainty","intent remains uncertain",ledger.informationUncertainty,.14),
+      term("position","current position is sustainable",ledger.positionSecurity,.10),
+      term("low_detection","detection pressure is limited",ledger.detectionRisk,.08,{invert:true}),
+      term("low_time_pressure","time permits patience",ledger.timePressure,.06,{invert:true}),
+      term("relevance","contact is worth watching",ledger.encounterRelevance,.08),
+      term("detection_penalty","detection may compromise the mission",ledger.detectionRisk,-.12)
+    ],
+    reason:ledger=>`The mission still benefits from information, the contact's intent remains uncertain, and ${ledger.positionLabel} can support continued observation.`
+  }),
+  option({
+    id:"heighten_watch",
+    label:"Heighten Watch",
+    summary:"Increase team attention while holding the current position and avoiding escalation.",
+    base:.06,
+    eligible:relevantEncounter,
+    terms:ledger=>[
+      term("mission_value","approach security matters",ledger.missionValue,.17),
+      term("information_need","the team needs clearer information",ledger.informationNeed,.16),
+      term("relevance","the contact is mission-relevant",ledger.encounterRelevance,.22),
+      term("uncertainty","unknown intent justifies alertness",ledger.informationUncertainty,.12),
+      term("security_orientation","mission favors active security",ledger.securityOrientation,.18),
+      term("position","current position can be held",ledger.positionSecurity,.08),
+      term("detection_risk","possible detection rewards vigilance",ledger.detectionRisk,.03),
+      term("certainty","the report is credible enough to monitor",ledger.informationCertainty,.05),
+      term("resource_conservation","watchfulness avoids unnecessary cost",ledger.resourceConservation,.03)
+    ],
+    reason:ledger=>`The contact is mission-relevant, information remains incomplete, and the team's security responsibility favors a more alert watch without escalating.`
+  }),
+  option({
+    id:"maintain_concealment",
+    label:"Maintain Concealment",
+    summary:"Preserve the hidden position while retaining awareness and withdrawal options.",
+    base:.05,
+    eligible:relevantEncounter,
+    terms:ledger=>[
+      term("concealment","concealment directly supports the mission",ledger.concealmentValue,.25),
+      term("detection_risk","discovery would be costly",ledger.detectionRisk,.20),
+      term("preservation","team longevity is a high priority",ledger.teamPreservation,.16),
+      term("uncertainty","unknown intent favors reversible action",ledger.informationUncertainty,.10),
+      term("exit_options","withdrawal options remain available",ledger.exitOptions,.06),
+      term("mission_value","concealment preserves mission value",ledger.missionValue,.08),
+      term("stealth_orientation","mission favors remaining unseen",ledger.stealthOrientation,.15),
+      term("position","current hidden position is useful",ledger.positionSecurity,.04)
+    ],
+    reason:ledger=>`Preserving concealment and team longevity is the strongest way to continue the mission while the contact's identity and intent remain unknown.`
+  }),
+  option({
+    id:"wait",
+    label:"Wait",
+    summary:"Hold the decision open until the information changes or the situation becomes clearer.",
+    base:.04,
+    eligible:relevantEncounter,
+    terms:ledger=>[
+      term("uncertainty","evidence remains uncertain",ledger.informationUncertainty,.22),
+      term("low_time_pressure","the mission can tolerate delay",ledger.timePressure,.18,{invert:true}),
+      term("preservation","waiting limits immediate risk",ledger.teamPreservation,.10),
+      term("resource_conservation","waiting consumes few resources",ledger.resourceConservation,.08),
+      term("exit_options","the team retains options",ledger.exitOptions,.04),
+      term("low_relevance","the contact is not yet decisive",ledger.encounterRelevance,.08,{invert:true}),
+      term("position","the current position can be maintained",ledger.positionSecurity,.04)
+    ],
+    reason:ledger=>`The team has time, the evidence is still uncertain, and waiting preserves resources and options without committing to an irreversible response.`
+  }),
+  option({
+    id:"warn",
+    label:"Warn",
+    summary:"Establish a boundary or demand identification without initiating violence.",
+    base:.02,
+    eligible:relevantEncounter,
+    terms:ledger=>[
+      term("security_orientation","mission favors visible control",ledger.securityOrientation,.16),
+      term("mission_value","the protected responsibility matters",ledger.missionValue,.12),
+      term("relevance","the contact affects the mission",ledger.encounterRelevance,.14),
+      term("position","the team can speak from a sustainable position",ledger.positionSecurity,.08),
+      term("certainty","a warning needs credible information",ledger.informationCertainty,.12),
+      term("disruption","warning may disrupt interference",ledger.enemyDisruption,.10),
+      term("time_pressure","urgency favors clarification",ledger.timePressure,.04),
+      term("uncertainty_penalty","unknown intent makes exposure risky",ledger.informationUncertainty,-.15)
+    ],
+    reason:ledger=>`A warning could clarify intent and establish a boundary, but uncertainty and the cost of revealing the team limit its value.`
+  }),
+  option({
+    id:"reroute",
+    label:"Reroute",
+    summary:"Change the mission approach to avoid the uncertain contact.",
+    base:.02,
+    eligible:relevantEncounter,
+    terms:ledger=>[
+      term("preservation","avoiding contact protects the team",ledger.teamPreservation,.14),
+      term("detection_risk","the current approach risks discovery",ledger.detectionRisk,.16),
+      term("mobility","the mission tolerates changing approach",ledger.mobilityOrientation,.14),
+      term("exit_options","alternate movement remains possible",ledger.exitOptions,.14),
+      term("low_mission_value","the exact position is not essential",ledger.missionValue,.12,{invert:true}),
+      term("uncertainty","uncertain intent favors avoidance",ledger.informationUncertainty,.06),
+      term("poor_position","the current position is weak",ledger.positionSecurity,.08,{invert:true}),
+      term("time_penalty","rerouting costs time",ledger.timePressure,-.08)
+    ],
+    reason:ledger=>`Avoidance would preserve the team and use ${ledger.exitLabel}, but changing the mission approach carries time and objective costs.`
+  }),
+  option({
+    id:"withdraw",
+    label:"Withdraw",
+    summary:"End the local encounter and preserve the team for later work.",
+    base:.01,
+    eligible:relevantEncounter,
+    terms:ledger=>[
+      term("preservation","team survival matters",ledger.teamPreservation,.18),
+      term("detection_risk","continued presence risks discovery",ledger.detectionRisk,.18),
+      term("exit_options","a viable withdrawal route exists",ledger.exitOptions,.16),
+      term("mobility","the team is prepared to disengage",ledger.mobilityOrientation,.12),
+      term("low_mission_value","the mission can be abandoned",ledger.missionValue,.15,{invert:true}),
+      term("poor_position","the current position is unsafe",ledger.positionSecurity,.10,{invert:true}),
+      term("relevance","the contact is meaningful",ledger.encounterRelevance,.05),
+      term("hostile_evidence","hostile behavior would justify leaving",ledger.hostileEvidence,.20),
+      term("time_penalty","withdrawal may forfeit time-sensitive value",ledger.timePressure,-.06)
+    ],
+    reason:ledger=>`Withdrawal preserves future capacity, but current evidence does not yet show enough danger or mission failure to justify abandoning the task.`
+  })
+]);
+
+export function getResponseOption(id){
+  return TEAM_RESPONSE_OPTIONS.find(option=>option.id===id)??null;
+}

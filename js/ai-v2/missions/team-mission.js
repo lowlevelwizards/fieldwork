@@ -13,6 +13,39 @@ function cloneArea(area){
   };
 }
 
+function normalizeDecisionContext(context={}){
+  const bounded=(key,fallback)=>clamp(context[key]??fallback,0,1);
+  return{
+    missionValue:bounded("missionValue",.7),
+    teamPreservation:bounded("teamPreservation",.75),
+    informationNeed:bounded("informationNeed",.65),
+    positionSecurity:bounded("positionSecurity",.5),
+    concealmentValue:bounded("concealmentValue",.25),
+    detectionRisk:bounded("detectionRisk",.35),
+    timePressure:bounded("timePressure",.35),
+    resourceConservation:bounded("resourceConservation",.65),
+    exitOptions:bounded("exitOptions",.55),
+    enemyDisruption:bounded("enemyDisruption",.35),
+    securityOrientation:bounded("securityOrientation",.5),
+    stealthOrientation:bounded("stealthOrientation",.5),
+    mobilityOrientation:bounded("mobilityOrientation",.5),
+    positionLabel:context.positionLabel??"current position",
+    exitLabel:context.exitLabel??"available route"
+  };
+}
+
+function normalizeResponsePolicy(policy={}){
+  return{
+    minimumHold:Math.max(0,finite(policy.minimumHold,6)),
+    reassessEvery:Math.max(.5,finite(policy.reassessEvery,3)),
+    switchMargin:clamp(policy.switchMargin??.08,0,.5)
+  };
+}
+
+function normalizeResponseBias(bias={}){
+  return Object.fromEntries(Object.entries(bias).map(([key,value])=>[key,clamp(value,-.35,.35)]));
+}
+
 function normalizeMission(team){
   const authored=team?.aiV2Mission;
   if(!team?.id||!authored)return null;
@@ -35,7 +68,10 @@ function normalizeMission(team){
       kind:authored.interference.kind??"possible_interference",
       label:authored.interference.label??"Possible mission interference",
       reason:authored.interference.reason??"The reported contact may interfere with the assigned mission."
-    }:null
+    }:null,
+    decisionContext:normalizeDecisionContext(authored.decisionContext),
+    responsePolicy:normalizeResponsePolicy(authored.responsePolicy),
+    responseBias:normalizeResponseBias(authored.responseBias)
   };
 }
 
@@ -64,7 +100,10 @@ export class TeamMissionStore{
     return [...this.byTeam.values()].map(mission=>({
       ...mission,
       concernArea:mission.concernArea?{...mission.concernArea}:null,
-      interference:mission.interference?{...mission.interference}:null
+      interference:mission.interference?{...mission.interference}:null,
+      decisionContext:{...mission.decisionContext},
+      responsePolicy:{...mission.responsePolicy},
+      responseBias:{...mission.responseBias}
     }));
   }
 }

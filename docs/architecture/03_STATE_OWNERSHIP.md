@@ -27,11 +27,13 @@ Only the action scheduler may:
 
 ## Team decisions
 
-Only the team brain may choose:
+The decision ledger may describe tradeoffs, and the response evaluator may compare options. Only the team response owner may select, persist, switch, or invalidate the current team response.
 
-- the current team response;
+The future team brain coordinates:
+
 - mission continuation, adaptation, or abort;
-- the active tactical procedure;
+- selection of the current team response through the response owner;
+- selection of the active tactical procedure;
 - team-level tactical constraints.
 
 ## Procedure state

@@ -1,15 +1,16 @@
-import { ActionScheduler } from "../actions/action-scheduler.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { ReportContactAction } from "../actions/report-contact-action.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { CommunicationExecutor } from "../communication/communication-executor.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { DecisionLog } from "../diagnostics/decision-log.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { AttentionExecutor } from "../execution/attention-executor.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { TeamMissionStore } from "../missions/team-mission.js?v=20e-mission-relevance-encounter-recognition-20260802";
-import { captureWorldSnapshot } from "./world-snapshot.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { ActionScheduler } from "../actions/action-scheduler.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { ReportContactAction } from "../actions/report-contact-action.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { CommunicationExecutor } from "../communication/communication-executor.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { DecisionLog } from "../diagnostics/decision-log.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { AttentionExecutor } from "../execution/attention-executor.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { TeamMissionStore } from "../missions/team-mission.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { TeamResponseState } from "../responses/team-response-state.js?v=20f-response-evaluation-decision-ledger-20260802";
+import { captureWorldSnapshot } from "./world-snapshot.js?v=20f-response-evaluation-decision-ledger-20260802";
 
 export const AI_RUNTIME_MODES=Object.freeze({
   LEGACY:"legacy",
@@ -33,6 +34,7 @@ export class AIV2Runtime{
     this.teamKnowledge=new TeamKnowledgeStore({decisionLog:this.decisionLog});
     this.teamMissions=new TeamMissionStore();
     this.teamEncounters=new TeamEncounterMemory({decisionLog:this.decisionLog});
+    this.teamResponses=new TeamResponseState({decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
     this.communication=new CommunicationExecutor();
     this.visibleByObserver=new Map();
@@ -41,7 +43,7 @@ export class AIV2Runtime{
     this.decisionLog.record({
       type:"runtime_started",
       time:0,
-      data:{mode:"v2",stage:"mission_relevance_encounter_recognition",scenario:game.scenarioMode}
+      data:{mode:"v2",stage:"response_evaluation_decision_ledger",scenario:game.scenarioMode}
     });
   }
 
@@ -55,6 +57,7 @@ export class AIV2Runtime{
     this.teamKnowledge.update(delta,{now:this.elapsed});
     this.#ensureContactReports();
     this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,now:this.elapsed});
+    this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,now:this.elapsed});
     this.#updateActorDiagnostics();
 
     this.snapshotAccumulator+=delta;
@@ -70,7 +73,7 @@ export class AIV2Runtime{
     const visible=this.personalKnowledge.summary().reduce((sum,entry)=>sum+entry.contacts.filter(contact=>contact.currentlyVisible).length,0);
     const reporting=scheduler.byType.ReportContact??0;
     const activeEncounterCount=this.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} selected response(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
   }
 
   getDebugDetails(){
@@ -96,12 +99,18 @@ export class AIV2Runtime{
       const faction=this.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
       return `${faction}: ${stateLabel(hypothesis.state)} · ${hypothesis.missionRelevance} relevance · ${hypothesis.reason}`;
     })).join(" · ")||"none — no mission-relevant report";
+    const responses=this.teamResponses.summary().map(response=>{
+      const faction=this.game.actors.find(actor=>actor.teamId===response.teamId)?.factionId??response.teamId;
+      const alternatives=response.candidates.slice(1,4).map(candidate=>`${candidate.label} ${Math.round(candidate.score*100)}`).join(", ");
+      return `${faction}: ${response.selected.label} ${Math.round(response.selected.score*100)} · ${response.selected.reason}${alternatives?` · next: ${alternatives}`:""}`;
+    }).join(" · ")||"none — no team response selected";
     return{
       assignment:assignments,
       personalKnowledge:contacts,
       communication,
       teamKnowledge:shared,
-      encounter:encounters
+      encounter:encounters,
+      response:responses
     };
   }
 
@@ -140,6 +149,7 @@ export class AIV2Runtime{
         teamKnowledge:this.teamKnowledge,
         teamMissions:this.teamMissions,
         teamEncounters:this.teamEncounters,
+        teamResponses:this.teamResponses,
         visibleByObserver:this.visibleByObserver
       }
     };
@@ -155,6 +165,7 @@ export class AIV2Runtime{
       const teamContact=this.teamKnowledge.getBestTeamContact(actor.teamId);
       const teamMission=this.teamMissions.get(actor.teamId);
       const encounter=this.teamEncounters.getBestTeamHypothesis(actor.teamId);
+      const response=this.teamResponses.get(actor.teamId);
       const reporting=actions.find(action=>action.type==="ReportContact")??null;
       const sourceActor=received?this.game.actors.find(candidate=>candidate.id===received.sourceActorId):null;
       actor.aiV2Debug={
@@ -220,9 +231,19 @@ export class AIV2Runtime{
           identity:encounter.identity,
           intent:encounter.intent,
           interferenceLabel:encounter.interferenceLabel,
-          response:null
+          response:response?.selected?.id??null
         }:null,
-        runtimeStage:"mission_relevance_encounter_recognition"
+        teamResponse:response?{
+          id:response.selected.id,
+          label:response.selected.label,
+          score:response.selected.score,
+          reason:response.selected.reason,
+          selectedAt:response.selectedAt,
+          candidates:response.candidates.map(candidate=>({id:candidate.id,label:candidate.label,score:candidate.score})),
+          ledger:{...response.ledger,responseBias:{...(response.ledger?.responseBias??{})}},
+          procedure:null
+        }:null,
+        runtimeStage:"response_evaluation_decision_ledger"
       };
     }
   }

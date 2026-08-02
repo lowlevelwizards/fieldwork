@@ -2,7 +2,7 @@
 
 AI V2 is a parallel causal runtime. It does not import the legacy tactical authorities.
 
-## Current milestone: 2.0E
+## Current milestone: 2.0F
 
 The Observation & Concealment Behavior Lab fixture now runs this explicit cognitive chain:
 
@@ -20,11 +20,14 @@ Authored mission
 → shared team report
 → mission relevance assessment
 → uncertain team encounter hypothesis
+→ team decision ledger
+→ scored response candidates
+→ persistent selected response
 ```
 
-Each team has its own authored mission concern area and interprets only the reports that were actually delivered to it. Another armed group's presence can become mission relevant or potentially incompatible without becoming a known enemy.
+Each team evaluates only its authored mission and its own communicated encounter hypothesis. Northline selects **Heighten Watch**; the Commune selects **Maintain Concealment**.
 
-There is intentionally no response selection yet. Encounter recognition does not cause movement, cover seeking, target selection, aiming, or firing.
+A response is still only a team decision. There is intentionally no procedure, role reassignment, movement, cover seeking, target selection, aiming, or firing.
 
 ## Current modules
 
@@ -34,18 +37,21 @@ There is intentionally no response selection yet. Encounter recognition does not
 - `execution/` — narrow physical attention execution.
 - `senses/` — visual evidence from field of view, distance, obstruction, and concealment.
 - `knowledge/` — private visual memory plus explicitly delivered reported knowledge.
-- `missions/` — authored team objectives, conditions, concern areas, and mission sensitivity.
+- `missions/` — authored objectives, concern areas, decision context, response bias, and persistence policy.
 - `encounters/` — mission-relative assessment and persistent uncertain encounter hypotheses.
+- `decisions/` — the descriptive team decision ledger.
+- `responses/` — response definitions, evaluation, selection persistence, switching, and invalidation.
 - `diagnostics/` — decision history and invariant monitoring.
 
 ## Ownership rules
 
-- Fixture data supplies the upstream mission, task, reporting policy, and concern area.
+- Fixture data supplies the upstream mission, task, reporting policy, concern area, and current decision context.
 - Actions own behavioral continuity.
 - Executors perform physical or communicative delivery but do not choose goals.
 - Sensors produce evidence but do not make decisions.
 - Personal knowledge stores direct beliefs but does not share them automatically.
 - Team knowledge accepts only reports that a communication action actually delivered.
-- Mission assessment describes why a report matters but does not command a response.
-- Team encounter memory retains the hypothesis and its evidence without declaring hostility.
-- The scheduler is the only authority that starts or ends actions.
+- Encounter assessment describes why a report matters but does not command a response.
+- The decision ledger describes tradeoffs but does not choose or execute behavior.
+- Response evaluation compares options; response state owns persistence and invalidation.
+- The scheduler remains the only authority that starts or ends actor actions.

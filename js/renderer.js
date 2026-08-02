@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20f-response-evaluation-decision-ledger-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -341,7 +341,9 @@ export class Renderer{
   const observers=game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector");
   const reports=game.aiV2?.teamKnowledge?.summary?.()??[];
   const encounters=game.aiV2?.teamEncounters?.summary?.()??[];
-  if(!observers.length&&!reports.length&&!encounters.length)return;
+  const responses=game.aiV2?.teamResponses?.summary?.()??[];
+  const responseByTeam=new Map(responses.map(response=>[response.teamId,response]));
+  if(!observers.length&&!reports.length&&!encounters.length&&!responses.length)return;
   const activeZone=game.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId);
   ctx.save();
   try{
@@ -409,8 +411,13 @@ export class Renderer{
     ctx.strokeStyle=accent;ctx.lineWidth=1.25;ctx.stroke();
     ctx.fillStyle=accent;ctx.font="800 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
     ctx.fillText(label,position.x,position.y+67);
-    ctx.fillStyle="rgba(224,226,205,.60)";ctx.font="700 6.5px system-ui";
-    ctx.fillText("NO RESPONSE SELECTED",position.x,position.y+82);
+    const response=responseByTeam.get(teamEntry.teamId)??null;
+    ctx.fillStyle=response?accent:"rgba(224,226,205,.60)";ctx.font="800 6.5px system-ui";
+    ctx.fillText(response?response.selected.label.toUpperCase():"NO RESPONSE SELECTED",position.x,position.y+82);
+    if(response){
+     ctx.fillStyle="rgba(224,226,205,.55)";ctx.font="700 6px system-ui";
+     ctx.fillText(`DECISION ${Math.round(response.selected.score*100)} · NO PROCEDURE`,position.x,position.y+94);
+    }
    }
   }finally{ctx.restore();}
  }

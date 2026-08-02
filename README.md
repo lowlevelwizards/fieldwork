@@ -1,20 +1,20 @@
-# Fieldwork 2.0E — Mission Relevance & Encounter Recognition
+# Fieldwork 2.0F — Response Evaluation & Decision Ledger
 
 A phone-first browser prototype built with HTML, CSS, ES modules, and Canvas 2D.
 
 ## Current architecture milestone
 
-Build 2.0E keeps the intentional Behavior Lab and extends AI V2 from shared knowledge into team understanding. An authored observer can see and report another armed person; the receiving team now compares that report to its own mission and creates an uncertain encounter hypothesis.
+Build 2.0F keeps the intentional Behavior Lab and extends AI V2 from encounter recognition into explicit team decision-making. Each team compares a mission-relevant contact against a readable ledger of mission value, preservation, information, position, concealment, time, resources, and exit options.
 
 The title screen allows either runtime to be selected:
 
 - **Legacy 1.2H** — the existing combat, cover, team-response, and medical AI, run inside controlled fixtures.
-- **AI V2 — Mission Relevance** — designated observers can observe and report. Teams can recognize that a report matters to their mission without identifying hostility or choosing a tactical response.
+- **AI V2 — Response Evaluation** — designated observers can observe and report; teams can recognize mission interference and select a persistent nonviolent response without issuing actor actions.
 
 ## Behavior Lab fixtures
 
 1. **Open Contact** — recognition, reaction, opportunity fire, and first movement toward safety.
-2. **Observation & Concealment** — facing, sight, concealment, private knowledge, communication, shared reports, and mission-relative encounter recognition.
+2. **Observation & Concealment** — facing, sight, concealment, private knowledge, communication, encounter recognition, and response evaluation.
 3. **Cover & Position** — directional cover, finite positions, reservations, and position persistence.
 4. **Casualty Recovery** — casualty recognition, security, dragging, treatment, and withdrawal.
 
@@ -62,11 +62,16 @@ MISSION
 → SHARED TEAM REPORT
 → MISSION RELEVANCE
 → ENCOUNTER HYPOTHESIS
+→ DECISION LEDGER
+→ RESPONSE CANDIDATES
+→ SELECTED TEAM RESPONSE
 ```
 
-The encounter hypothesis cites its supporting report, approximate location, report confidence, mission concern area, relevance level, and authored interference reason. Identity and intent remain unknown. The team selects no response, and every actor remains physically still.
+Northline selects **Heighten Watch**. The Commune selects **Maintain Concealment**. Both selections remain persistent, cite their tradeoffs, and disappear when their supporting encounter evidence becomes stale.
 
-The next missing capability is response evaluation: the team recognizes possible interference but has not compared the available ways to continue, avoid, wait, hide, warn, reroute, or withdraw.
+No procedure is assigned yet. Every actor remains physically still, and no V2 target selection, aiming, or firing occurs.
+
+The next missing capability is procedure formation: a selected response must be translated into phases, temporary responsibilities, and permissions before actors receive new actions.
 
 ## Controls
 

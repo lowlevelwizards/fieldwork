@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20e-mission-relevance-encounter-recognition-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20f-response-evaluation-decision-ledger-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -74,7 +74,26 @@ export const SANDBOX_FIXTURES={
       kind:"uncontrolled_armed_presence",
       label:"May compromise approach security",
       reason:"An unknown armed group is inside the approach Northline is responsible for monitoring."
-     }
+     },
+     decisionContext:{
+      missionValue:.9,
+      teamPreservation:.7,
+      informationNeed:.85,
+      positionSecurity:.75,
+      concealmentValue:.2,
+      detectionRisk:.35,
+      timePressure:.3,
+      resourceConservation:.7,
+      exitOptions:.7,
+      enemyDisruption:.5,
+      securityOrientation:.95,
+      stealthOrientation:.25,
+      mobilityOrientation:.3,
+      positionLabel:"the established observation line",
+      exitLabel:"the rear approach"
+     },
+     responsePolicy:{minimumHold:6,reassessEvery:3,switchMargin:.08},
+     responseBias:{heighten_watch:.1,continue_observation:.03,warn:.01}
     },
     actors:[
      {x:1500,y:430,role:"Security"},
@@ -111,7 +130,26 @@ export const SANDBOX_FIXTURES={
       kind:"concealment_compromise",
       label:"May compromise concealed observation",
       reason:"An unknown armed group occupies the patrol area under observation and may discover the concealed watch."
-     }
+     },
+     decisionContext:{
+      missionValue:.72,
+      teamPreservation:.9,
+      informationNeed:.8,
+      positionSecurity:.68,
+      concealmentValue:.95,
+      detectionRisk:.85,
+      timePressure:.2,
+      resourceConservation:.8,
+      exitOptions:.85,
+      enemyDisruption:.18,
+      securityOrientation:.35,
+      stealthOrientation:.95,
+      mobilityOrientation:.8,
+      positionLabel:"the concealed brush position",
+      exitLabel:"the covered southern withdrawal route"
+     },
+     responsePolicy:{minimumHold:6,reassessEvery:3,switchMargin:.08},
+     responseBias:{maintain_concealment:.03,continue_observation:.03}
     },
     actors:[
      {x:1390,y:1290,role:"Scout",aiV2Assignment:{
@@ -326,7 +364,10 @@ export class CombatSandboxDirector{
     aiV2Mission:teamSpec.aiV2Mission?{
      ...teamSpec.aiV2Mission,
      concernArea:teamSpec.aiV2Mission.concernArea?{...teamSpec.aiV2Mission.concernArea}:null,
-     interference:teamSpec.aiV2Mission.interference?{...teamSpec.aiV2Mission.interference}:null
+     interference:teamSpec.aiV2Mission.interference?{...teamSpec.aiV2Mission.interference}:null,
+     decisionContext:teamSpec.aiV2Mission.decisionContext?{...teamSpec.aiV2Mission.decisionContext}:null,
+     responsePolicy:teamSpec.aiV2Mission.responsePolicy?{...teamSpec.aiV2Mission.responsePolicy}:null,
+     responseBias:teamSpec.aiV2Mission.responseBias?{...teamSpec.aiV2Mission.responseBias}:null
     }:null
    });
   }

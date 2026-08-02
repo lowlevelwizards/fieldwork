@@ -1,3 +1,16 @@
+# Fieldwork 2.0F
+
+## Response Evaluation & Decision Ledger
+
+- Added a team decision ledger that keeps mission value, preservation, information certainty, position, concealment, time pressure, resource cost, and exit options distinct.
+- Added seven readable nonviolent response options: Continue Observation, Heighten Watch, Maintain Concealment, Wait, Warn, Reroute, and Withdraw.
+- Added response evaluation with named scoring contributions, authored mission biases, and readable winning explanations.
+- Added persistent team response state with minimum hold time, scheduled reassessment, switch margins, and evidence-based invalidation.
+- Northline now selects Heighten Watch while the Commune independently selects Maintain Concealment from the same physical situation.
+- Added world and debug presentation for selected responses, decision scores, candidate alternatives, and the explicit absence of a procedure.
+- Kept all actors physically still and excluded role assignment, movement, warnings, cover selection, hostility, aiming, and firing.
+- Added architecture documentation for the encounter-to-response decision chain.
+
 # Fieldwork 2.0E
 
 ## Mission Relevance & Encounter Recognition
