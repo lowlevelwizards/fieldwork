@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20c-tasked-observation-personal-knowledge-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -67,7 +67,8 @@ export const SANDBOX_FIXTURES={
       role:"Observer",
       action:"observe_sector",
       reason:"Assigned to watch the southern brush approach before the team commits",
-      sector:{label:"Southern brush approach",x:1390,y:1290,targetFactionId:"commune",maximumRange:1180,fieldOfViewDegrees:72}
+      sector:{label:"Southern brush approach",x:1390,y:1290,targetFactionId:"commune",maximumRange:1180,fieldOfViewDegrees:72},
+      report:{method:"local_voice",range:380,minimumConfidence:35,reason:"Share a credible contact with nearby team members"}
      }},
      {x:1820,y:450,role:"Engineer"}
     ]
@@ -83,7 +84,8 @@ export const SANDBOX_FIXTURES={
       role:"Observer",
       action:"observe_sector",
       reason:"Assigned to watch the northern patrol approach from concealment",
-      sector:{label:"Northern patrol approach",x:1660,y:405,targetFactionId:"northline",maximumRange:1180,fieldOfViewDegrees:72}
+      sector:{label:"Northern patrol approach",x:1660,y:405,targetFactionId:"northline",maximumRange:1180,fieldOfViewDegrees:72},
+      report:{method:"local_voice",range:380,minimumConfidence:35,reason:"Share a credible contact with nearby team members"}
      }},
      {x:1550,y:1340,role:"Field Medic"},
      {x:1710,y:1300,role:"Rifleman"}
@@ -234,7 +236,8 @@ function actorFromSpec(faction,teamId,index,spec,fixture){
   squadMission:spec.mission??"hold_fixture",
   aiV2Assignment:spec.aiV2Assignment?{
    ...spec.aiV2Assignment,
-   sector:{...spec.aiV2Assignment.sector}
+   sector:{...spec.aiV2Assignment.sector},
+   report:spec.aiV2Assignment.report?{...spec.aiV2Assignment.report}:null
   }:null,
   alertState:"unaware"
  };

@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20c-tasked-observation-personal-knowledge-20260802";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -339,9 +339,24 @@ export class Renderer{
  #drawAIV2ObservationWorld(ctx,game){
   if(game.aiRuntimeMode!=="v2")return;
   const observers=game.actors.filter(actor=>actor.aiV2Assignment?.action==="observe_sector");
-  if(!observers.length)return;
+  const reports=game.aiV2?.teamKnowledge?.summary?.()??[];
+  if(!observers.length&&!reports.length)return;
+  const activeZone=game.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId);
   ctx.save();
   try{
+   if(activeZone){ctx.beginPath();ctx.rect(activeZone.x,activeZone.y,activeZone.width,activeZone.height);ctx.clip();}
+
+   for(const speaker of game.actors){
+    const communication=speaker.aiV2Debug?.communication;
+    if(communication?.status!=="transmitting")continue;
+    ctx.strokeStyle="rgba(235,205,128,.38)";ctx.lineWidth=2;ctx.setLineDash([5,9]);
+    for(const recipientId of communication.recipientIds??[]){
+     const recipient=game.actors.find(actor=>actor.id===recipientId);if(!recipient)continue;
+     ctx.beginPath();ctx.moveTo(speaker.x,speaker.y-18);ctx.lineTo(recipient.x,recipient.y-18);ctx.stroke();
+    }
+    ctx.setLineDash([]);
+   }
+
    for(const actor of observers){
     const assignment=actor.aiV2Assignment;
     const sector=assignment.sector;
@@ -366,27 +381,53 @@ export class Renderer{
      ctx.fillText("PERSONAL",position.x,position.y-34);
     }
    }
+
+   for(const teamEntry of reports)for(const report of teamEntry.reports){
+    const position=report.approximatePosition;if(!position)continue;
+    const source=game.actors.find(actor=>actor.id===report.sourceActorId);
+    const color=source?.factionId==="commune"?"rgba(157,183,111,.82)":"rgba(221,174,88,.82)";
+    ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.setLineDash([7,7]);
+    ctx.beginPath();ctx.rect(position.x-27,position.y-27,54,54);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="rgba(24,31,27,.80)";ctx.beginPath();ctx.roundRect(position.x-38,position.y+34,76,18,9);ctx.fill();
+    ctx.fillStyle=color;ctx.font="800 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText("TEAM REPORT",position.x,position.y+43);
+   }
   }finally{ctx.restore();}
  }
 
  #drawAIV2ActorIndicator(ctx,actor){
-  if(this._currentGame?.aiRuntimeMode!=="v2"||actor.aiV2Assignment?.action!=="observe_sector")return;
+  if(this._currentGame?.aiRuntimeMode!=="v2")return;
   const debug=actor.aiV2Debug;
+  const isObserver=actor.aiV2Assignment?.action==="observe_sector";
   const contact=debug?.personalKnowledge;
+  const received=debug?.receivedKnowledge;
+  const reporting=debug?.activeActions?.includes("ReportContact")&&debug?.communication?.status==="transmitting";
+  if(!isObserver&&!received&&!reporting)return;
   const x=actor.x,y=actor.y-108;
+  let title="OBSERVE",status="NO CONTACT",footer="PRIVATE",accent="#e8a051";
+  if(reporting){
+   title="REPORT";
+   status=`VOICE ${debug.communication.recipientIds?.length??0} · ${Math.round((debug.communication.progress??0)*100)}%`;
+   footer="SHARING";accent="#e6c46f";
+  }else if(isObserver){
+   status=contact?`${contact.currentlyVisible?"VISIBLE":"MEMORY"} ${Math.round(contact.confidence)}%`:"NO CONTACT";
+   footer=contact?"PRIVATE":"WATCHING";
+   accent=contact?.currentlyVisible?"#e8a051":contact?"#d8c56a":"rgba(235,234,213,.58)";
+  }else if(received){
+   title="RECEIVED";
+   status=`REPORT ${Math.round(received.confidence)}%`;
+   footer=`FROM ${(received.sourceName??"TEAM").split(" ")[0].toUpperCase()}`;
+   accent="#9db76f";
+  }
   ctx.save();
   try{
    ctx.textAlign="center";ctx.textBaseline="middle";
    ctx.fillStyle="rgba(18,27,22,.88)";
-   ctx.beginPath();ctx.roundRect(x-36,y-10,72,20,10);ctx.fill();
-   ctx.strokeStyle="rgba(226,159,79,.62)";ctx.lineWidth=1.5;ctx.stroke();
-   ctx.fillStyle="#f0e5c8";ctx.font="800 9px system-ui";ctx.fillText("OBSERVE",x,y);
-   const status=contact
-    ?`${contact.currentlyVisible?"VISIBLE":"MEMORY"} ${Math.round(contact.confidence)}%`
-    :"NO CONTACT";
-   ctx.fillStyle=contact?.currentlyVisible?"#e8a051":contact?"#d8c56a":"rgba(235,234,213,.58)";
-   ctx.font="750 8px system-ui";ctx.fillText(status,x,y+16);
-   ctx.fillStyle="rgba(220,226,205,.62)";ctx.font="650 7px system-ui";ctx.fillText("PRIVATE",x,y+27);
+   ctx.beginPath();ctx.roundRect(x-42,y-10,84,20,10);ctx.fill();
+   ctx.strokeStyle=accent;ctx.lineWidth=1.5;ctx.stroke();
+   ctx.fillStyle="#f0e5c8";ctx.font="800 9px system-ui";ctx.fillText(title,x,y);
+   ctx.fillStyle=accent;ctx.font="750 8px system-ui";ctx.fillText(status,x,y+16);
+   ctx.fillStyle="rgba(220,226,205,.62)";ctx.font="650 7px system-ui";ctx.fillText(footer,x,y+27);
   }finally{ctx.restore();}
  }
 
