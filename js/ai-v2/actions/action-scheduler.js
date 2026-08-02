@@ -1,4 +1,4 @@
-import { ACTION_STATES } from "./action.js?v=20c-tasked-observation-personal-knowledge-20260802";
+import { ACTION_STATES } from "./action.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
 
 export class ActionScheduler{
   constructor({decisionLog=null}={}){
@@ -10,8 +10,24 @@ export class ActionScheduler{
     return this.activeByActor.get(actorId)??[];
   }
 
+  getAction(actorId,type){
+    return this.getActions(actorId).find(action=>action.type===type)??null;
+  }
+
+  hasAction(actorId,type){
+    return Boolean(this.getAction(actorId,type));
+  }
+
   getPrimaryAction(actorId){
-    return this.getActions(actorId).find(action=>action.primary)??this.getActions(actorId)[0]??null;
+    const actions=this.getActions(actorId);
+    if(!actions.length)return null;
+    const primary=actions.filter(action=>action.primary);
+    const candidates=primary.length?primary:actions;
+    return candidates.reduce((best,action)=>{
+      if(!best)return action;
+      if(action.displayPriority!==best.displayPriority)return action.displayPriority>best.displayPriority?action:best;
+      return (action.startedAt??0)>(best.startedAt??0)?action:best;
+    },null);
   }
 
   canStart(action,context={}){
@@ -50,10 +66,10 @@ export class ActionScheduler{
         const result=action.update(delta,context);
         if(result?.status==="completed"){
           action.complete(now,result.reason??"completed");
-          this.#record("action_completed",action,{reason:action.endReason},now);
+          this.#record("action_completed",action,{reason:action.endReason,...(result.data??{})},now);
         }else if(result?.status==="failed"){
           action.fail(now,result.reason??"failed");
-          this.#record("action_failed",action,{reason:action.endReason},now);
+          this.#record("action_failed",action,{reason:action.endReason,...(result.data??{})},now);
         }
       }
       const remaining=actions.filter(action=>action.state===ACTION_STATES.ACTIVE);
@@ -74,8 +90,12 @@ export class ActionScheduler{
 
   summary(){
     let actionCount=0;
-    for(const actions of this.activeByActor.values())actionCount+=actions.length;
-    return {actorsWithActions:this.activeByActor.size,activeActions:actionCount};
+    const byType={};
+    for(const actions of this.activeByActor.values())for(const action of actions){
+      actionCount+=1;
+      byType[action.type]=(byType[action.type]??0)+1;
+    }
+    return {actorsWithActions:this.activeByActor.size,activeActions:actionCount,byType};
   }
 
   #record(type,action,data,now){

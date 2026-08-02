@@ -1,4 +1,4 @@
-import { normalizeActionChannels } from "./action-channels.js?v=20c-tasked-observation-personal-knowledge-20260802";
+import { normalizeActionChannels } from "./action-channels.js?v=20d-contact-reporting-shared-team-knowledge-20260802";
 
 export const ACTION_STATES=Object.freeze({
   PROPOSED:"proposed",
@@ -12,7 +12,7 @@ export const ACTION_STATES=Object.freeze({
 let nextActionSequence=1;
 
 export class AIV2Action{
-  constructor({type,actorId,purpose="",channels=[],primary=true,metadata={}}={}){
+  constructor({type,actorId,purpose="",channels=[],primary=true,displayPriority=0,metadata={}}={}){
     if(!type)throw new Error("AI V2 actions require a type");
     if(!actorId)throw new Error("AI V2 actions require an actorId");
     this.id=`v2_action_${nextActionSequence++}`;
@@ -21,6 +21,7 @@ export class AIV2Action{
     this.purpose=purpose;
     this.channels=normalizeActionChannels(channels);
     this.primary=Boolean(primary);
+    this.displayPriority=Number.isFinite(displayPriority)?displayPriority:0;
     this.metadata={...metadata};
     this.state=ACTION_STATES.PROPOSED;
     this.startedAt=null;
