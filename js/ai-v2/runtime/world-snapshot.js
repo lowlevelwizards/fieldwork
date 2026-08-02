@@ -26,7 +26,8 @@ export function captureWorldSnapshot(game,{elapsed=0}={}){
       phase:actor.aiV2Assignment.phase,
       role:actor.aiV2Assignment.role,
       action:actor.aiV2Assignment.action,
-      sector:Object.freeze({...actor.aiV2Assignment.sector})
+      sector:Object.freeze({...actor.aiV2Assignment.sector}),
+      report:actor.aiV2Assignment.report?Object.freeze({...actor.aiV2Assignment.report}):null
     }):null
   }));
 
