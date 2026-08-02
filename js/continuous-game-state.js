@@ -6,7 +6,7 @@ import { CombatSystem } from "./combat.js?v=12h-reactive-fire-momentum-medical-r
 import { AICombatSystem } from "./ai-combat.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { WoundSystem } from "./wound-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { MedicalSystem } from "./medical-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { CombatSandboxDirector, sandboxMap, getSandboxFixture, SANDBOX_FIXTURE_IDS } from "./combat-sandbox.js?v=20b-intentional-behavior-lab-20260802";
 import { TacticalFrontSystem } from "./tactical-front.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { TeamResponseSystem } from "./team-response.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { CoverStateSystem } from "./cover-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
@@ -16,25 +16,48 @@ import { TeamCombatContextSystem } from "./team-combat-context.js?v=12h-reactive
 import { FireTeamControllerSystem } from "./fire-team-controller.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { FightAssessmentSystem } from "./fight-assessment.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { CombatPostureSystem } from "./combat-posture.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js?v=20a-causal-architecture-foundation-20260802";
+import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js?v=20b-intentional-behavior-lab-20260802";
 
 export class ContinuousGameState extends GameState {
-  constructor({scenario="operations",aiRuntime=AI_RUNTIME_MODES.LEGACY}={}) {
+  constructor({scenario="operations",aiRuntime=AI_RUNTIME_MODES.LEGACY,sandboxFixture=SANDBOX_FIXTURE_IDS.OPEN_CONTACT}={}) {
     super();
     this.scenarioMode=scenario;
     this.aiRuntimeMode=aiRuntime===AI_RUNTIME_MODES.V2?AI_RUNTIME_MODES.V2:AI_RUNTIME_MODES.LEGACY;
     this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 Foundation":"Legacy 1.2H";
     if(scenario==="sandbox"){
+      const fixture=getSandboxFixture(sandboxFixture);
       this.map=sandboxMap;
-      this.entities=this.entities.filter(entity=>entity.type==="item"&&["bandage","pressure_dressing","tourniquet"].includes(entity.definitionId));
+      this.sandboxFixtureId=fixture.id;
+      this.sandboxFixture=fixture;
+      const sandboxSupplies=this.entities
+        .filter(entity=>entity.type==="item"&&entity.definitionId==="bandage")
+        .slice(0,2)
+        .map((entity,index)=>({
+          ...entity,
+          id:`behavior_lab_bandage_${index+1}`,
+          x:4140+index*36,
+          y:1705,
+          groundY:1725,
+          locationType:"world",
+          locationOwnerId:null,
+          visibility:"visible",
+          revealed:true,
+          state:"world"
+        }));
+      this.entities=sandboxSupplies;
       this.actors=[];
-      this.operator.x=sandboxMap.spawn.x;this.operator.y=sandboxMap.spawn.y;
+      this.wildlife=[];
+      this.operator.x=fixture.operatorSpawn.x;this.operator.y=fixture.operatorSpawn.y;
       this.clockMinutes=13*60+20;this.weather="Clear";
       this.incident.state="resolved";this.incident.bandageUsed=true;this.incident.workerSheltered=true;this.incident.waterUsed=true;this.incident.radioRestored=true;
-      this.operations=new CombatSandboxDirector(this);
-      this.objectiveText="Combat Sandbox · Observe, engage, treat casualties, and test faction behavior";
+      this.operations=new CombatSandboxDirector(this,{fixtureId:fixture.id});
+      this.objectiveText=`Behavior Lab ${fixture.index} · ${fixture.label}`;
     }
     this.excursion = new ContinuousExcursionController(this);
+    if(scenario==="sandbox"){
+      this.excursion.state="completed";
+      this.excursion.trailEntered=true;
+    }
     this.operator.lookAngle = 0;
     this.operator.targetLookAngle = 0;
     this.combat = new CombatSystem(this);
@@ -223,7 +246,7 @@ export class ContinuousGameState extends GameState {
         this.aiCombat.update(delta);
         this.actorIntents.resolveAll(delta);
       }else{
-        // AI V2 2.0A is an observer foundation. Player-facing drag and
+        // AI V2 remains an observer foundation. Player-facing drag and
         // treatment mechanics remain available, while legacy NPC tactical
         // authorities are deliberately not advanced.
         this.medical.updateDrag(delta);

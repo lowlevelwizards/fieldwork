@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=12e-fire-teams-suppression-authority-20260801";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20b-intentional-behavior-lab-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -17,7 +17,29 @@ export class Renderer{
   ctx.save();
   try{
     ctx.scale(this.camera.zoom,this.camera.zoom);
-    ctx.translate(-this.camera.x,-this.camera.y);this.#drawGround(ctx,game);this.#drawRoad(ctx,game.map.road);this.#drawTrail(ctx,game.map.trail);this.#drawBloodDecals(ctx,game);this.#drawBrush(ctx,game.map.brush);this.#drawExtraction(ctx,game.map.extraction);this.#drawSiteGround(ctx,game.map.site);this.#drawCulvert(ctx,game);this.#drawShed(ctx,game.map.shed);this.#drawOperationEvidence(ctx,game);if(game.debugEncounterZones)this.#drawEncounterZones(ctx,game);this.#drawWildlife(ctx,game);this.#drawDepthSortedActors(ctx,game);this.#drawCombatWorld(ctx,game);this.#drawMapBorder(ctx);
+    ctx.translate(-this.camera.x,-this.camera.y);
+    this.#drawGround(ctx,game);
+    if(game.map.sandboxLayout){
+      this.#drawBehaviorLabGround(ctx,game);
+      this.#drawRoad(ctx,game.map.road);
+      this.#drawBloodDecals(ctx,game);
+      this.#drawBrush(ctx,game.map.brush);
+    }else{
+      this.#drawRoad(ctx,game.map.road);
+      this.#drawTrail(ctx,game.map.trail);
+      this.#drawBloodDecals(ctx,game);
+      this.#drawBrush(ctx,game.map.brush);
+      this.#drawExtraction(ctx,game.map.extraction);
+      this.#drawSiteGround(ctx,game.map.site);
+      this.#drawCulvert(ctx,game);
+      this.#drawShed(ctx,game.map.shed);
+      this.#drawOperationEvidence(ctx,game);
+      if(game.debugEncounterZones)this.#drawEncounterZones(ctx,game);
+      this.#drawWildlife(ctx,game);
+    }
+    this.#drawDepthSortedActors(ctx,game);
+    this.#drawCombatWorld(ctx,game);
+    this.#drawMapBorder(ctx);
   }finally{
     ctx.restore();
   }
@@ -592,7 +614,58 @@ export class Renderer{
  }
 
  #drawGround(ctx,game){ctx.fillStyle=game.weather==="Fog"?"#7d8878":game.weather==="Cloudy"?"#6f7b68":game.weather==="Rain"?"#59685a":"#758467";ctx.fillRect(0,0,MAP_WIDTH,MAP_HEIGHT);ctx.fillStyle="rgba(49,62,48,.09)";for(let y=30;y<MAP_HEIGHT;y+=70)for(let x=20+((y/70)%2)*24;x<MAP_WIDTH;x+=86){ctx.beginPath();ctx.ellipse(x,y,3,8,.3,0,Math.PI*2);ctx.fill();}}
- #drawRoad(ctx,road){const xs=road.map(p=>p.x),ys=road.map(p=>p.y);ctx.fillStyle="#8b8068";ctx.fillRect(Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)-Math.min(...ys));ctx.strokeStyle="rgba(46,42,34,.22)";ctx.lineWidth=6;ctx.setLineDash([24,34]);ctx.beginPath();ctx.moveTo(0,800);ctx.lineTo(2600,800);ctx.stroke();ctx.setLineDash([]);}
+ #drawBehaviorLabGround(ctx,game){
+  const layout=game.map.sandboxLayout;
+  if(!layout)return;
+  const activeId=game.sandboxFixtureId??game.sandboxFixture?.id;
+  ctx.save();
+  try{
+   ctx.fillStyle="rgba(24,31,27,.17)";
+   ctx.beginPath();ctx.roundRect(layout.controlWalk.x,layout.controlWalk.y,layout.controlWalk.width,layout.controlWalk.height,34);ctx.fill();
+   ctx.strokeStyle="rgba(229,154,71,.34)";ctx.lineWidth=3;ctx.setLineDash([18,18]);
+   ctx.strokeRect(layout.controlWalk.x+14,layout.controlWalk.y+14,layout.controlWalk.width-28,layout.controlWalk.height-28);ctx.setLineDash([]);
+   ctx.fillStyle="rgba(238,235,214,.76)";ctx.font="800 24px system-ui";ctx.textAlign="left";
+   ctx.fillText(layout.name.toUpperCase(),layout.controlWalk.x+34,layout.controlWalk.y+58);
+   ctx.fillStyle="rgba(238,235,214,.5)";ctx.font="650 15px system-ui";
+   ctx.fillText(layout.subtitle,layout.controlWalk.x+36,layout.controlWalk.y+86);
+
+   for(const zone of layout.zones){
+    const active=zone.id===activeId;
+    ctx.fillStyle=active?"rgba(229,154,71,.10)":"rgba(22,31,26,.055)";
+    ctx.beginPath();ctx.roundRect(zone.x,zone.y,zone.width,zone.height,28);ctx.fill();
+    ctx.strokeStyle=active?"rgba(229,154,71,.72)":"rgba(224,227,207,.20)";
+    ctx.lineWidth=active?5:2;ctx.setLineDash(active?[]:[16,18]);
+    ctx.strokeRect(zone.x,zone.y,zone.width,zone.height);ctx.setLineDash([]);
+
+    ctx.fillStyle=active?"rgba(229,154,71,.94)":"rgba(231,232,214,.54)";
+    ctx.beginPath();ctx.arc(zone.x+44,zone.y+44,24,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=active?"#233028":"rgba(31,40,34,.86)";ctx.font="850 15px system-ui";ctx.textAlign="center";
+    ctx.fillText(zone.index,zone.x+44,zone.y+50);
+    ctx.textAlign="left";ctx.fillStyle=active?"rgba(247,234,204,.94)":"rgba(239,239,221,.63)";ctx.font="800 18px system-ui";
+    ctx.fillText(zone.name,zone.x+78,zone.y+50);
+
+    ctx.strokeStyle="rgba(235,237,217,.13)";ctx.lineWidth=2;ctx.setLineDash([12,18]);
+    ctx.beginPath();ctx.moveTo(zone.x+zone.width/2,zone.y+105);ctx.lineTo(zone.x+zone.width/2,zone.y+zone.height-28);ctx.stroke();ctx.setLineDash([]);
+   }
+
+   ctx.strokeStyle="rgba(54,66,57,.34)";ctx.lineWidth=3;ctx.setLineDash([22,18]);
+   ctx.beginPath();ctx.moveTo(80,layout.northLine.y);ctx.lineTo(4320,layout.northLine.y);ctx.stroke();
+   ctx.beginPath();ctx.moveTo(80,layout.southLine.y);ctx.lineTo(4320,layout.southLine.y);ctx.stroke();ctx.setLineDash([]);
+   ctx.fillStyle="rgba(32,42,35,.58)";ctx.font="750 13px system-ui";ctx.textAlign="right";
+   ctx.fillText(layout.northLine.label,4310,layout.northLine.y-10);
+   ctx.fillText(layout.southLine.label,4310,layout.southLine.y-10);
+
+   const factionColor={northline:"rgba(103,130,151,.64)",commune:"rgba(128,145,91,.68)",freelancers:"rgba(151,112,76,.66)"};
+   for(const team of game.sandboxFixture?.teams??[]){
+    for(const actor of team.actors){
+     ctx.fillStyle=factionColor[team.factionId]??"rgba(230,230,210,.5)";
+     ctx.beginPath();ctx.arc(actor.x,actor.y+28,25,0,Math.PI*2);ctx.fill();
+     ctx.strokeStyle="rgba(245,242,221,.34)";ctx.lineWidth=2;ctx.stroke();
+    }
+   }
+  }finally{ctx.restore();}
+ }
+ #drawRoad(ctx,road){const xs=road.map(p=>p.x),ys=road.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);ctx.fillStyle="#8b8068";ctx.fillRect(minX,minY,maxX-minX,maxY-minY);ctx.strokeStyle="rgba(46,42,34,.22)";ctx.lineWidth=6;ctx.setLineDash([24,34]);ctx.beginPath();ctx.moveTo(minX,(minY+maxY)/2);ctx.lineTo(maxX,(minY+maxY)/2);ctx.stroke();ctx.setLineDash([]);}
  #drawBrush(ctx,brush){for(const p of brush){ctx.fillStyle="rgba(47,77,50,.38)";for(let i=0;i<12;i++){const a=i/12*Math.PI*2,r=p.radius*(.45+i%3*.16);ctx.beginPath();ctx.arc(p.x+Math.cos(a)*r*.55,p.y+Math.sin(a)*r*.45,32+i%4*5,0,Math.PI*2);ctx.fill();}}}
  #drawExtraction(ctx,e){ctx.save();ctx.translate(e.x,e.y);ctx.fillStyle="rgba(222,158,75,.13)";ctx.strokeStyle="rgba(235,176,96,.68)";ctx.lineWidth=5;ctx.setLineDash([14,12]);ctx.beginPath();ctx.arc(0,0,e.radius,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="rgba(31,40,34,.9)";ctx.fillRect(-44,-18,88,36);ctx.fillStyle="#e4d5b8";ctx.font="700 16px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("RETURN",0,0);ctx.restore();}
  #drawSiteGround(ctx,site){ctx.fillStyle="rgba(119,105,77,.2)";ctx.beginPath();ctx.roundRect(660,340,1420,1000,80);ctx.fill();ctx.fillStyle="rgba(86,79,62,.18)";ctx.beginPath();ctx.roundRect(site.workArea.x-40,site.workArea.y-30,site.workArea.width+80,site.workArea.height+90,28);ctx.fill();ctx.fillStyle="rgba(38,46,39,.72)";ctx.font="700 18px system-ui";ctx.textAlign="left";ctx.fillText("OLD MAINTENANCE PULL-OFF",1140,350);}

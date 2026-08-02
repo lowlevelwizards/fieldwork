@@ -1,3 +1,17 @@
+# Fieldwork 2.0B
+
+## Intentional Behavior Lab
+
+- Replaced the randomized three-faction combat sandbox with a controlled Behavior Lab.
+- Added four selectable fixtures: Open Contact, Observation & Concealment, Cover & Position, and Casualty Recovery.
+- Added fixed team missions, tasks, roles, starting positions, facing, and terrain for each fixture.
+- Removed random patrol destinations and reinforcement waves from the sandbox director.
+- Added a dedicated Behavior Lab map with labeled bays, north/south pressure lines, an observer walk, and active-fixture highlighting.
+- Added a title-screen fixture selector with saved and URL-selectable fixture state.
+- Kept AI V2 actors intentionally still while preserving Legacy 1.2H as a comparison runtime.
+- Added a seeded critical casualty and intentionally placed field bandages for the recovery fixture.
+- Added Behavior Lab architecture documentation and updated build identity.
+
 # Fieldwork 2.0A
 
 ## Causal Architecture Foundation

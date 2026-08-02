@@ -565,3 +565,20 @@ h1 {
   color:#9da89b;
   font:500 .76rem/1.35 system-ui;
 }
+
+/* 2.0B — intentional behavior lab fixture picker */
+.title-card{
+  max-height:calc(100dvh - 24px);
+  overflow-y:auto;
+  scrollbar-width:thin;
+}
+.sandbox-picker{margin-top:10px}
+.sandbox-picker select{border-color:rgba(177,190,174,.34)}
+@media (max-height:760px){
+  .title-card{padding:22px 22px}
+  .title-card .intro{margin-bottom:16px;line-height:1.4}
+  .title-actions{margin-top:12px;gap:9px}
+  .runtime-picker{margin-top:10px;padding:10px 12px}
+  .runtime-picker small{font-size:.7rem}
+  .version{margin-top:12px}
+}

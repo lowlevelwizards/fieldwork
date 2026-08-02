@@ -1,5 +1,4 @@
-import { createIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12c-intent-commitment-stable-movement-20260731";
-import { stopActor, isImmobileCasualty, projectOutsideObstacles } from "./actor-motion.js?v=12c-intent-commitment-stable-movement-20260731";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20b-intentional-behavior-lab-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -7,7 +6,7 @@ const KITS={
  commune:["commune_rust_green","commune_brown_denim","commune_green_brown"],
  freelancers:["freelancer_gray_black","freelancer_brown_gray","freelancer_black_brown"]
 };
-const ROLES={
+const DEFAULT_ROLES={
  northline:["Security","Engineer","Rifleman"],
  commune:["Scout","Field Medic","Rifleman"],
  freelancers:["Recovery","Scout","Security"]
@@ -18,156 +17,258 @@ const NAMES={
  freelancers:["Rook Hale","Vera Pike","Dax Mercer","Ivo Gray","Caro Flint","Sable Knox"]
 };
 
+export const SANDBOX_FIXTURE_IDS={
+ OPEN_CONTACT:"open_contact",
+ OBSERVATION:"observation",
+ COVER_POSITION:"cover_position",
+ CASUALTY_RECOVERY:"casualty_recovery"
+};
+
+export const SANDBOX_FIXTURES={
+ [SANDBOX_FIXTURE_IDS.OPEN_CONTACT]:{
+  id:SANDBOX_FIXTURE_IDS.OPEN_CONTACT,
+  index:"01",
+  label:"Open Contact",
+  shortLabel:"Open contact",
+  zoneId:"open_contact",
+  question:"What happens when two small teams recognize one another with no useful cover nearby?",
+  purpose:"Isolate recognition, reaction delay, opportunity fire, and the first movement toward safety.",
+  operatorSpawn:{x:570,y:1760},
+  teams:[
+   {
+    factionId:"northline",mission:"Establish visible control of the lane",task:"Hold the north marker and identify approaching personnel",facing:"down",
+    actors:[{x:420,y:430,role:"Security"},{x:570,y:405,role:"Rifleman"},{x:720,y:430,role:"Engineer"}]
+   },
+   {
+    factionId:"commune",mission:"Move through the lane without unnecessary losses",task:"Cross north while preserving the team",facing:"up",
+    actors:[{x:420,y:1320,role:"Scout"},{x:570,y:1345,role:"Field Medic"},{x:720,y:1320,role:"Rifleman"}]
+   }
+  ]
+ },
+ [SANDBOX_FIXTURE_IDS.OBSERVATION]:{
+  id:SANDBOX_FIXTURE_IDS.OBSERVATION,
+  index:"02",
+  label:"Observation & Concealment",
+  shortLabel:"Observation",
+  zoneId:"observation",
+  question:"What can each team personally observe, and what remains uncertain behind concealment?",
+  purpose:"Isolate facing, sight, concealment, personal knowledge, and eventual communication.",
+  operatorSpawn:{x:1580,y:1760},
+  teams:[
+   {
+    factionId:"northline",mission:"Inspect reports of movement near the brush line",task:"Observe the southern approach without overextending",facing:"down",
+    actors:[{x:1500,y:430,role:"Security"},{x:1660,y:405,role:"Rifleman"},{x:1820,y:450,role:"Engineer"}]
+   },
+   {
+    factionId:"commune",mission:"Watch the patrol while remaining concealed",task:"Learn the patrol's direction and report it",facing:"up",
+    actors:[{x:1390,y:1290,role:"Scout"},{x:1550,y:1340,role:"Field Medic"},{x:1710,y:1300,role:"Rifleman"}]
+   }
+  ]
+ },
+ [SANDBOX_FIXTURE_IDS.COVER_POSITION]:{
+  id:SANDBOX_FIXTURE_IDS.COVER_POSITION,
+  index:"03",
+  label:"Cover & Position",
+  shortLabel:"Cover position",
+  zoneId:"cover_position",
+  question:"Can a team choose, occupy, and remain in useful positions without crowding or pacing?",
+  purpose:"Isolate directional cover, finite slots, firing utility, reservations, and position persistence.",
+  operatorSpawn:{x:2700,y:1760},
+  teams:[
+   {
+    factionId:"northline",mission:"Hold the northern position",task:"Use the cover line to deny the lane",facing:"down",
+    actors:[{x:2450,y:565,role:"Security"},{x:2700,y:540,role:"Rifleman"},{x:2950,y:575,role:"Engineer"}]
+   },
+   {
+    factionId:"commune",mission:"Find a safe route through the defended position",task:"Observe, displace, or bypass the defenders",facing:"up",
+    actors:[{x:2450,y:1335,role:"Scout"},{x:2700,y:1360,role:"Field Medic"},{x:2950,y:1335,role:"Rifleman"}]
+   }
+  ]
+ },
+ [SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY]:{
+  id:SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY,
+  index:"04",
+  label:"Casualty Recovery",
+  shortLabel:"Casualty recovery",
+  zoneId:"casualty_recovery",
+  question:"How does a team preserve a critical person while pressure threatens the mission?",
+  purpose:"Isolate casualty recognition, responder assignment, security, dragging, treatment, and withdrawal.",
+  operatorSpawn:{x:3800,y:1760},
+  teams:[
+   {
+    factionId:"northline",mission:"Maintain pressure on the southern lane",task:"Observe and deny movement through the casualty bay",facing:"down",
+    actors:[{x:3550,y:430,role:"Security"},{x:3750,y:405,role:"Rifleman"},{x:3950,y:440,role:"Engineer"}]
+   },
+   {
+    factionId:"commune",mission:"Recover the casualty and preserve the team",task:"Secure access, move the patient, stabilize, and withdraw",facing:"up",
+    actors:[
+     {x:3540,y:1325,role:"Security"},
+     {x:3810,y:1360,role:"Field Medic"},
+     {x:3740,y:965,role:"Rifleman",medicalPreset:"critical"}
+    ]
+   }
+  ]
+ }
+};
+
+export function getSandboxFixture(id){
+ return SANDBOX_FIXTURES[id]??SANDBOX_FIXTURES[SANDBOX_FIXTURE_IDS.OPEN_CONTACT];
+}
+
 export const sandboxMap={
- spawn:{x:520,y:980},
- extraction:{x:170,y:980,radius:90},
- road:[{x:0,y:760},{x:4400,y:760},{x:4400,y:1010},{x:0,y:1010}],
- shed:{x:1730,y:250,width:390,height:270,wallThickness:26,doorGap:{side:"bottom",start:150,width:86}},
+ sandboxLayout:{
+  name:"Fieldwork Behavior Lab",
+  subtitle:"One question at a time",
+  controlWalk:{x:70,y:1570,width:4260,height:320},
+  zones:[
+   {id:"open_contact",index:"01",name:"OPEN CONTACT",x:100,y:170,width:940,height:1320},
+   {id:"observation",index:"02",name:"OBSERVATION",x:1100,y:170,width:940,height:1320},
+   {id:"cover_position",index:"03",name:"COVER & POSITION",x:2100,y:170,width:1160,height:1320},
+   {id:"casualty_recovery",index:"04",name:"CASUALTY RECOVERY",x:3320,y:170,width:980,height:1320}
+  ],
+  northLine:{y:360,label:"NORTH / PRESSURE"},
+  southLine:{y:1410,label:"SOUTH / RESPONSE"}
+ },
+ spawn:{x:570,y:1760},
+ extraction:{x:180,y:1760,radius:72},
+ road:[{x:0,y:825},{x:4400,y:825},{x:4400,y:1065},{x:0,y:1065}],
+ shed:{x:5000,y:5000,width:1,height:1,wallThickness:1,doorGap:{side:"bottom",start:0,width:1}},
  site:{
-  name:"Combat Test Range",
-  workArea:{x:1550,y:180,width:760,height:430},
-  truck:{x:2780,y:1280,width:350,height:150},
-  breakArea:{x:640,y:1240,width:360,height:190},
-  trailhead:{x:450,y:960}
+  name:"Fieldwork Behavior Lab",
+  workArea:{x:80,y:1550,width:4240,height:350},
+  truck:{x:0,y:0,width:0,height:0},
+  breakArea:{x:0,y:0,width:0,height:0},
+  trailhead:{x:100,y:1760}
  },
  places:{
-  pull_off:{id:"pull_off",name:"Test Range",bounds:{x:0,y:0,width:4400,height:2000}},
-  north_culvert:{id:"north_culvert",name:"Range Pond",bounds:{x:3000,y:840,width:900,height:760},arrival:{x:3380,y:1160,radius:260}}
+  pull_off:{id:"pull_off",name:"Behavior Lab",bounds:{x:0,y:0,width:4400,height:2000}},
+  north_culvert:{id:"north_culvert",name:"Behavior Lab",bounds:{x:0,y:0,width:4400,height:2000},arrival:{x:2200,y:1000,radius:260}}
  },
- trail:[
-  {x:360,y:1060},{x:850,y:1200},{x:1320,y:1080},{x:1840,y:1180},
-  {x:2360,y:980},{x:2800,y:1110},{x:3280,y:930},{x:3920,y:1030}
- ],
- culvert:{
-  x:3120,y:900,width:650,height:600,
-  water:{x:3060,y:1020,width:720,height:430},
-  crossing:{x:3240,y:1120,width:420,height:150}
- },
+ trail:[{x:100,y:1760},{x:4300,y:1760}],
+ culvert:{x:5000,y:5000,width:1,height:1,water:{x:5000,y:5000,width:1,height:1},crossing:{x:5000,y:5000,width:1,height:1}},
  obstacles:[
-  {type:"tree",x:620,y:340,radius:70},{type:"tree",x:930,y:500,radius:58},
-  {type:"tree",x:1320,y:270,radius:64},{type:"tree",x:2480,y:360,radius:66},
-  {type:"tree",x:2860,y:520,radius:58},{type:"tree",x:4040,y:390,radius:72},
-  {type:"tree",x:570,y:1530,radius:66},{type:"tree",x:1130,y:1660,radius:61},
-  {type:"tree",x:2240,y:1560,radius:68},{type:"tree",x:2740,y:1700,radius:60},
-  {type:"tree",x:3990,y:1570,radius:70},
-  {type:"rock",x:1480,y:650,radius:44},{type:"rock",x:2410,y:720,radius:48},
-  {type:"rock",x:2840,y:1220,radius:46},{type:"rock",x:3840,y:820,radius:42},
-  {type:"rock",x:1740,y:1440,radius:50},{type:"rock",x:3380,y:1650,radius:48}
+  // Observation bay: irregular concealment with incomplete sight lines.
+  {type:"tree",x:1260,y:650,radius:58},{type:"tree",x:1460,y:770,radius:66},
+  {type:"tree",x:1710,y:705,radius:62},{type:"tree",x:1910,y:820,radius:58},
+  // Cover bay: three deliberately separated positions on each side.
+  {type:"rock",x:2450,y:700,radius:54},{type:"rock",x:2700,y:690,radius:64},{type:"rock",x:2950,y:710,radius:54},
+  {type:"rock",x:2450,y:1190,radius:54},{type:"rock",x:2700,y:1200,radius:64},{type:"rock",x:2950,y:1185,radius:54},
+  // Casualty bay: exposed patient with two plausible recovery positions.
+  {type:"rock",x:3480,y:1120,radius:58},{type:"rock",x:4010,y:1160,radius:60},
+  {type:"tree",x:3420,y:690,radius:64},{type:"tree",x:4100,y:735,radius:62}
  ],
  brush:[
-  {x:720,y:420,radius:155},{x:1180,y:390,radius:125},{x:2620,y:440,radius:140},
-  {x:3970,y:510,radius:150},{x:730,y:1590,radius:150},{x:2050,y:1660,radius:145},
-  {x:2920,y:1540,radius:135},{x:4100,y:1510,radius:155},{x:2450,y:1050,radius:115}
+  {x:1260,y:735,radius:135},{x:1450,y:850,radius:150},{x:1660,y:800,radius:165},{x:1880,y:900,radius:145},
+  {x:2290,y:930,radius:90},{x:3120,y:950,radius:90},
+  {x:3440,y:1240,radius:105},{x:4050,y:1270,radius:110}
  ]
 };
 
-const ENTRY={
- northline:[{x:1020,y:50},{x:2210,y:50},{x:3400,y:50}],
- commune:[{x:70,y:520},{x:70,y:980},{x:70,y:1450}],
- freelancers:[{x:1100,y:1940},{x:2350,y:1940},{x:3650,y:1940}]
-};
-const PATROLS=[
- {x:1300,y:720},{x:1900,y:1180},{x:2500,y:700},{x:2950,y:1340},
- {x:3550,y:760},{x:900,y:1320},{x:2100,y:880},{x:3700,y:1270}
-];
-
-function actorFrom(faction,teamId,index,spawn,wave){
- const id=`sandbox_${faction}_${wave}_${index}`;
- const names=NAMES[faction],role=ROLES[faction][index%ROLES[faction].length];
- const offset={x:(index-1)*42,y:index%2?28:-18};
+function actorFromSpec(faction,teamId,index,spec,fixture){
+ const id=`sandbox_${fixture.id}_${faction}_${index}`;
+ const roles=DEFAULT_ROLES[faction];
  return {
-  id,name:names[(wave*3+index)%names.length],role,
-  type:"actor",teamId,factionId:faction,operationId:"combat_sandbox",
+  id,
+  name:NAMES[faction][index%NAMES[faction].length],
+  role:spec.role??roles[index%roles.length],
+  type:"actor",
+  teamId,
+  factionId:faction,
+  operationId:`behavior_lab_${fixture.id}`,
   kitId:KITS[faction][index%KITS[faction].length],
-  x:spawn.x+offset.x,y:spawn.y+offset.y,width:44,height:70,groundY:spawn.y+offset.y+34,
-  radius:18,vx:0,vy:0,moveSpeed:112+(index%3)*8,facing:faction==="northline"?"down":faction==="freelancers"?"up":"right",
-  walkingPhase:0,backpackLoadRatio:.45,carriedItemInstanceId:null,
-  routeIndex:0,waitTime:0,workPhase:0,motionState:"walking",
-  currentTask:"Entering the combat test range",currentAction:"Walking",workPose:"walk",workProp:null,
-  interactionRadius:84,priority:18,relationship:"Unknown",
-  greeting:[`${FACTION_NAMES[faction]} patrol.`,"We're watching the range."],
-  seated:false,sandboxPatrol:true,patrolTarget:null,
-  squadMission:faction==="northline"?"secure_route":faction==="commune"?"infiltrate_and_ambush":"raid_and_extract",
+  x:spec.x,
+  y:spec.y,
+  width:44,
+  height:70,
+  groundY:spec.y+34,
+  radius:18,
+  vx:0,
+  vy:0,
+  moveSpeed:112+(index%3)*8,
+  facing:spec.facing??"down",
+  walkingPhase:0,
+  backpackLoadRatio:.35,
+  carriedItemInstanceId:null,
+  routeIndex:0,
+  waitTime:0,
+  workPhase:0,
+  motionState:"idle",
+  currentTask:spec.task??"Holding the assigned test position",
+  currentAction:"Waiting",
+  workPose:null,
+  workProp:null,
+  interactionRadius:84,
+  priority:18,
+  relationship:"Unknown",
+  greeting:[`${FACTION_NAMES[faction]} test team.`,fixture.question],
+  seated:false,
+  sandboxFixtureId:fixture.id,
+  sandboxStatic:true,
+  medicalPreset:spec.medicalPreset??null,
+  squadMission:spec.mission??"hold_fixture",
   alertState:"unaware"
  };
 }
 
 export class CombatSandboxDirector{
- constructor(game){
+ constructor(game,{fixtureId=SANDBOX_FIXTURE_IDS.OPEN_CONTACT}={}){
   this.game=game;
   this.started=true;
   this.elapsed=0;
   this.selectedOperationId=null;
   this.operations=[];
   this.teams=[];
-  this.wave=0;
-  this.maxActiveTeams={northline:3,commune:3,freelancers:3};
-  this.reserve={northline:8,commune:8,freelancers:8};
-  this.spawnCooldown={northline:0,commune:4,freelancers:8};
   this.initialized=false;
+  this.fixture=getSandboxFixture(fixtureId);
  }
  getOperation(){return null;}
  claim(){return false;}
  get selectedOperation(){return null;}
+ summary(){return[];}
  start(){
   if(this.initialized)return;
   this.initialized=true;
-  for(const faction of ["northline","commune","freelancers"]){
-    this.spawnTeam(faction);
-    this.spawnTeam(faction);
+  this.game.sandboxFixture=this.fixture;
+  for(const [teamIndex,teamSpec] of this.fixture.teams.entries()){
+   const teamId=`sandbox_team_${this.fixture.id}_${teamSpec.factionId}_${teamIndex}`;
+   const members=[];
+   for(const [actorIndex,spec] of teamSpec.actors.entries()){
+    const actor=actorFromSpec(teamSpec.factionId,teamId,actorIndex,{
+     ...spec,
+     facing:spec.facing??teamSpec.facing,
+     task:teamSpec.task,
+     mission:teamSpec.mission
+    },this.fixture);
+    const clear=projectOutsideObstacles(this.game,actor.x,actor.y,actor.radius);
+    actor.x=clear.x;actor.y=clear.y;actor.groundY=actor.y+34;
+    this.game.actors.push(actor);
+    members.push(actor.id);
+    if(actor.medicalPreset==="critical")this.#seedCriticalCasualty(actor);
+   }
+   this.teams.push({
+    id:teamId,
+    factionId:teamSpec.factionId,
+    memberIds:members,
+    mission:teamSpec.mission,
+    task:teamSpec.task,
+    fixtureId:this.fixture.id
+   });
   }
-  this.game.pushMessage("Combat Sandbox active — patrols are entering from three borders",3.5);
+  this.game.pushMessage(`${this.fixture.index} ${this.fixture.label} — ${this.fixture.question}`,4.8);
  }
- activeTeams(faction){
-  return this.teams.filter(team=>team.factionId===faction&&team.memberIds.some(id=>{
-    const actor=this.game.actors.find(candidate=>candidate.id===id);
-    return actor&&!actor.medical?.dead;
-  }));
- }
- spawnTeam(faction){
-  if((this.reserve[faction]??0)<=0)return false;
-  const entries=ENTRY[faction],spawn=entries[this.wave%entries.length];
-  const teamId=`sandbox_team_${faction}_${this.wave++}`;
-  const size=2+Math.floor(Math.random()*3);
-  const members=[];
-  for(let i=0;i<size;i++){
-    const actor=actorFrom(faction,teamId,i,spawn,this.wave);
-    actor.patrolTarget=PATROLS[(this.wave+i*2)%PATROLS.length];
-    actor.x=projectOutsideObstacles(this.game,actor.x,actor.y,actor.radius).x;
-    actor.y=projectOutsideObstacles(this.game,actor.x,actor.y,actor.radius).y;
-    this.game.actors.push(actor);members.push(actor.id);
-  }
-  this.teams.push({id:teamId,factionId:faction,memberIds:members});
-  this.reserve[faction]--;
-  return true;
- }
- updatePatrol(actor,delta){
-  if(isImmobileCasualty(actor)||actor.beingDragged||actor.operationPausedByEncounter||actor.medicalAction||actor.actionLock||(actor.tacticalSlotUntil??0)>performance.now()/1000||(actor.tacticalPlanUntil??0)>performance.now()/1000)return;
-  if(!actor.patrolTarget||Math.hypot(actor.x-actor.patrolTarget.x,actor.y-actor.patrolTarget.y)<70){
-    const base=PATROLS[Math.floor(Math.random()*PATROLS.length)];
-    actor.patrolTarget=projectOutsideObstacles(this.game,base.x+(Math.random()-.5)*170,base.y+(Math.random()-.5)*170,actor.radius);
-  }
-  this.game.actorIntents?.submit?.(actor,createIntent("mission","patrol",INTENT_PRIORITY.PATROL,{
-    key:`mission:patrol:${actor.teamId}`,
-    destination:actor.patrolTarget,
-    speedMultiplier:.58,
-    arrivalRadius:55,
-    commitSeconds:2.8,
-    task:"Patrolling the test range",
-    pose:"walk"
-  }));
+ #seedCriticalCasualty(actor){
+  const medical=this.game.wounds.ensure(actor);
+  medical.blood=42;
+  medical.shock=54;
+  this.game.wounds.seedWound(actor,{region:"torso",severity:"catastrophic",controlled:false,label:`${this.fixture.id}_seeded_casualty`});
+  actor.currentTask="Critical casualty awaiting recovery";
+  actor.currentAction="Incapacitated";
  }
  update(delta){
-  this.start();this.elapsed+=delta;
-  for(const actor of this.game.actors)if(actor.sandboxPatrol)this.updatePatrol(actor,delta);
-  for(const faction of ["northline","commune","freelancers"]){
-    this.spawnCooldown[faction]=Math.max(0,this.spawnCooldown[faction]-delta);
-    const active=this.activeTeams(faction).length;
-    if(active<this.maxActiveTeams[faction]&&this.reserve[faction]>0&&this.spawnCooldown[faction]<=0){
-      this.spawnTeam(faction);
-      this.spawnCooldown[faction]=28+Math.random()*22;
-      this.game.pushMessage(`${FACTION_NAMES[faction]} reinforcements entering the range`,2.3);
-    }
-  }
+  this.start();
+  this.elapsed+=delta;
+  // Intentional fixture rule: the director never invents patrol movement,
+  // reinforcements, or random destinations. Legacy or V2 systems must make
+  // every subsequent behavioral decision explicitly.
  }
 }
