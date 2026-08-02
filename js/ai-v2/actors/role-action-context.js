@@ -41,7 +41,7 @@ function authoredObserverSector(actor){
   };
 }
 
-export function buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters}={}){
+export function buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,currentObserveAction=null}={}){
   const teamActors=(game?.actors??[]).filter(candidate=>candidate.teamId===actor?.teamId&&!candidate.medical?.dead);
   const teamCenter=centroid(teamActors);
   const contactPosition=bestContactPosition({teamKnowledge,teamEncounters,teamId:actor?.teamId,mission,teamCenter});
@@ -62,6 +62,12 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
       fieldOfViewDegrees:role.fulfillment.fieldOfViewDegrees??72
     };
   }else if(need==="observe_alternate_approach"){
+    const retainedSector=currentObserveAction?.metadata?.provenance?.roleId===role.roleId
+      ?currentObserveAction.assignment?.sector
+      :null;
+    if(retainedSector){
+      sector={...retainedSector};
+    }else{
     const side=actor.x<teamCenter.x?-1:1;
     const angle=rotate(mainAngle,side*(role.fulfillment.angularOffsetDegrees??55));
     const target=clampToZone(pointAt(actor,angle,role.fulfillment.distance??520),zone);
@@ -72,6 +78,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
       maximumRange:role.fulfillment.maximumRange??900,
       fieldOfViewDegrees:role.fulfillment.fieldOfViewDegrees??70
     };
+    }
   }else if(need==="hold_rear_ready"){
     const angle=rotate(mainAngle,180+(role.fulfillment.angularOffsetDegrees??0));
     focus=clampToZone(pointAt(actor,angle,role.fulfillment.distance??340),zone);

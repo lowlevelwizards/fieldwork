@@ -1,14 +1,14 @@
 import { Camera } from "./camera.js?v=20a-causal-architecture-foundation-20260802";
-import { ContinuousGameState } from "./continuous-game-state.js?v=20h-procedure-driven-actor-actions-20260802";
+import { ContinuousGameState } from "./continuous-game-state.js?v=20i-position-requirements-repositioning-20260802";
 import { InputController, CombatInputController } from "./input.js?v=20a-causal-architecture-foundation-20260802";
-import { Renderer } from "./renderer.js?v=20h-procedure-driven-actor-actions-20260802";
+import { Renderer } from "./renderer.js?v=20i-position-requirements-repositioning-20260802";
 import { getItemDefinition } from "../data/items.js?v=20a-causal-architecture-foundation-20260802";
 import { findEntity } from "./world-entities.js?v=20a-causal-architecture-foundation-20260802";
 import { validateItemLocations } from "./item-locations.js?v=20a-causal-architecture-foundation-20260802";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20h-procedure-driven-actor-actions-20260802";
-import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20h-procedure-driven-actor-actions-20260802";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20i-position-requirements-repositioning-20260802";
+import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20i-position-requirements-repositioning-20260802";
 
-const BUILD_ID="2.0H";
+const BUILD_ID="2.0I";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Procedure-driven actor actions: each temporary role now produces a stable local action proposal that the scheduler accepts and the attention executor performs."
+    ?"Responsibility-driven movement: security operators reposition only when their current location cannot fulfill an assigned watch sector."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();
@@ -183,6 +183,7 @@ if(game.aiRuntimeMode==="v2"){
  $("#debug-v2-encounter").textContent=details.encounter??"none";
  $("#debug-v2-response").textContent=details.response??"none";
  $("#debug-v2-procedure").textContent=details.procedure??"none";
+ $("#debug-v2-position").textContent=details.position??"none";
 }else{
  $("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
  $("#debug-v2-assignment").textContent="—";
@@ -192,6 +193,7 @@ if(game.aiRuntimeMode==="v2"){
  $("#debug-v2-encounter").textContent="—";
  $("#debug-v2-response").textContent="—";
  $("#debug-v2-procedure").textContent="—";
+ $("#debug-v2-position").textContent="—";
 }
 const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
 function updateCombatUI(){

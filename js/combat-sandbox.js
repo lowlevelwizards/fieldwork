@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20h-procedure-driven-actor-actions-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20i-position-requirements-repositioning-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -254,6 +254,7 @@ export const sandboxMap={
   // Observation bay: irregular concealment with incomplete sight lines.
   {type:"tree",x:1260,y:650,radius:58},{type:"tree",x:1460,y:770,radius:66},
   {type:"tree",x:1710,y:705,radius:62},{type:"tree",x:1910,y:820,radius:58},
+  {type:"tree",x:1840,y:1180,radius:45},
   // Cover bay: three deliberately separated positions on each side.
   {type:"rock",x:2450,y:700,radius:54},{type:"rock",x:2700,y:690,radius:64},{type:"rock",x:2950,y:710,radius:54},
   {type:"rock",x:2450,y:1190,radius:54},{type:"rock",x:2700,y:1200,radius:64},{type:"rock",x:2950,y:1185,radius:54},

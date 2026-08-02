@@ -1,18 +1,22 @@
-import { ActionScheduler } from "../actions/action-scheduler.js?v=20h-procedure-driven-actor-actions-20260802";
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20h-procedure-driven-actor-actions-20260802";
-import { ReportContactAction } from "../actions/report-contact-action.js?v=20h-procedure-driven-actor-actions-20260802";
-import { RoleActionRuntime } from "../actors/role-action-runtime.js?v=20h-procedure-driven-actor-actions-20260802";
-import { CommunicationExecutor } from "../communication/communication-executor.js?v=20h-procedure-driven-actor-actions-20260802";
-import { DecisionLog } from "../diagnostics/decision-log.js?v=20h-procedure-driven-actor-actions-20260802";
-import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20h-procedure-driven-actor-actions-20260802";
-import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20h-procedure-driven-actor-actions-20260802";
-import { AttentionExecutor } from "../execution/attention-executor.js?v=20h-procedure-driven-actor-actions-20260802";
-import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20h-procedure-driven-actor-actions-20260802";
-import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20h-procedure-driven-actor-actions-20260802";
-import { TeamMissionStore } from "../missions/team-mission.js?v=20h-procedure-driven-actor-actions-20260802";
-import { TeamProcedureState } from "../procedures/team-procedure-state.js?v=20h-procedure-driven-actor-actions-20260802";
-import { TeamResponseState } from "../responses/team-response-state.js?v=20h-procedure-driven-actor-actions-20260802";
-import { captureWorldSnapshot } from "./world-snapshot.js?v=20h-procedure-driven-actor-actions-20260802";
+import { ActionScheduler } from "../actions/action-scheduler.js?v=20i-position-requirements-repositioning-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20i-position-requirements-repositioning-20260802";
+import { ReportContactAction } from "../actions/report-contact-action.js?v=20i-position-requirements-repositioning-20260802";
+import { RoleActionRuntime } from "../actors/role-action-runtime.js?v=20i-position-requirements-repositioning-20260802";
+import { RolePositionRuntime } from "../actors/role-position-runtime.js?v=20i-position-requirements-repositioning-20260802";
+import { CommunicationExecutor } from "../communication/communication-executor.js?v=20i-position-requirements-repositioning-20260802";
+import { DecisionLog } from "../diagnostics/decision-log.js?v=20i-position-requirements-repositioning-20260802";
+import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20i-position-requirements-repositioning-20260802";
+import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20i-position-requirements-repositioning-20260802";
+import { AttentionExecutor } from "../execution/attention-executor.js?v=20i-position-requirements-repositioning-20260802";
+import { LocomotionExecutor } from "../execution/locomotion-executor.js?v=20i-position-requirements-repositioning-20260802";
+import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20i-position-requirements-repositioning-20260802";
+import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20i-position-requirements-repositioning-20260802";
+import { TeamMissionStore } from "../missions/team-mission.js?v=20i-position-requirements-repositioning-20260802";
+import { TeamProcedureState } from "../procedures/team-procedure-state.js?v=20i-position-requirements-repositioning-20260802";
+import { DestinationClaimService } from "../position/destination-claim-service.js?v=20i-position-requirements-repositioning-20260802";
+import { PositionQueryService } from "../position/position-query-service.js?v=20i-position-requirements-repositioning-20260802";
+import { TeamResponseState } from "../responses/team-response-state.js?v=20i-position-requirements-repositioning-20260802";
+import { captureWorldSnapshot } from "./world-snapshot.js?v=20i-position-requirements-repositioning-20260802";
 
 export const AI_RUNTIME_MODES=Object.freeze({LEGACY:"legacy",V2:"v2"});
 const stateLabel=state=>String(state??"none").replaceAll("_"," ");
@@ -50,12 +54,16 @@ export class AIV2Runtime{
     this.teamResponses=new TeamResponseState({decisionLog:this.decisionLog});
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
     this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
+    this.positionQueries=new PositionQueryService();
+    this.destinationClaims=new DestinationClaimService({decisionLog:this.decisionLog});
+    this.rolePositions=new RolePositionRuntime({scheduler:this.scheduler,positionQueries:this.positionQueries,destinationClaims:this.destinationClaims,decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
+    this.locomotion=new LocomotionExecutor();
     this.communication=new CommunicationExecutor();
     this.visibleByObserver=new Map();
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"procedure_driven_actor_actions",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"position_requirements_repositioning",scenario:game.scenarioMode}});
   }
 
   update(delta){
@@ -79,6 +87,12 @@ export class AIV2Runtime{
       now:this.elapsed,
       context:this.#context(this.elapsed)
     });
+    this.rolePositions.update({
+      game:this.game,
+      teamProcedures:this.teamProcedures,
+      now:this.elapsed,
+      context:this.#context(this.elapsed)
+    });
     this.#updateActorDiagnostics();
 
     this.snapshotAccumulator+=delta;
@@ -89,6 +103,8 @@ export class AIV2Runtime{
       now:this.elapsed,
       procedures:this.teamProcedures.summary(),
       roleActions:this.roleActions.summary(),
+      rolePositions:this.rolePositions.summary(),
+      destinationClaims:this.destinationClaims.summary(this.elapsed),
       scheduler:this.scheduler
     });
   }
@@ -97,10 +113,11 @@ export class AIV2Runtime{
     const scheduler=this.scheduler.summary();
     const observers=scheduler.byType.ObserveSector??0;
     const ready=scheduler.byType.HoldReady??0;
+    const repositioning=scheduler.byType.RepositionForResponsibility??0;
     const visible=this.personalKnowledge.summary().reduce((sum,entry)=>sum+entry.contacts.filter(contact=>contact.currentlyVisible).length,0);
     const reporting=scheduler.byType.ReportContact??0;
     const activeEncounterCount=this.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${ready} holding ready · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} response(s) · ${this.teamProcedures.count()} procedure(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${reporting} reporting · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} response(s) · ${this.teamProcedures.count()} procedure(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
   }
 
   getDebugDetails(){
@@ -136,12 +153,16 @@ export class AIV2Runtime{
       const alternatives=response.candidates.slice(1,4).map(candidate=>`${candidate.label} ${Math.round(candidate.score*100)}`).join(", ");
       return `${faction}: ${response.selected.label} ${Math.round(response.selected.score*100)} · ${response.selected.reason}${alternatives?` · next: ${alternatives}`:""}`;
     }).join(" · ")||"none — no team response selected";
+    const positions=this.rolePositions.summary().map(position=>{
+      const actor=this.game.actors.find(candidate=>candidate.id===position.actorId);
+      return `${actor?.name??position.actorId}: ${stateLabel(position.status)}${position.failureReason?` · ${position.failureReason}`:""}`;
+    }).join(" · ")||"none — no role position requirements";
     const procedures=this.teamProcedures.summary().map(procedure=>{
       const faction=this.game.actors.find(actor=>actor.teamId===procedure.teamId)?.factionId??procedure.teamId;
       const roles=procedure.roles.map(role=>`${role.actorName??"unfilled"}: ${role.label}`).join(", ");
       return `${faction}: ${procedure.label} · ${procedure.phase.label} · ${roles}`;
     }).join(" · ")||"none — no team procedure assigned";
-    return{assignment:actionAssignments,personalKnowledge:contacts,communication,teamKnowledge:shared,encounter:encounters,response:responses,procedure:procedures};
+    return{assignment:actionAssignments,personalKnowledge:contacts,communication,teamKnowledge:shared,encounter:encounters,response:responses,procedure:procedures,position:positions};
   }
 
   #ensureAuthoredObservationActions(){
@@ -183,6 +204,10 @@ export class AIV2Runtime{
         teamResponses:this.teamResponses,
         teamProcedures:this.teamProcedures,
         roleActions:this.roleActions,
+        rolePositions:this.rolePositions,
+        positionQueries:this.positionQueries,
+        destinationClaims:this.destinationClaims,
+        locomotion:this.locomotion,
         visibleByObserver:this.visibleByObserver
       }
     };
@@ -194,6 +219,7 @@ export class AIV2Runtime{
       const primary=this.scheduler.getPrimaryAction(actor.id);
       const observeAction=actions.find(action=>action.type==="ObserveSector")??null;
       const holdAction=actions.find(action=>action.type==="HoldReady")??null;
+      const repositionAction=actions.find(action=>action.type==="RepositionForResponsibility")??null;
       const assignment=actor.aiV2Assignment??null;
       const contact=this.personalKnowledge.getBestContact(actor.id);
       const received=this.teamKnowledge.getBestReceivedContact(actor.id);
@@ -204,6 +230,7 @@ export class AIV2Runtime{
       const teamProcedure=this.teamProcedures.get(actor.teamId);
       const procedureRole=this.teamProcedures.getActorRole(actor.id);
       const roleAction=this.roleActions.get(actor.id);
+      const rolePosition=this.rolePositions.get(actor.id);
       const reporting=actions.find(action=>action.type==="ReportContact")??null;
       const sourceActor=received?this.game.actors.find(candidate=>candidate.id===received.sourceActorId):null;
       if(!observeAction)actor.aiV2Observation=null;
@@ -225,6 +252,15 @@ export class AIV2Runtime{
         roleAction:roleAction?{...roleAction,candidates:roleAction.candidates.map(candidate=>({...candidate}))}:null,
         primaryAction:primary?.type??"UNASSIGNED",
         activeActions:actions.map(action=>action.type),
+        reposition:repositionAction?{
+          status:"moving",progress:repositionAction.progress,destination:{...repositionAction.directive.destination},
+          failureReason:repositionAction.directive.failureReason,roleId:repositionAction.directive.roleId,roleLabel:repositionAction.directive.roleLabel
+        }:actor.aiV2Reposition?{...actor.aiV2Reposition,destination:actor.aiV2Reposition.destination?{...actor.aiV2Reposition.destination}:null}:null,
+        positionRequirement:rolePosition?{
+          ...rolePosition,acceptedPosition:rolePosition.acceptedPosition?{...rolePosition.acceptedPosition}:null,
+          destination:rolePosition.destination?{...rolePosition.destination}:null,
+          evaluation:rolePosition.evaluation?{...rolePosition.evaluation,reasons:[...(rolePosition.evaluation.reasons??[])]}:null
+        }:null,
         actionId:primary?.id??null,
         actionReason:primary?.purpose??null,
         actionProvenance:primary?.metadata?.provenance?{...primary.metadata.provenance}:null,
@@ -263,7 +299,7 @@ export class AIV2Runtime{
           id:teamProcedure.procedureId,label:teamProcedure.label,phase:{...teamProcedure.phase},permissions:{...teamProcedure.permissions},
           reassessmentTriggers:[...teamProcedure.reassessmentTriggers],roles:teamProcedure.roles.map(role=>({...role,fulfillment:role.fulfillment?{...role.fulfillment}:null}))
         }:null,
-        runtimeStage:"procedure_driven_actor_actions"
+        runtimeStage:"position_requirements_repositioning"
       };
     }
   }

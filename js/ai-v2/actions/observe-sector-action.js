@@ -1,6 +1,6 @@
-import { AIV2Action } from "./action.js?v=20h-procedure-driven-actor-actions-20260802";
-import { ACTION_CHANNELS } from "./action-channels.js?v=20h-procedure-driven-actor-actions-20260802";
-import { evaluateVisualObservation } from "../senses/visual-observation.js?v=20h-procedure-driven-actor-actions-20260802";
+import { AIV2Action } from "./action.js?v=20i-position-requirements-repositioning-20260802";
+import { ACTION_CHANNELS } from "./action-channels.js?v=20i-position-requirements-repositioning-20260802";
+import { evaluateVisualObservation } from "../senses/visual-observation.js?v=20i-position-requirements-repositioning-20260802";
 
 function cloneAssignment(assignment={}){
   return{

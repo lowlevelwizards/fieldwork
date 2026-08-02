@@ -25,7 +25,7 @@ const PROCEDURES=Object.freeze({
       phase("reassess","Reassess","New evidence or an invalid assignment requires the team to reconsider the procedure.")
     ]),
     activePhaseId:"maintain_watch",
-    permissions:Object.freeze({observe:true,report:true,relocate:false,warn:false,fire:false}),
+    permissions:Object.freeze({observe:true,report:true,relocate:true,warn:false,fire:false}),
     reassessmentTriggers:COMMON_REASSESSMENT_TRIGGERS,
     roles:Object.freeze([
       role({
@@ -41,7 +41,7 @@ const PROCEDURES=Object.freeze({
         label:"Alternate Security",
         responsibility:"Watch an uncovered approach so the team does not fixate on one uncertain contact.",
         selectionReason:"Prefer a capable security-oriented actor who is not already the primary observer.",
-        fulfillment:{need:"observe_alternate_approach",label:"Alternate approach",angularOffsetDegrees:55,distance:520,maximumRange:900,fieldOfViewDegrees:70},
+        fulfillment:{need:"observe_alternate_approach",label:"Alternate approach",angularOffsetDegrees:55,distance:520,maximumRange:900,fieldOfViewDegrees:70,positionPolicy:{mayReposition:true,minimumVisibility:.58,minimumCoverage:.66,maximumTravel:190,maximumCohesionDistance:420,minimumFriendlySpacing:68,claimSpacing:76,reassessEvery:1.5,retryAfter:1.1,speedMultiplier:.56,arrivalRadius:10}},
         preference:actor=>String(actor.role??"").toLowerCase().includes("security")?60:String(actor.role??"").toLowerCase().includes("rifle")?25:0
       }),
       role({
@@ -66,7 +66,7 @@ const PROCEDURES=Object.freeze({
       phase("reassess","Reassess","Detection, stale evidence, or an invalid assignment requires the team to reconsider the procedure.")
     ]),
     activePhaseId:"maintain_contact",
-    permissions:Object.freeze({observe:true,report:true,relocate:false,warn:false,fire:false}),
+    permissions:Object.freeze({observe:true,report:true,relocate:true,warn:false,fire:false}),
     reassessmentTriggers:Object.freeze([
       "contact_lost",
       "encounter_evidence_stale",
@@ -89,7 +89,7 @@ const PROCEDURES=Object.freeze({
         label:"Local Security",
         responsibility:"Watch for discovery or movement toward the concealed position from an alternate approach.",
         selectionReason:"Prefer a capable rifle or security actor rather than the medical reserve.",
-        fulfillment:{need:"observe_alternate_approach",label:"Flank approach",angularOffsetDegrees:55,distance:520,maximumRange:900,fieldOfViewDegrees:70},
+        fulfillment:{need:"observe_alternate_approach",label:"Flank approach",angularOffsetDegrees:55,distance:520,maximumRange:900,fieldOfViewDegrees:70,positionPolicy:{mayReposition:true,minimumVisibility:.58,minimumCoverage:.66,maximumTravel:190,maximumCohesionDistance:420,minimumFriendlySpacing:68,claimSpacing:76,reassessEvery:1.5,retryAfter:1.1,speedMultiplier:.54,arrivalRadius:10}},
         preference:actor=>{
           const roleName=String(actor.role??"").toLowerCase();
           if(roleName.includes("rifle")||roleName.includes("security"))return 65;

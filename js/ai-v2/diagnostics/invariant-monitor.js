@@ -5,7 +5,7 @@ export class InvariantMonitor{
     this.signature="";
   }
 
-  inspect(snapshot,{now=0,procedures=[],roleActions=[],scheduler=null}={}){
+  inspect(snapshot,{now=0,procedures=[],roleActions=[],rolePositions=[],destinationClaims=[],scheduler=null}={}){
     const violations=[];
     const ids=new Set();
     for(const actor of snapshot.actors){
@@ -21,6 +21,30 @@ export class InvariantMonitor{
       if(!ids.has(assignment.actorId))violations.push({code:"unknown_role_action_actor",actorId:assignment.actorId});
       if(scheduler&&!scheduler.hasAction(assignment.actorId,assignment.actionType)){
         violations.push({code:"role_action_not_scheduled",actorId:assignment.actorId,actionType:assignment.actionType});
+      }
+    }
+
+
+    const positionByActor=new Map();
+    for(const position of rolePositions){
+      if(positionByActor.has(position.actorId))violations.push({code:"duplicate_role_position_state",actorId:position.actorId});
+      positionByActor.set(position.actorId,position);
+      if(!ids.has(position.actorId))violations.push({code:"unknown_role_position_actor",actorId:position.actorId});
+      if(position.status==="moving"&&scheduler&&!scheduler.hasAction(position.actorId,"RepositionForResponsibility")){
+        violations.push({code:"moving_position_without_action",actorId:position.actorId});
+      }
+      if(position.status==="satisfied"&&position.evaluation&&!position.evaluation.suitable){
+        violations.push({code:"accepted_unsuitable_position",actorId:position.actorId});
+      }
+    }
+
+    const claimActors=new Set();
+    for(const claim of destinationClaims){
+      if(claimActors.has(claim.actorId))violations.push({code:"duplicate_destination_claim",actorId:claim.actorId});
+      claimActors.add(claim.actorId);
+      if(!ids.has(claim.actorId))violations.push({code:"unknown_destination_claim_actor",actorId:claim.actorId});
+      if(scheduler&&!scheduler.hasAction(claim.actorId,"RepositionForResponsibility")){
+        violations.push({code:"destination_claim_without_movement_action",actorId:claim.actorId});
       }
     }
 

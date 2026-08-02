@@ -1,5 +1,5 @@
-import { buildTeamDecisionLedger } from "../decisions/team-decision-ledger.js?v=20h-procedure-driven-actor-actions-20260802";
-import { TEAM_RESPONSE_OPTIONS } from "./response-options.js?v=20h-procedure-driven-actor-actions-20260802";
+import { buildTeamDecisionLedger } from "../decisions/team-decision-ledger.js?v=20i-position-requirements-repositioning-20260802";
+import { TEAM_RESPONSE_OPTIONS } from "./response-options.js?v=20i-position-requirements-repositioning-20260802";
 
 export function evaluateTeamResponses({mission,encounter}={}){
   const ledger=buildTeamDecisionLedger({mission,encounter});

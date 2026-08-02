@@ -1,7 +1,7 @@
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20h-procedure-driven-actor-actions-20260802";
-import { HoldReadyAction } from "../actions/hold-ready-action.js?v=20h-procedure-driven-actor-actions-20260802";
-import { buildRoleActionContext } from "./role-action-context.js?v=20h-procedure-driven-actor-actions-20260802";
-import { ActorActionEvaluator } from "./actor-action-evaluator.js?v=20h-procedure-driven-actor-actions-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20i-position-requirements-repositioning-20260802";
+import { HoldReadyAction } from "../actions/hold-ready-action.js?v=20i-position-requirements-repositioning-20260802";
+import { buildRoleActionContext } from "./role-action-context.js?v=20i-position-requirements-repositioning-20260802";
+import { ActorActionEvaluator } from "./actor-action-evaluator.js?v=20i-position-requirements-repositioning-20260802";
 
 function authoredDirective(actor){
   const assignment=actor?.aiV2Assignment;
@@ -42,7 +42,7 @@ export class RoleActionRuntime{
         if(!role.actorId)continue;
         const actor=game?.actors?.find(candidate=>candidate.id===role.actorId);
         if(!actor)continue;
-        const roleContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters});
+        const roleContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,currentObserveAction:this.scheduler.getAction(actor.id,"ObserveSector")});
         const candidates=this.evaluator.evaluate(roleContext).sort((a,b)=>b.score-a.score);
         const selected=candidates[0]??null;
         if(!selected)continue;
