@@ -25,13 +25,32 @@ function relevanceLabel(score){
   return"none";
 }
 
+function activityModifier(activity){
+  switch(activity){
+    case"approaching":return .12;
+    case"repositioning":return .06;
+    case"observing":return .05;
+    case"withdrawing":return -.06;
+    case"lost":return -.1;
+    default:return 0;
+  }
+}
+
+function activitySentence(report){
+  if(report.reportKind!=="activity_update"||!report.activity)return null;
+  const label=report.activityLabel??String(report.activity).replaceAll("_"," ");
+  const intent=report.intentHypothesis?.label??"No clear intent";
+  return`Latest reported activity: ${label}. Intent remains a hypothesis: ${intent}.`;
+}
+
 export function assessEncounterHypothesis({mission,report,now=0}={}){
   if(!mission||!report)return null;
   const age=Math.max(0,now-(report.reportedAt??now));
   const confidence=clamp(report.confidence??0,0,100);
   const spatial=spatialAssessment(mission.concernArea,report.approximatePosition);
   const confidenceWeight=.48+.52*(confidence/100);
-  const relevanceScore=clamp(spatial.proximity*mission.missionSensitivity*confidenceWeight,0,1);
+  const activityAdjustment=activityModifier(report.activity);
+  const relevanceScore=clamp(spatial.proximity*mission.missionSensitivity*confidenceWeight+activityAdjustment,0,1);
   const stale=age>=mission.staleAfter||confidence<4;
   let state=ENCOUNTER_STATES.POSSIBLE;
   let reason="A contact report exists, but its relationship to the mission remains uncertain.";
@@ -47,13 +66,17 @@ export function assessEncounterHypothesis({mission,report,now=0}={}){
     reason=mission.interference?.reason??"The reported contact is close enough to affect the assigned mission.";
   }
 
+  const activityEvidence=activitySentence(report);
+  if(activityEvidence&&!stale)reason=`${reason} ${activityEvidence}`;
+
   return{
     teamId:mission.teamId,
     missionId:mission.id,
     reportId:report.id,
+    reportKind:report.reportKind??"initial_contact",
     subjectId:report.subjectId,
     sourceActorId:report.sourceActorId,
-    evidenceType:"communicated_contact_report",
+    evidenceType:report.reportKind==="activity_update"?"communicated_activity_update":"communicated_contact_report",
     state,
     previousState:null,
     missionRelevance:relevanceLabel(relevanceScore),
@@ -61,10 +84,17 @@ export function assessEncounterHypothesis({mission,report,now=0}={}){
     reportConfidence:confidence,
     reportAge:age,
     approximatePosition:{...report.approximatePosition},
+    previousApproximatePosition:report.previousApproximatePosition?{...report.previousApproximatePosition}:null,
     spatial:{...spatial},
     identity:report.identity??"unknown",
     factionId:report.factionId??null,
-    intent:"unknown",
+    activity:report.activity??null,
+    activityLabel:report.activityLabel??null,
+    activityRevision:report.activityRevision??0,
+    movementDirection:report.movementDirection??null,
+    estimatedSpeed:report.estimatedSpeed??0,
+    intent:report.intentHypothesis?.id??"unknown",
+    intentHypothesis:report.intentHypothesis?{...report.intentHypothesis}:null,
     interferenceKind:mission.interference?.kind??null,
     interferenceLabel:mission.interference?.label??null,
     reason,

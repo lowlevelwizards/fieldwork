@@ -1,5 +1,5 @@
-import { AIV2Action } from "./action.js?v=20i-position-requirements-repositioning-20260802";
-import { ACTION_CHANNELS } from "./action-channels.js?v=20i-position-requirements-repositioning-20260802";
+import { AIV2Action } from "./action.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { ACTION_CHANNELS } from "./action-channels.js?v=20j-observable-activity-intent-hypotheses-20260802";
 
 export class ReportContactAction extends AIV2Action{
   constructor({actorId,contact,assignment}={}){
@@ -25,7 +25,15 @@ export class ReportContactAction extends AIV2Action{
       level:contact.level,
       approximatePosition:{...contact.approximatePosition},
       lastObservedAt:contact.lastObservedAt,
-      currentlyVisible:Boolean(contact.currentlyVisible)
+      currentlyVisible:Boolean(contact.currentlyVisible),
+      activity:contact.track?.currentActivity??null,
+      activityLabel:contact.track?.activityLabel??null,
+      activityReason:contact.track?.activityReason??null,
+      activityRevision:contact.track?.activityRevision??0,
+      movementDirection:contact.track?.movementDirection??null,
+      estimatedSpeed:contact.track?.estimatedSpeed??0,
+      intentHypothesis:contact.track?.intentHypothesis?{...contact.track.intentHypothesis}:null,
+      previousApproximatePosition:contact.track?.previousApproximatePosition?{...contact.track.previousApproximatePosition}:null
     }:null;
     this.assignment=assignment;
     this.transmission=null;
@@ -53,7 +61,8 @@ export class ReportContactAction extends AIV2Action{
       speaker:actor,
       contact:this.contactSnapshot,
       now,
-      range
+      range,
+      reportKind:"initial_contact"
     })??null;
     if(actor){
       actor.currentAction="Beginning contact report";
@@ -62,6 +71,7 @@ export class ReportContactAction extends AIV2Action{
         method:this.transmission?.method??"local_voice",
         subjectId:this.contactSnapshot.subjectId,
         recipientIds:[...(this.transmission?.recipientIds??[])],
+        reportKind:"initial_contact",
         progress:0,
         startedAt:now
       };
@@ -78,6 +88,7 @@ export class ReportContactAction extends AIV2Action{
     actor.currentAction=result.status==="active"?"Reporting contact":"Contact report delivered";
     actor.aiV2Communication={
       status:result.status==="completed"?"delivered":result.status,
+      reportKind:"initial_contact",
       method:this.transmission.method,
       subjectId:this.contactSnapshot.subjectId,
       recipientIds:[...(result.recipientIds??this.transmission.recipientIds)],

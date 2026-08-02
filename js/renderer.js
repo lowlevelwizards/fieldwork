@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20i-position-requirements-repositioning-20260802";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20j-observable-activity-intent-hypotheses-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -341,7 +341,10 @@ export class Renderer{
   const observers=game.actors.filter(actor=>actor.aiV2Debug?.activeActions?.includes("ObserveSector")&&actor.aiV2Observation?.sector);
   const readyActors=game.actors.filter(actor=>actor.aiV2Debug?.activeActions?.includes("HoldReady")&&actor.aiV2HoldReady?.focus);
   const repositioningActors=game.actors.filter(actor=>actor.aiV2Debug?.activeActions?.includes("RepositionForResponsibility")&&actor.aiV2Debug?.reposition?.destination);
-  const reports=game.aiV2?.teamKnowledge?.summary?.()??[];
+  const reports=(game.aiV2?.teamKnowledge?.summary?.()??[]).map(teamEntry=>({
+   ...teamEntry,
+   reports:game.aiV2?.teamKnowledge?.getTeamContacts?.(teamEntry.teamId)??teamEntry.reports
+  }));
   const encounters=game.aiV2?.teamEncounters?.summary?.()??[];
   const responses=game.aiV2?.teamResponses?.summary?.()??[];
   const procedures=game.aiV2?.teamProcedures?.summary?.()??[];
@@ -412,13 +415,23 @@ export class Renderer{
 
    for(const teamEntry of reports)for(const report of teamEntry.reports){
     const position=report.approximatePosition;if(!position)continue;
+    if(report.reportKind==="activity_update"&&report.previousApproximatePosition){
+     ctx.strokeStyle="rgba(236,220,157,.48)";ctx.lineWidth=2;ctx.setLineDash([6,8]);
+     ctx.beginPath();ctx.moveTo(report.previousApproximatePosition.x,report.previousApproximatePosition.y);ctx.lineTo(position.x,position.y);ctx.stroke();ctx.setLineDash([]);
+     const angle=Math.atan2(position.y-report.previousApproximatePosition.y,position.x-report.previousApproximatePosition.x);
+     ctx.beginPath();ctx.moveTo(position.x,position.y);ctx.lineTo(position.x-Math.cos(angle-.5)*12,position.y-Math.sin(angle-.5)*12);ctx.moveTo(position.x,position.y);ctx.lineTo(position.x-Math.cos(angle+.5)*12,position.y-Math.sin(angle+.5)*12);ctx.stroke();
+    }
     const source=game.actors.find(actor=>actor.id===report.sourceActorId);
     const color=source?.factionId==="commune"?"rgba(157,183,111,.82)":"rgba(221,174,88,.82)";
     ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.setLineDash([7,7]);
     ctx.beginPath();ctx.rect(position.x-27,position.y-27,54,54);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle="rgba(24,31,27,.80)";ctx.beginPath();ctx.roundRect(position.x-38,position.y+34,76,18,9);ctx.fill();
     ctx.fillStyle=color;ctx.font="800 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillText("TEAM REPORT",position.x,position.y+43);
+    ctx.fillText(report.reportKind==="activity_update"?"TEAM UPDATE":"TEAM REPORT",position.x,position.y+43);
+    if(report.reportKind==="activity_update"&&report.activity){
+     ctx.fillStyle="rgba(229,226,196,.72)";ctx.font="750 6.5px system-ui";
+     ctx.fillText(String(report.activityLabel??report.activity).toUpperCase(),position.x,position.y+55);
+    }
    }
 
    for(const teamEntry of encounters)for(const encounter of teamEntry.hypotheses){
@@ -432,15 +445,22 @@ export class Renderer{
     ctx.strokeStyle=accent;ctx.lineWidth=1.25;ctx.stroke();
     ctx.fillStyle=accent;ctx.font="800 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,position.x,position.y+67);
     const response=responseByTeam.get(teamEntry.teamId)??null;
+    let responseY=82;
+    if(encounter.activity){
+     ctx.fillStyle="rgba(229,226,196,.68)";ctx.font="750 6px system-ui";
+     ctx.fillText(`ACTIVITY ${String(encounter.activityLabel??encounter.activity).toUpperCase()}`,position.x,position.y+82);
+     ctx.fillText(`INTENT ${String(encounter.intentHypothesis?.label??encounter.intent??"UNKNOWN").toUpperCase()}`,position.x,position.y+92);
+     responseY=104;
+    }
     ctx.fillStyle=response?accent:"rgba(224,226,205,.60)";ctx.font="800 6.5px system-ui";
-    ctx.fillText(response?response.selected.label.toUpperCase():"NO RESPONSE SELECTED",position.x,position.y+82);
+    ctx.fillText(response?response.selected.label.toUpperCase():"NO RESPONSE SELECTED",position.x,position.y+responseY);
     if(response){
      const procedure=procedureByTeam.get(teamEntry.teamId)??null;
      ctx.fillStyle="rgba(224,226,205,.55)";ctx.font="700 6px system-ui";
      if(procedure){
-      ctx.fillText(`PROCEDURE ${procedure.label.toUpperCase()}`,position.x,position.y+94);
-      ctx.fillText(`PHASE ${procedure.phase.label.toUpperCase()}`,position.x,position.y+104);
-     }else ctx.fillText(`DECISION ${Math.round(response.selected.score*100)} · NO PROCEDURE`,position.x,position.y+94);
+      ctx.fillText(`PROCEDURE ${procedure.label.toUpperCase()}`,position.x,position.y+responseY+12);
+      ctx.fillText(`PHASE ${procedure.phase.label.toUpperCase()}`,position.x,position.y+responseY+22);
+     }else ctx.fillText(`DECISION ${Math.round(response.selected.score*100)} · NO PROCEDURE`,position.x,position.y+responseY+12);
     }
    }
   }finally{ctx.restore();}
@@ -454,13 +474,16 @@ export class Renderer{
   const repositioning=debug?.activeActions?.includes("RepositionForResponsibility");
   const contact=debug?.personalKnowledge;
   const received=debug?.receivedKnowledge;
+  const reportingUpdate=debug?.activeActions?.includes("ReportContactUpdate")&&debug?.communication?.status==="transmitting_update";
   const reporting=debug?.activeActions?.includes("ReportContact")&&debug?.communication?.status==="transmitting";
   const procedureRole=debug?.procedureRole;
-  const showAction=Boolean(observing||holding||repositioning||reporting||received);
+  const showAction=Boolean(observing||holding||repositioning||reporting||reportingUpdate||received);
   if(!showAction&&!procedureRole)return;
   const x=actor.x,y=actor.y-108;
   let title="UNASSIGNED",status="NO ACTION",footer="",accent="rgba(235,234,213,.58)";
-  if(reporting){
+  if(reportingUpdate){
+   title="UPDATE";status=`${String(debug.communication.activity??"ACTIVITY").replaceAll("_"," ").toUpperCase()} · ${Math.round((debug.communication.progress??0)*100)}%`;footer="REPORTING CHANGE";accent="#e6c46f";
+  }else if(reporting){
    title="REPORT";status=`VOICE ${debug.communication.recipientIds?.length??0} · ${Math.round((debug.communication.progress??0)*100)}%`;footer="SHARING";accent="#e6c46f";
   }else if(repositioning){
    title="REPOSITION";status=`MOVING ${Math.round((debug.reposition?.progress??0)*100)}%`;footer=(debug.reposition?.roleLabel??"POSITION REQUIREMENT").toUpperCase();accent=actor.factionId==="commune"?"#9db76f":"#ddae58";
@@ -468,9 +491,10 @@ export class Renderer{
    title="HOLD READY";status=(debug.attentionSector??"READY SECTOR").toUpperCase();footer=procedureRole?.label?.toUpperCase()??"AVAILABLE";accent=actor.factionId==="commune"?"#9db76f":"#ddae58";
   }else if(observing){
    title="OBSERVE";status=contact?`${contact.currentlyVisible?"VISIBLE":"MEMORY"} ${Math.round(contact.confidence)}%`:"SCANNING";
-   footer=(debug.attentionSector??procedureRole?.label??"WATCHING").toUpperCase();accent=contact?.currentlyVisible?"#e8a051":actor.factionId==="commune"?"#9db76f":"#ddae58";
+   const activity=contact?.activityRevision>0?(contact.activityLabel??contact.activity):null;
+   footer=(activity??debug.attentionSector??procedureRole?.label??"WATCHING").toUpperCase();accent=contact?.currentlyVisible?"#e8a051":actor.factionId==="commune"?"#9db76f":"#ddae58";
   }else if(received){
-   title="RECEIVED";status=`REPORT ${Math.round(received.confidence)}%`;footer=`FROM ${(received.sourceName??"TEAM").split(" ")[0].toUpperCase()}`;accent="#9db76f";
+   title=received.reportKind==="activity_update"?"UPDATED":"RECEIVED";status=received.reportKind==="activity_update"?`${String(received.activityLabel??received.activity??"ACTIVITY").toUpperCase()} ${Math.round(received.confidence)}%`:`REPORT ${Math.round(received.confidence)}%`;footer=`FROM ${(received.sourceName??"TEAM").split(" ")[0].toUpperCase()}`;accent="#9db76f";
   }
   ctx.save();
   try{

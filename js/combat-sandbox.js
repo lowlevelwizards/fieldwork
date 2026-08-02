@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20i-position-requirements-repositioning-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20j-observable-activity-intent-hypotheses-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -96,8 +96,7 @@ export const SANDBOX_FIXTURES={
      responseBias:{heighten_watch:.1,continue_observation:.03,warn:.01}
     },
     actors:[
-     {x:1500,y:430,role:"Security"},
-     {x:1660,y:405,role:"Rifleman",aiV2Assignment:{
+     {x:1550,y:450,role:"Security",aiV2Assignment:{
       mission:"Inspect reports of movement near the brush line",
       task:"Determine whether anyone is present on the southern approach",
       procedure:"Observation Watch",
@@ -105,9 +104,10 @@ export const SANDBOX_FIXTURES={
       role:"Observer",
       action:"observe_sector",
       reason:"Assigned to watch the southern brush approach before the team commits",
-      sector:{label:"Southern brush approach",x:1390,y:1290,targetFactionId:"commune",maximumRange:1180,fieldOfViewDegrees:72},
+      sector:{label:"Southern security movement",x:1550,y:1340,targetFactionId:"commune",maximumRange:1180,fieldOfViewDegrees:72},
       report:{method:"local_voice",range:380,minimumConfidence:35,reason:"Share a credible contact with nearby team members"}
      }},
+     {x:1660,y:405,role:"Rifleman"},
      {x:1820,y:450,role:"Engineer"}
     ]
    },
@@ -152,7 +152,7 @@ export const SANDBOX_FIXTURES={
      responseBias:{maintain_concealment:.03,continue_observation:.03}
     },
     actors:[
-     {x:1390,y:1290,role:"Scout",aiV2Assignment:{
+     {x:1450,y:1280,role:"Scout",aiV2Assignment:{
       mission:"Watch the patrol while remaining concealed",
       task:"Determine the patrol's position and direction without revealing the team",
       procedure:"Observation Watch",
@@ -160,11 +160,11 @@ export const SANDBOX_FIXTURES={
       role:"Observer",
       action:"observe_sector",
       reason:"Assigned to watch the northern patrol approach from concealment",
-      sector:{label:"Northern patrol approach",x:1660,y:405,targetFactionId:"northline",maximumRange:1180,fieldOfViewDegrees:72},
+      sector:{label:"Northern security movement",x:1660,y:405,targetFactionId:"northline",maximumRange:1180,fieldOfViewDegrees:72},
       report:{method:"local_voice",range:380,minimumConfidence:35,reason:"Share a credible contact with nearby team members"}
      }},
-     {x:1550,y:1340,role:"Field Medic"},
-     {x:1710,y:1300,role:"Rifleman"}
+     {x:1550,y:1340,role:"Rifleman"},
+     {x:1710,y:1300,role:"Field Medic"}
     ]
    }
   ]
@@ -255,6 +255,8 @@ export const sandboxMap={
   {type:"tree",x:1260,y:650,radius:58},{type:"tree",x:1460,y:770,radius:66},
   {type:"tree",x:1710,y:705,radius:62},{type:"tree",x:1910,y:820,radius:58},
   {type:"tree",x:1840,y:1180,radius:45},
+  // 2.0J activity fixture: block each security responsibility from its start while leaving the opposing observer's sight line open.
+  {type:"tree",x:1815,y:575,radius:48},{type:"tree",x:1355,y:1180,radius:48},
   // Cover bay: three deliberately separated positions on each side.
   {type:"rock",x:2450,y:700,radius:54},{type:"rock",x:2700,y:690,radius:64},{type:"rock",x:2950,y:710,radius:54},
   {type:"rock",x:2450,y:1190,radius:54},{type:"rock",x:2700,y:1200,radius:64},{type:"rock",x:2950,y:1185,radius:54},

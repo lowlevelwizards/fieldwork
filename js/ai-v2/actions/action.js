@@ -1,4 +1,4 @@
-import { normalizeActionChannels } from "./action-channels.js?v=20i-position-requirements-repositioning-20260802";
+import { normalizeActionChannels } from "./action-channels.js?v=20j-observable-activity-intent-hypotheses-20260802";
 
 export const ACTION_STATES=Object.freeze({
   PROPOSED:"proposed",

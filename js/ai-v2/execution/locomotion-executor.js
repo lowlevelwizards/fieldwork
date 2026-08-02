@@ -1,4 +1,4 @@
-import { moveActorToward, stopActor } from "../../actor-motion.js?v=20i-position-requirements-repositioning-20260802";
+import { moveActorToward, stopActor } from "../../actor-motion.js?v=20j-observable-activity-intent-hypotheses-20260802";
 
 export class LocomotionExecutor{
   moveToward(actor,target,delta,{game,speedMultiplier=.58,arrivalRadius=10,task="Repositioning",pose="walk"}={}){

@@ -1,17 +1,16 @@
-# Fieldwork 2.0I
+# Fieldwork 2.0J
 
-## Position Requirements & Procedure-Authorized Repositioning
+## Observable Activity & Intent Hypotheses
 
-- Added responsibility-specific position requirements.
-- Added descriptive position evaluation for visibility, sector coverage, cohesion, spacing, and permitted-zone compliance.
-- Added deterministic candidate-position queries.
-- Added temporary destination claims.
-- Added `RepositionForResponsibility` using only the locomotion action channel.
-- Added a V2 locomotion executor as the sole V2 gateway to physical movement.
-- Added role-position runtime ownership and diagnostics.
-- Added stable position acceptance so actors do not continuously optimize or pace.
-- Preserved concurrent `ObserveSector` actions while security operators move.
-- Added an intentional southern obstruction to the Observation fixture so both security roles expose the new need.
-- Added movement paths, destination markers, and reposition status presentation.
-- Added position ownership and destination-claim invariants.
+- Added approximate personal contact tracks with short bounded histories.
+- Added observable activity classification for stationary, repositioning, approaching, withdrawing, observing, and lost contact.
+- Added cautious intent hypotheses that remain separate from observed activity.
+- Added `ReportContactUpdate` as a persistent communication action for meaningful behavioral changes.
+- Added second-hand activity reports to team knowledge without exposing hidden actor state.
+- Added encounter reassessment from communicated activity evidence.
+- Preserved team response persistence; new evidence may reaffirm or later invalidate a response but does not directly start behavior.
+- Added activity and intent diagnostics, update indicators, approximate movement trails, and latest-report map presentation.
+- Adjusted the Observation fixture so both primary observers can witness the security operators' one-time repositioning while the security responsibilities remain obstructed at their starting positions.
+- Prevented stationary contacts from generating repeated update-report spam.
+- Preserved the absence of warnings, hostility, target selection, aiming, and firing in AI V2.
 - Preserved Legacy 1.2H as a separate runtime.

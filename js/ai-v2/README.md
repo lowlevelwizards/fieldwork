@@ -2,7 +2,7 @@
 
 AI V2 is a parallel causal runtime. It does not import the legacy tactical authorities.
 
-## Current milestone: 2.0I
+## Current milestone: 2.0J
 
 The Observation & Concealment Behavior Lab fixture now runs this explicit chain:
 
@@ -24,29 +24,29 @@ Authored mission
 → procedure-authorized reposition
 → locomotion execution
 → accepted position
+→ observed activity track
+→ cautious intent hypothesis
+→ communicated activity update
+→ encounter reassessment
 ```
 
 Northline selects **Heighten Watch**, enters **Security Watch**, and assigns Primary Observer, Alternate Security, and Team Reserve. The Commune selects **Maintain Concealment**, enters **Concealed Observation**, and assigns Concealed Observer, Local Security, and Withdrawal Reserve.
 
-Each operator now interprets their responsibility through the actor action layer:
+The two security operators still relocate only when hard obstruction prevents their assigned observation. Opposing observers now see approximate movement, not hidden intent. Meaningful changes can become `ReportContactUpdate` actions, second-hand team evidence, and encounter reassessment. The resulting team responses remain nonviolent and persistent.
 
-- Contact observers continue `ObserveSector`.
-- Alternate security actors begin `ObserveSector` toward distinct approaches.
-- Reserve actors begin `HoldReady` toward the rear option.
-
-All six operators have meaningful persistent actions. The two security roles relocate once when hard cover prevents their assigned observation; primary observers and reserves remain at their original coordinates. No combat cover seeking, targeting, aiming, or firing occurs.
+No warning, hostility, target selection, aiming, or firing occurs.
 
 ## Current modules
 
 - `runtime/` — update boundary and read-only world snapshots.
-- `actions/` — lifecycle, channels, scheduler, ObserveSector, ReportContact, HoldReady, and RepositionForResponsibility.
+- `actions/` — lifecycle, channels, scheduler, ObserveSector, ReportContact, ReportContactUpdate, HoldReady, and RepositionForResponsibility.
 - `actors/` — role-action context, local action evaluation, stable reconciliation, role-position requirements, provenance adoption, and release.
-- `communication/` — local voice timing, recipient validity, and delivery.
+- `communication/` — local voice timing, recipient validity, initial-contact delivery, and activity-update delivery.
 - `execution/` — narrow physical attention and locomotion execution.
-- `senses/` — visual evidence from field of view, distance, obstruction, and concealment.
-- `knowledge/` — private visual memory and explicitly delivered reported knowledge.
+- `senses/` — visual evidence plus meaningful observable-activity classification.
+- `knowledge/` — private visual memory, approximate contact tracks, cautious intent hypotheses, and explicitly delivered reported knowledge.
 - `missions/` — authored objectives, concern areas, decision context, and persistence policy.
-- `encounters/` — mission-relative assessment and persistent uncertain hypotheses.
+- `encounters/` — mission-relative assessment, communicated activity evidence, and persistent uncertain hypotheses.
 - `decisions/` — descriptive team decision ledger.
 - `responses/` — option evaluation, selection persistence, switching, and invalidation.
 - `procedures/` — response mapping, phases, responsibilities, permissions, persistence, and reassignment.
@@ -65,9 +65,11 @@ All six operators have meaningful persistent actions. The two security roles rel
 - The role-position runtime may propose movement only when procedure permissions and role requirements justify it.
 - Only the locomotion executor invokes physical actor movement for AI V2.
 - Sensors create evidence but do not make decisions.
+- Contact tracks store approximate observed history, never the target's hidden plan or action reason.
+- Activity classification describes visible change; intent hypotheses remain uncertain interpretations.
 - Shared knowledge is created only through completed communication actions.
+- Encounter reassessment consumes communicated evidence and does not directly create actor actions.
 
+## 2.0J — Activity evidence
 
-## 2.0I — Position Requirements
-
-Role-driven actions may now describe spatial requirements. When an authorized security role cannot observe its sector because of hard obstruction, a separate role-position runtime proposes one bounded `RepositionForResponsibility` action. The scheduler owns its lifecycle; a locomotion executor performs movement; temporary destination claims prevent collisions; and the accepted position remains stable.
+A contact can now be remembered across time rather than represented as a single current point. Meaningful movement or visibility changes increment an activity revision. The observer may report a new revision once; stable activity produces no repeated communication. Team knowledge retains the source, age, confidence, approximate positions, observed activity, and explicitly unconfirmed intent hypothesis.

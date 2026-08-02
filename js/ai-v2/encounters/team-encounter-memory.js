@@ -1,4 +1,4 @@
-import { assessEncounterHypothesis, ENCOUNTER_STATES } from "./encounter-assessment.js?v=20i-position-requirements-repositioning-20260802";
+import { assessEncounterHypothesis, ENCOUNTER_STATES } from "./encounter-assessment.js?v=20j-observable-activity-intent-hypotheses-20260802";
 
 export class TeamEncounterMemory{
   constructor({decisionLog=null}={}){
@@ -86,6 +86,8 @@ export class TeamEncounterMemory{
       hypotheses:[...hypotheses.values()].map(hypothesis=>({
         ...hypothesis,
         approximatePosition:{...hypothesis.approximatePosition},
+        previousApproximatePosition:hypothesis.previousApproximatePosition?{...hypothesis.previousApproximatePosition}:null,
+        intentHypothesis:hypothesis.intentHypothesis?{...hypothesis.intentHypothesis}:null,
         spatial:{...hypothesis.spatial}
       }))
     }));
@@ -103,6 +105,10 @@ export class TeamEncounterMemory{
         state:hypothesis.state,
         relevanceScore:Math.round(hypothesis.relevanceScore*100),
         reportConfidence:Math.round(hypothesis.reportConfidence),
+        reportKind:hypothesis.reportKind,
+        activity:hypothesis.activity,
+        activityRevision:hypothesis.activityRevision,
+        intent:hypothesis.intent,
         reason:hypothesis.reason,
         ...data
       }

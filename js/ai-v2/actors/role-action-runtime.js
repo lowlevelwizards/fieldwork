@@ -1,7 +1,7 @@
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20i-position-requirements-repositioning-20260802";
-import { HoldReadyAction } from "../actions/hold-ready-action.js?v=20i-position-requirements-repositioning-20260802";
-import { buildRoleActionContext } from "./role-action-context.js?v=20i-position-requirements-repositioning-20260802";
-import { ActorActionEvaluator } from "./actor-action-evaluator.js?v=20i-position-requirements-repositioning-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { HoldReadyAction } from "../actions/hold-ready-action.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { buildRoleActionContext } from "./role-action-context.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { ActorActionEvaluator } from "./actor-action-evaluator.js?v=20j-observable-activity-intent-hypotheses-20260802";
 
 function authoredDirective(actor){
   const assignment=actor?.aiV2Assignment;

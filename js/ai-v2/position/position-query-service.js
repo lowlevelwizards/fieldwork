@@ -1,4 +1,4 @@
-import { isActorPositionClear } from "../../actor-motion.js?v=20i-position-requirements-repositioning-20260802";
+import { isActorPositionClear } from "../../actor-motion.js?v=20j-observable-activity-intent-hypotheses-20260802";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));

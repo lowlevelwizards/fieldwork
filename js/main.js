@@ -1,14 +1,14 @@
 import { Camera } from "./camera.js?v=20a-causal-architecture-foundation-20260802";
-import { ContinuousGameState } from "./continuous-game-state.js?v=20i-position-requirements-repositioning-20260802";
+import { ContinuousGameState } from "./continuous-game-state.js?v=20j-observable-activity-intent-hypotheses-20260802";
 import { InputController, CombatInputController } from "./input.js?v=20a-causal-architecture-foundation-20260802";
-import { Renderer } from "./renderer.js?v=20i-position-requirements-repositioning-20260802";
+import { Renderer } from "./renderer.js?v=20j-observable-activity-intent-hypotheses-20260802";
 import { getItemDefinition } from "../data/items.js?v=20a-causal-architecture-foundation-20260802";
 import { findEntity } from "./world-entities.js?v=20a-causal-architecture-foundation-20260802";
 import { validateItemLocations } from "./item-locations.js?v=20a-causal-architecture-foundation-20260802";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20i-position-requirements-repositioning-20260802";
-import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20i-position-requirements-repositioning-20260802";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20j-observable-activity-intent-hypotheses-20260802";
 
-const BUILD_ID="2.0I";
+const BUILD_ID="2.0J";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Responsibility-driven movement: security operators reposition only when their current location cannot fulfill an assigned watch sector."
+    ?"Observable activity: observers track meaningful movement, report changes, and form cautious intent hypotheses without triggering hostility or combat."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();
@@ -71,7 +71,7 @@ function startGame(scenario="operations"){
     objective.querySelector("strong").textContent=fixture.label;
     objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
       ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
-        ?`${fixture.question} Temporary roles now produce stable Observe Sector or Hold Ready actions without movement, cover seeking, aiming, or firing.`
+        ?`${fixture.question} Observers now track meaningful movement, report activity changes, and update uncertain intent hypotheses without warnings, hostility, aiming, or firing.`
         :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
       :`${fixture.question} Legacy 1.2H is running inside this controlled fixture for comparison.`;
     $("#operations-button")?.setAttribute("hidden","");
@@ -178,6 +178,7 @@ if(game.aiRuntimeMode==="v2"){
  $("#debug-ai").textContent=summary;
  $("#debug-v2-assignment").textContent=details.assignment??"—";
  $("#debug-v2-personal").textContent=details.personalKnowledge??"none";
+ $("#debug-v2-activity").textContent=details.activity??"none";
  $("#debug-v2-communication").textContent=details.communication??"none";
  $("#debug-v2-team").textContent=details.teamKnowledge??"none";
  $("#debug-v2-encounter").textContent=details.encounter??"none";
@@ -188,6 +189,7 @@ if(game.aiRuntimeMode==="v2"){
  $("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
  $("#debug-v2-assignment").textContent="—";
  $("#debug-v2-personal").textContent="—";
+ $("#debug-v2-activity").textContent="—";
  $("#debug-v2-communication").textContent="—";
  $("#debug-v2-team").textContent="—";
  $("#debug-v2-encounter").textContent="—";
