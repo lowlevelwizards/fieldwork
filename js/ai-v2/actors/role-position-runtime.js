@@ -1,5 +1,5 @@
-import { RepositionForResponsibilityAction } from "../actions/reposition-for-responsibility-action.js?v=20j-observable-activity-intent-hypotheses-20260802";
-import { describePositionFailure } from "../position/position-query-service.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { RepositionForResponsibilityAction } from "../actions/reposition-for-responsibility-action.js?v=20k-boundaries-challenge-warning-20260802";
+import { describePositionFailure } from "../position/position-query-service.js?v=20k-boundaries-challenge-warning-20260802";
 
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 

@@ -2,9 +2,9 @@
 
 AI V2 is a parallel causal runtime. It does not import the legacy tactical authorities.
 
-## Current milestone: 2.0J
+## Current milestone: 2.0K
 
-The Observation & Concealment Behavior Lab fixture now runs this explicit chain:
+The Observation & Concealment fixture now runs this explicit chain:
 
 ```text
 Authored mission
@@ -16,60 +16,49 @@ Authored mission
 → decision ledger
 → selected response
 → team procedure
-→ named phase
 → temporary role
 → actor action proposal
 → scheduler
 → position requirement
 → procedure-authorized reposition
-→ locomotion execution
-→ accepted position
-→ observed activity track
+→ observable activity
 → cautious intent hypothesis
 → communicated activity update
-→ encounter reassessment
+→ mission boundary activation
+→ Issue Warning response
+→ Challenge Unknown Contact
+→ directed voice execution
+→ heard-warning memory
+→ Await Response
 ```
 
-Northline selects **Heighten Watch**, enters **Security Watch**, and assigns Primary Observer, Alternate Security, and Team Reserve. The Commune selects **Maintain Concealment**, enters **Concealed Observation**, and assigns Concealed Observer, Local Security, and Withdrawal Reserve.
-
-The two security operators still relocate only when hard obstruction prevents their assigned observation. Opposing observers now see approximate movement, not hidden intent. Meaningful changes can become `ReportContactUpdate` actions, second-hand team evidence, and encounter reassessment. The resulting team responses remain nonviolent and persistent.
-
-No warning, hostility, target selection, aiming, or firing occurs.
+Northline begins with **Heighten Watch**, then selects **Issue Warning** only after a credible activity update activates its mission boundary. The challenge procedure assigns a Challenger while preserving Primary Observer and Alternate Security responsibilities. The Commune hears the warning and keeps **Maintain Concealment**. No reply, hostility, aiming, or firing occurs.
 
 ## Current modules
 
 - `runtime/` — update boundary and read-only world snapshots.
-- `actions/` — lifecycle, channels, scheduler, ObserveSector, ReportContact, ReportContactUpdate, HoldReady, and RepositionForResponsibility.
-- `actors/` — role-action context, local action evaluation, stable reconciliation, role-position requirements, provenance adoption, and release.
-- `communication/` — local voice timing, recipient validity, initial-contact delivery, and activity-update delivery.
+- `actions/` — lifecycle, channels, scheduler, observation, reporting, ready posture, repositioning, and directed warning.
+- `actors/` — role context, local action evaluation, stable reconciliation, and role-position requirements.
+- `communication/` — local team reports plus directed raised-voice delivery.
 - `execution/` — narrow physical attention and locomotion execution.
-- `senses/` — visual evidence plus meaningful observable-activity classification.
-- `knowledge/` — private visual memory, approximate contact tracks, cautious intent hypotheses, and explicitly delivered reported knowledge.
-- `missions/` — authored objectives, concern areas, decision context, and persistence policy.
-- `encounters/` — mission-relative assessment, communicated activity evidence, and persistent uncertain hypotheses.
-- `decisions/` — descriptive team decision ledger.
+- `senses/` — visual evidence and observable-activity classification.
+- `knowledge/` — private visual memory, contact tracks, team reports, intent hypotheses, and heard-warning memories.
+- `missions/` — authored objectives, concern areas, decision context, response policy, and mission boundaries.
+- `encounters/` — mission-relative assessment plus incoming and outgoing warning evidence.
+- `decisions/` — descriptive team decision ledger, including boundary activation.
 - `responses/` — option evaluation, selection persistence, switching, and invalidation.
-- `procedures/` — response mapping, phases, responsibilities, permissions, persistence, and reassignment.
+- `procedures/` — response mapping, phases, temporary responsibilities, explicit events, and reassignment.
 - `position/` — spatial queries and temporary destination claims.
 - `diagnostics/` — decision history and ownership invariants.
 
-## Ownership rules
+## Ownership rules reinforced in 2.0K
 
-- Fixture data supplies the upstream mission and initial task.
-- Team procedures define responsibilities and permissions but never start actions.
-- Actor evaluation proposes local actions that can fulfill those responsibilities.
-- The role-action runtime reconciles proposals without restarting valid actions.
-- The scheduler is the only authority that starts or cancels actor actions.
-- Actions own continuity and provenance.
-- Executors perform physical attention and locomotion changes but do not choose sectors, destinations, or goals.
-- The role-position runtime may propose movement only when procedure permissions and role requirements justify it.
-- Only the locomotion executor invokes physical actor movement for AI V2.
-- Sensors create evidence but do not make decisions.
-- Contact tracks store approximate observed history, never the target's hidden plan or action reason.
-- Activity classification describes visible change; intent hypotheses remain uncertain interpretations.
-- Shared knowledge is created only through completed communication actions.
-- Encounter reassessment consumes communicated evidence and does not directly create actor actions.
-
-## 2.0J — Activity evidence
-
-A contact can now be remembered across time rather than represented as a single current point. Meaningful movement or visibility changes increment an activity revision. The observer may report a new revision once; stable activity produces no repeated communication. Team knowledge retains the source, age, confidence, approximate positions, observed activity, and explicitly unconfirmed intent hypothesis.
+- A mission boundary justifies a challenge; presence alone does not.
+- The response evaluator selects a warning but never speaks it.
+- The challenge procedure assigns a responsibility but never starts an action.
+- The actor evaluator proposes `IssueWarning`.
+- The scheduler owns start, completion, interruption, and cancellation.
+- The communication executor determines actual recipients.
+- Heard-warning memory stores recipient belief rather than source truth.
+- A delivered-warning event advances the procedure to `Await Response`.
+- Encounter assessment may use warning evidence but cannot classify hostility or choose compliance.

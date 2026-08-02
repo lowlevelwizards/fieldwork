@@ -51,6 +51,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
 
   let sector=null;
   let focus=null;
+  let warning=null;
   let label=role?.label??"Assigned responsibility";
 
   if(need==="observe_contact"){
@@ -83,6 +84,20 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
     const angle=rotate(mainAngle,180+(role.fulfillment.angularOffsetDegrees??0));
     focus=clampToZone(pointAt(actor,angle,role.fulfillment.distance??340),zone);
     label=role.fulfillment.label??"Rear ready sector";
+  }else if(need==="issue_warning"){
+    focus={...contactPosition};
+    label=procedure?.phase?.id==="await_response"?"Await challenged sector":role.fulfillment.label??"Reported contact sector";
+    warning={
+      subjectId:teamEncounters?.getBestTeamHypothesis?.(actor?.teamId)?.subjectId??null,
+      targetPoint:{...contactPosition},
+      warningType:mission?.boundary?.warningType??"stop_and_identify",
+      message:mission?.boundary?.warningMessage??"Stop and identify yourselves.",
+      boundary:mission?.boundary?{
+        ...mission.boundary,
+        area:mission.boundary.area?{...mission.boundary.area}:null,
+        allowedActivities:[...(mission.boundary.allowedActivities??[])]
+      }:null
+    };
   }
 
   return{
@@ -96,6 +111,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
     mainAngle,
     sector,
     focus,
+    warning,
     label,
     permissions:{...(procedure?.permissions??{})}
   };

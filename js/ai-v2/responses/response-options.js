@@ -29,6 +29,7 @@ function option({id,label,summary,base=0,terms,reason,eligible=null}){
 }
 
 const relevantEncounter=({encounter})=>encounter?.state==="relevant"||encounter?.state==="potentially_incompatible";
+const boundaryWarningEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.boundaryTrigger>0;
 
 export const TEAM_RESPONSE_OPTIONS=Object.freeze([
   option({
@@ -64,7 +65,8 @@ export const TEAM_RESPONSE_OPTIONS=Object.freeze([
       term("position","current position can be held",ledger.positionSecurity,.08),
       term("detection_risk","possible detection rewards vigilance",ledger.detectionRisk,.03),
       term("certainty","the report is credible enough to monitor",ledger.informationCertainty,.05),
-      term("resource_conservation","watchfulness avoids unnecessary cost",ledger.resourceConservation,.03)
+      term("resource_conservation","watchfulness avoids unnecessary cost",ledger.resourceConservation,.03),
+      term("boundary_trigger","the mission boundary now asks for outward clarification",ledger.boundaryTrigger,-.20)
     ],
     reason:ledger=>`The contact is mission-relevant, information remains incomplete, and the team's security responsibility favors a more alert watch without escalating.`
   }),
@@ -82,7 +84,8 @@ export const TEAM_RESPONSE_OPTIONS=Object.freeze([
       term("exit_options","withdrawal options remain available",ledger.exitOptions,.06),
       term("mission_value","concealment preserves mission value",ledger.missionValue,.08),
       term("stealth_orientation","mission favors remaining unseen",ledger.stealthOrientation,.15),
-      term("position","current hidden position is useful",ledger.positionSecurity,.04)
+      term("position","current hidden position is useful",ledger.positionSecurity,.04),
+      term("warning_heard","a directed warning makes concealment more valuable",ledger.warningHeard,.10)
     ],
     reason:ledger=>`Preserving concealment and team longevity is the strongest way to continue the mission while the contact's identity and intent remain unknown.`
   }),
@@ -105,21 +108,23 @@ export const TEAM_RESPONSE_OPTIONS=Object.freeze([
   }),
   option({
     id:"warn",
-    label:"Warn",
-    summary:"Establish a boundary or demand identification without initiating violence.",
-    base:.02,
-    eligible:relevantEncounter,
+    label:"Issue Warning",
+    summary:"Make the mission boundary explicit and request identification without initiating violence.",
+    base:.07,
+    eligible:boundaryWarningEligible,
     terms:ledger=>[
-      term("security_orientation","mission favors visible control",ledger.securityOrientation,.16),
-      term("mission_value","the protected responsibility matters",ledger.missionValue,.12),
-      term("relevance","the contact affects the mission",ledger.encounterRelevance,.14),
-      term("position","the team can speak from a sustainable position",ledger.positionSecurity,.08),
-      term("certainty","a warning needs credible information",ledger.informationCertainty,.12),
-      term("disruption","warning may disrupt interference",ledger.enemyDisruption,.10),
-      term("time_pressure","urgency favors clarification",ledger.timePressure,.04),
-      term("uncertainty_penalty","unknown intent makes exposure risky",ledger.informationUncertainty,-.15)
+      term("boundary_trigger","a credible contact has activated the mission boundary",ledger.boundaryTrigger,.34),
+      term("boundary_proximity","the contact is inside the protected area",ledger.boundaryProximity,.16),
+      term("security_orientation","mission favors visible control",ledger.securityOrientation,.13),
+      term("mission_value","the protected responsibility matters",ledger.missionValue,.10),
+      term("relevance","the contact affects the mission",ledger.encounterRelevance,.10),
+      term("certainty","the team has enough evidence to address the sector",ledger.informationCertainty,.07),
+      term("activity","meaningful activity supports clarification",ledger.activityEvidence,.08),
+      term("reversible","communication is more reversible than violence",ledger.reversibleCommunicationValue,.09),
+      term("position","the team can speak from a sustainable position",ledger.positionSecurity,.04),
+      term("uncertainty_penalty","uncertainty still limits confidence",ledger.informationUncertainty,-.04)
     ],
-    reason:ledger=>`A warning could clarify intent and establish a boundary, but uncertainty and the cost of revealing the team limit its value.`
+    reason:ledger=>`A credible armed presence has activated ${ledger.boundaryLabel}; a directed warning can clarify intent and establish the boundary without violence.`
   }),
   option({
     id:"reroute",

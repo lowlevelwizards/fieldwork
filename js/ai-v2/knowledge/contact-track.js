@@ -1,5 +1,5 @@
-import { classifyObservedActivity, isMovingActivity } from "../senses/activity-classifier.js?v=20j-observable-activity-intent-hypotheses-20260802";
-import { inferIntentHypothesis } from "./intent-hypothesis.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { classifyObservedActivity, isMovingActivity } from "../senses/activity-classifier.js?v=20k-boundaries-challenge-warning-20260802";
+import { inferIntentHypothesis } from "./intent-hypothesis.js?v=20k-boundaries-challenge-warning-20260802";
 
 const clonePoint=point=>point?{x:point.x,y:point.y}:null;
 

@@ -54,6 +54,57 @@ const PROCEDURES=Object.freeze({
       })
     ])
   }),
+
+  warn:Object.freeze({
+    id:"challenge_unknown_contact",
+    label:"Challenge Unknown Contact",
+    responseId:"warn",
+    description:"Make the mission boundary explicit while preserving observation and alternate security.",
+    establishDuration:.55,
+    phases:Object.freeze([
+      phase("establish_responsibilities","Establish Responsibilities","The warning response requires one challenger and two operators to preserve security."),
+      phase("issue_warning","Issue Warning","The challenger must address the reported sector while observers maintain the team's information picture."),
+      phase("await_response","Await Response","The warning has been delivered; the team holds its boundary and watches for compliance, silence, or movement."),
+      phase("reassess","Reassess","A failed warning, stale evidence, or a meaningful response requires the team to reconsider its approach.")
+    ]),
+    activePhaseId:"issue_warning",
+    permissions:Object.freeze({observe:true,report:true,relocate:true,warn:true,fire:false}),
+    reassessmentTriggers:Object.freeze([
+      "warning_delivered",
+      "warning_failed",
+      "contact_lost",
+      "encounter_evidence_stale",
+      "team_member_incapable",
+      "mission_changed",
+      "hostile_action_observed"
+    ]),
+    roles:Object.freeze([
+      role({
+        id:"challenger",
+        label:"Challenger",
+        responsibility:"State the monitored boundary clearly and request that the unknown group stop and identify itself.",
+        selectionReason:"Prefer the available engineer or team reserve so the established observers can maintain their sectors.",
+        fulfillment:{need:"issue_warning",label:"Reported contact sector"},
+        preference:actor=>String(actor.role??"").toLowerCase().includes("engineer")?90:actor.aiV2Assignment?.action==="observe_sector"?-60:15
+      }),
+      role({
+        id:"primary_observer",
+        label:"Primary Observer",
+        responsibility:"Maintain visual attention on the challenged sector and report meaningful movement or weapon changes.",
+        selectionReason:"Prefer the actor who already possesses the authored observation responsibility.",
+        fulfillment:{need:"observe_contact",label:"Challenged contact sector",maximumRange:1180,fieldOfViewDegrees:72},
+        preference:actor=>actor.aiV2Assignment?.action==="observe_sector"?100:0
+      }),
+      role({
+        id:"alternate_security",
+        label:"Alternate Security",
+        responsibility:"Preserve coverage of the alternate approach while the challenger addresses the reported group.",
+        selectionReason:"Prefer the established alternate-security actor or another capable security-oriented operator.",
+        fulfillment:{need:"observe_alternate_approach",label:"Alternate approach",angularOffsetDegrees:55,distance:520,maximumRange:900,fieldOfViewDegrees:70,positionPolicy:{mayReposition:true,minimumVisibility:.58,minimumCoverage:.66,maximumTravel:190,maximumCohesionDistance:420,minimumFriendlySpacing:68,claimSpacing:76,reassessEvery:1.5,retryAfter:1.1,speedMultiplier:.56,arrivalRadius:10}},
+        preference:actor=>String(actor.role??"").toLowerCase().includes("rifle")?70:String(actor.role??"").toLowerCase().includes("security")?45:0
+      })
+    ])
+  }),
   maintain_concealment:Object.freeze({
     id:"concealed_observation",
     label:"Concealed Observation",

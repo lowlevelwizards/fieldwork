@@ -13,6 +13,38 @@ function cloneArea(area){
   };
 }
 
+function cloneBoundaryArea(area){
+  if(!area)return null;
+  return{
+    type:area.type??"circle",
+    label:area.label??"mission boundary",
+    x:finite(area.x,0),
+    y:finite(area.y,0),
+    radius:Math.max(1,finite(area.radius,1)),
+    falloff:Math.max(1,finite(area.falloff,Math.max(100,finite(area.radius,1)*.4)))
+  };
+}
+
+function normalizeBoundary(boundary){
+  if(!boundary)return null;
+  return{
+    id:boundary.id??"mission_boundary",
+    label:boundary.label??"Mission boundary",
+    area:cloneBoundaryArea(boundary.area),
+    policy:boundary.policy??"Unidentified armed personnel should be challenged before escalation.",
+    condition:boundary.condition??"A credible mission-relevant contact is present inside the boundary.",
+    warningType:boundary.warningType??"stop_and_identify",
+    warningMessage:boundary.warningMessage??"Stop and identify yourselves.",
+    minimumConfidence:clamp(boundary.minimumConfidence??26,0,100),
+    requireActivityUpdate:boundary.requireActivityUpdate!==false,
+    allowedActivities:[...(boundary.allowedActivities??["approaching","repositioning","observing","lost"])],
+    voiceRange:Math.max(120,finite(boundary.voiceRange,1120)),
+    coneDegrees:clamp(boundary.coneDegrees??82,20,180),
+    warningDuration:Math.max(.3,finite(boundary.warningDuration,1.4)),
+    awaitDuration:Math.max(1,finite(boundary.awaitDuration,12))
+  };
+}
+
 function normalizeDecisionContext(context={}){
   const bounded=(key,fallback)=>clamp(context[key]??fallback,0,1);
   return{
@@ -69,6 +101,7 @@ function normalizeMission(team){
       label:authored.interference.label??"Possible mission interference",
       reason:authored.interference.reason??"The reported contact may interfere with the assigned mission."
     }:null,
+    boundary:normalizeBoundary(authored.boundary),
     decisionContext:normalizeDecisionContext(authored.decisionContext),
     responsePolicy:normalizeResponsePolicy(authored.responsePolicy),
     responseBias:normalizeResponseBias(authored.responseBias)
@@ -101,6 +134,7 @@ export class TeamMissionStore{
       ...mission,
       concernArea:mission.concernArea?{...mission.concernArea}:null,
       interference:mission.interference?{...mission.interference}:null,
+      boundary:mission.boundary?{...mission.boundary,area:mission.boundary.area?{...mission.boundary.area}:null,allowedActivities:[...mission.boundary.allowedActivities]}:null,
       decisionContext:{...mission.decisionContext},
       responsePolicy:{...mission.responsePolicy},
       responseBias:{...mission.responseBias}

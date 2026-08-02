@@ -1,4 +1,4 @@
-import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js?v=20k-boundaries-challenge-warning-20260802";
 
 function capable(actor){
   const medical=actor?.medical;
@@ -14,7 +14,9 @@ function cloneProcedure(record){
     phases:record.phases.map(item=>({...item})),
     roles:record.roles.map(cloneRole),
     permissions:{...record.permissions},
-    reassessmentTriggers:[...record.reassessmentTriggers]
+    reassessmentTriggers:[...record.reassessmentTriggers],
+    events:(record.events??[]).map(event=>({...event,data:event.data?{...event.data}:null})),
+    warning:record.warning?{...record.warning,recipientIds:[...(record.warning.recipientIds??[])]}:null
   };
 }
 
@@ -110,6 +112,41 @@ export class TeamProcedureState{
     }
   }
 
+  notifyEvent({teamId,event,now=0,data={}}={}){
+    const record=this.byTeam.get(teamId);
+    if(!record||!event)return false;
+    const entry={event,time:now,data:{...data}};
+    record.events=record.events??[];
+    record.events.push(entry);
+    if(record.events.length>20)record.events.splice(0,record.events.length-20);
+
+    if(record.procedureId==="challenge_unknown_contact"&&event==="warning_delivered"&&record.phase.id==="issue_warning"){
+      const definition=getProcedureDefinitionForResponse(record.responseId);
+      record.warning={
+        status:"delivered",
+        deliveredAt:now,
+        message:data.message??null,
+        warningId:data.warningId??null,
+        subjectId:data.subjectId??null,
+        recipientIds:[...(data.recipientIds??[])]
+      };
+      record.phase=this.#phase(definition,"await_response",now,"The warning was delivered and the team is waiting for an observable response.");
+      record.lastUpdatedAt=now;
+      this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event});
+      return true;
+    }
+    if(record.procedureId==="challenge_unknown_contact"&&event==="warning_failed"){
+      const definition=getProcedureDefinitionForResponse(record.responseId);
+      record.warning={status:"failed",failedAt:now,reason:data.reason??"warning_failed",recipientIds:[]};
+      record.phase=this.#phase(definition,"reassess",now,"The warning could not be delivered, so the team must reassess the encounter.");
+      record.lastUpdatedAt=now;
+      this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event});
+      return true;
+    }
+    this.#record("team_procedure_event_recorded",record,now,{event,data:{...data}});
+    return true;
+  }
+
   get(teamId){return cloneProcedure(this.byTeam.get(teamId)??null);}
 
   getActorRole(actorId){
@@ -142,7 +179,9 @@ export class TeamProcedureState{
       phases:definition.phases.map(item=>({...item})),
       roles,
       permissions:{...definition.permissions},
-      reassessmentTriggers:[...definition.reassessmentTriggers]
+      reassessmentTriggers:[...definition.reassessmentTriggers],
+      events:[],
+      warning:null
     };
     this.byTeam.set(response.teamId,record);
     this.#record("team_procedure_started",record,now,{roles:roles.map(cloneRole),responseScore:response.selected.score});

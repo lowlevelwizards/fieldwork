@@ -43,14 +43,14 @@ function activitySentence(report){
   return`Latest reported activity: ${label}. Intent remains a hypothesis: ${intent}.`;
 }
 
-export function assessEncounterHypothesis({mission,report,now=0}={}){
+export function assessEncounterHypothesis({mission,report,heardWarning=null,outgoingWarning=null,now=0}={}){
   if(!mission||!report)return null;
   const age=Math.max(0,now-(report.reportedAt??now));
   const confidence=clamp(report.confidence??0,0,100);
   const spatial=spatialAssessment(mission.concernArea,report.approximatePosition);
   const confidenceWeight=.48+.52*(confidence/100);
   const activityAdjustment=activityModifier(report.activity);
-  const relevanceScore=clamp(spatial.proximity*mission.missionSensitivity*confidenceWeight+activityAdjustment,0,1);
+  let relevanceScore=clamp(spatial.proximity*mission.missionSensitivity*confidenceWeight+activityAdjustment,0,1);
   const stale=age>=mission.staleAfter||confidence<4;
   let state=ENCOUNTER_STATES.POSSIBLE;
   let reason="A contact report exists, but its relationship to the mission remains uncertain.";
@@ -68,6 +68,13 @@ export function assessEncounterHypothesis({mission,report,now=0}={}){
 
   const activityEvidence=activitySentence(report);
   if(activityEvidence&&!stale)reason=`${reason} ${activityEvidence}`;
+  if(heardWarning&&!stale){
+    relevanceScore=clamp(relevanceScore+.08,0,1);
+    reason=`${reason} A directed warning was heard from the contact area, increasing confidence that the team may have been detected.`;
+  }
+  if(outgoingWarning&&!stale){
+    reason=`${reason} The team has issued a boundary warning and is awaiting an observable response.`;
+  }
 
   return{
     teamId:mission.teamId,
@@ -95,6 +102,10 @@ export function assessEncounterHypothesis({mission,report,now=0}={}){
     estimatedSpeed:report.estimatedSpeed??0,
     intent:report.intentHypothesis?.id??"unknown",
     intentHypothesis:report.intentHypothesis?{...report.intentHypothesis}:null,
+    warningHeard:Boolean(heardWarning),
+    heardWarning:heardWarning?{...heardWarning,targetPoint:heardWarning.targetPoint?{...heardWarning.targetPoint}:null,approximateSourcePosition:heardWarning.approximateSourcePosition?{...heardWarning.approximateSourcePosition}:null,recipientIds:[...(heardWarning.recipientIds??[])]}:null,
+    warningIssued:Boolean(outgoingWarning),
+    outgoingWarning:outgoingWarning?{...outgoingWarning,targetPoint:outgoingWarning.targetPoint?{...outgoingWarning.targetPoint}:null,approximateSourcePosition:outgoingWarning.approximateSourcePosition?{...outgoingWarning.approximateSourcePosition}:null,recipientIds:[...(outgoingWarning.recipientIds??[])]}:null,
     interferenceKind:mission.interference?.kind??null,
     interferenceLabel:mission.interference?.label??null,
     reason,

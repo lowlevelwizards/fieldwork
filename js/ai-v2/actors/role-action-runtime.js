@@ -1,7 +1,8 @@
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20j-observable-activity-intent-hypotheses-20260802";
-import { HoldReadyAction } from "../actions/hold-ready-action.js?v=20j-observable-activity-intent-hypotheses-20260802";
-import { buildRoleActionContext } from "./role-action-context.js?v=20j-observable-activity-intent-hypotheses-20260802";
-import { ActorActionEvaluator } from "./actor-action-evaluator.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20k-boundaries-challenge-warning-20260802";
+import { HoldReadyAction } from "../actions/hold-ready-action.js?v=20k-boundaries-challenge-warning-20260802";
+import { IssueWarningAction } from "../actions/issue-warning-action.js?v=20k-boundaries-challenge-warning-20260802";
+import { buildRoleActionContext } from "./role-action-context.js?v=20k-boundaries-challenge-warning-20260802";
+import { ActorActionEvaluator } from "./actor-action-evaluator.js?v=20k-boundaries-challenge-warning-20260802";
 
 function authoredDirective(actor){
   const assignment=actor?.aiV2Assignment;
@@ -76,9 +77,11 @@ export class RoleActionRuntime{
     const {actor,selected,role,procedure}=desired;
     const existingObserve=this.scheduler.getAction(actor.id,"ObserveSector");
     const existingHold=this.scheduler.getAction(actor.id,"HoldReady");
+    const existingWarning=this.scheduler.getAction(actor.id,"IssueWarning");
 
     if(selected.type==="ObserveSector"){
       if(existingHold)this.scheduler.cancelAction(actor.id,existingHold,{now,reason:"procedural_role_requires_observation"});
+      if(existingWarning)this.scheduler.cancelAction(actor.id,existingWarning,{now,reason:"procedural_role_requires_observation"});
       if(existingObserve){
         const prior=existingObserve.metadata?.provenance??null;
         const adopted=existingObserve.adoptDirective(selected.directive,{now,context});
@@ -95,6 +98,7 @@ export class RoleActionRuntime{
 
     if(selected.type==="HoldReady"){
       if(existingObserve)this.scheduler.cancelAction(actor.id,existingObserve,{now,reason:"procedural_role_requires_ready_reserve"});
+      if(existingWarning)this.scheduler.cancelAction(actor.id,existingWarning,{now,reason:"procedure_entered_await_response"});
       if(existingHold){
         const prior=existingHold.metadata?.provenance??null;
         const adopted=existingHold.adoptDirective(selected.directive,{now,context});
@@ -106,12 +110,27 @@ export class RoleActionRuntime{
         const result=this.scheduler.start(action,{now,context});
         if(result.ok)this.#record("role_action_started",actor,selected,now,{actionId:action.id,roleId:role.roleId,procedureId:procedure.procedureId});
       }
+      return;
+    }
+
+    if(selected.type==="IssueWarning"){
+      if(existingObserve)this.scheduler.cancelAction(actor.id,existingObserve,{now,reason:"procedural_role_requires_warning"});
+      if(existingHold)this.scheduler.cancelAction(actor.id,existingHold,{now,reason:"procedural_role_requires_warning"});
+      if(existingWarning)return;
+      const action=new IssueWarningAction({actorId:actor.id,directive:selected.directive});
+      const result=this.scheduler.start(action,{now,context});
+      if(result.ok)this.#record("role_action_started",actor,selected,now,{actionId:action.id,roleId:role.roleId,procedureId:procedure.procedureId});
     }
   }
 
   #releaseActor(actor,{game,now,context}){
     const observe=this.scheduler.getAction(actor.id,"ObserveSector");
     const hold=this.scheduler.getAction(actor.id,"HoldReady");
+    const warning=this.scheduler.getAction(actor.id,"IssueWarning");
+    if(warning&&roleAction(warning)){
+      this.scheduler.cancelAction(actor.id,warning,{now,reason:"procedural_responsibility_ended"});
+      this.#record("role_action_released",actor,{type:"IssueWarning",reason:"Procedural responsibility ended."},now,{actionId:warning.id});
+    }
     if(hold&&roleAction(hold)){
       this.scheduler.cancelAction(actor.id,hold,{now,reason:"procedural_responsibility_ended"});
       this.#record("role_action_released",actor,{type:"HoldReady",reason:"Procedural responsibility ended."},now,{actionId:hold.id});

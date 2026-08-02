@@ -1,6 +1,6 @@
 export class ActorActionEvaluator{
   evaluate(context){
-    const {role,procedure,mission,sector,focus,label}=context??{};
+    const {role,procedure,mission,sector,focus,warning,label}=context??{};
     if(!role||!procedure)return[];
     const provenance={
       owner:"role_action_runtime",
@@ -27,6 +27,33 @@ export class ActorActionEvaluator{
       provenance
     };
 
+    if(role.fulfillment?.need==="issue_warning"){
+      if(procedure.phase?.id==="issue_warning"&&procedure.permissions?.warn&&warning?.targetPoint){
+        return[{
+          type:"IssueWarning",
+          score:1,
+          reason:`${role.label} must make the mission boundary explicit before the encounter can escalate.`,
+          directive:{
+            ...common,
+            reason:`${role.label}: ${role.responsibility}`,
+            subjectId:warning.subjectId,
+            targetPoint:{...warning.targetPoint},
+            warningType:warning.warningType,
+            message:warning.message,
+            boundary:warning.boundary?{...warning.boundary,area:warning.boundary.area?{...warning.boundary.area}:null,allowedActivities:[...(warning.boundary.allowedActivities??[])]}:null
+          }
+        }];
+      }
+      if(procedure.phase?.id==="await_response"&&focus){
+        return[{
+          type:"HoldReady",
+          score:.98,
+          reason:`${role.label} must remain available while the team waits for an observable response to the warning.`,
+          directive:{...common,reason:`${role.label}: awaiting response after the warning`,label,focus:{...focus}}
+        }];
+      }
+      return[];
+    }
     if(role.fulfillment?.need==="observe_contact"&&sector&&procedure.permissions?.observe){
       return[{
         type:"ObserveSector",
