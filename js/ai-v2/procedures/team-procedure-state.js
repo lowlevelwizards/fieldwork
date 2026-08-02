@@ -1,4 +1,4 @@
-import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js?v=20k-boundaries-challenge-warning-20260802";
+import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js?v=20l-silent-withdrawal-deescalation-20260802";
 
 function capable(actor){
   const medical=actor?.medical;
@@ -141,6 +141,35 @@ export class TeamProcedureState{
       record.phase=this.#phase(definition,"reassess",now,"The warning could not be delivered, so the team must reassess the encounter.");
       record.lastUpdatedAt=now;
       this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event});
+      return true;
+    }
+    if(record.procedureId==="break_contact_quietly"&&event==="withdrawal_stage_completed"){
+      const definition=getProcedureDefinitionForResponse(record.responseId);
+      const expectedRoleByPhase={lead_withdrawal:"withdrawal_lead",protected_movement:"protected_mover",rear_disengage:"rear_watch"};
+      const nextPhaseByPhase={lead_withdrawal:"protected_movement",protected_movement:"rear_disengage",rear_disengage:"withdrawal_complete"};
+      const expectedRole=expectedRoleByPhase[record.phase.id];
+      if(expectedRole&&data.roleId===expectedRole){
+        const nextPhase=nextPhaseByPhase[record.phase.id];
+        record.phase=this.#phase(definition,nextPhase,now,"The staged withdrawal advanced after the assigned mover reached the route.");
+        if(nextPhase==="withdrawal_complete")record.completedAt=now;
+        record.lastUpdatedAt=now;
+        this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,actorId:data.actorId??null,roleId:data.roleId});
+        return true;
+      }
+    }
+    if(record.procedureId==="break_contact_quietly"&&event==="withdrawal_move_failed"){
+      const definition=getProcedureDefinitionForResponse(record.responseId);
+      record.phase=this.#phase(definition,"reassess",now,"The authorized withdrawal movement failed, so the team must reconsider the route.");
+      record.lastUpdatedAt=now;
+      this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,actorId:data.actorId??null,roleId:data.roleId??null,failureReason:data.reason??"withdrawal_move_failed"});
+      return true;
+    }
+    if(record.procedureId==="monitor_departure"&&event==="departure_confirmed"){
+      const definition=getProcedureDefinitionForResponse(record.responseId);
+      record.phase=this.#phase(definition,"boundary_restored",now,"The warned group departed without violence; no pursuit or renewed warning is required.");
+      record.completedAt=now;
+      record.lastUpdatedAt=now;
+      this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,outcomeId:data.outcomeId??null});
       return true;
     }
     this.#record("team_procedure_event_recorded",record,now,{event,data:{...data}});

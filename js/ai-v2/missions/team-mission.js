@@ -45,6 +45,20 @@ function normalizeBoundary(boundary){
   };
 }
 
+
+function normalizeWithdrawalPlan(plan){
+  if(!plan?.exitPoint)return null;
+  return{
+    id:plan.id??"withdrawal_route",
+    label:plan.label??"withdrawal route",
+    exitPoint:{x:finite(plan.exitPoint.x,0),y:finite(plan.exitPoint.y,0)},
+    roleOffsets:Object.fromEntries(Object.entries(plan.roleOffsets??{}).map(([key,value])=>[key,{x:finite(value?.x,0),y:finite(value?.y,0)}])),
+    speedMultiplier:clamp(plan.speedMultiplier??.62,.2,1.2),
+    arrivalRadius:Math.max(4,finite(plan.arrivalRadius,12)),
+    claimSpacing:Math.max(24,finite(plan.claimSpacing,68))
+  };
+}
+
 function normalizeDecisionContext(context={}){
   const bounded=(key,fallback)=>clamp(context[key]??fallback,0,1);
   return{
@@ -102,6 +116,7 @@ function normalizeMission(team){
       reason:authored.interference.reason??"The reported contact may interfere with the assigned mission."
     }:null,
     boundary:normalizeBoundary(authored.boundary),
+    withdrawalPlan:normalizeWithdrawalPlan(authored.withdrawalPlan),
     decisionContext:normalizeDecisionContext(authored.decisionContext),
     responsePolicy:normalizeResponsePolicy(authored.responsePolicy),
     responseBias:normalizeResponseBias(authored.responseBias)
@@ -135,6 +150,7 @@ export class TeamMissionStore{
       concernArea:mission.concernArea?{...mission.concernArea}:null,
       interference:mission.interference?{...mission.interference}:null,
       boundary:mission.boundary?{...mission.boundary,area:mission.boundary.area?{...mission.boundary.area}:null,allowedActivities:[...mission.boundary.allowedActivities]}:null,
+      withdrawalPlan:mission.withdrawalPlan?{...mission.withdrawalPlan,exitPoint:{...mission.withdrawalPlan.exitPoint},roleOffsets:Object.fromEntries(Object.entries(mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))}:null,
       decisionContext:{...mission.decisionContext},
       responsePolicy:{...mission.responsePolicy},
       responseBias:{...mission.responseBias}

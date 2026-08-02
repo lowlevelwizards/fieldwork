@@ -1,4 +1,4 @@
-import { assessEncounterHypothesis, ENCOUNTER_STATES } from "./encounter-assessment.js?v=20k-boundaries-challenge-warning-20260802";
+import { assessEncounterHypothesis, ENCOUNTER_STATES } from "./encounter-assessment.js?v=20l-silent-withdrawal-deescalation-20260802";
 
 export class TeamEncounterMemory{
   constructor({decisionLog=null}={}){
@@ -22,6 +22,10 @@ export class TeamEncounterMemory{
         const existing=hypotheses.get(key);
         assessed.previousState=existing?.state??ENCOUNTER_STATES.NONE;
         assessed.createdAt=existing?.createdAt??now;
+        assessed.departureObserved=Boolean(existing?.departureObserved||assessed.departureObserved);
+        assessed.departureFirstObservedAt=existing?.departureFirstObservedAt??(assessed.departureObserved?now:null);
+        assessed.departureObservedAfterWarning=Boolean(existing?.departureObservedAfterWarning||assessed.departureObservedAfterWarning);
+        assessed.departureAfterWarningFirstObservedAt=existing?.departureAfterWarningFirstObservedAt??(assessed.departureObservedAfterWarning?now:null);
         hypotheses.set(key,assessed);
         touched.add(`${mission.teamId}:${key}`);
 
@@ -64,6 +68,7 @@ export class TeamEncounterMemory{
     return [...(this.byTeam.get(teamId)?.values()??[])].sort((a,b)=>{
       const rank={potentially_incompatible:4,relevant:3,possible:2,stale:1,none:0};
       if((rank[b.state]??0)!==(rank[a.state]??0))return(rank[b.state]??0)-(rank[a.state]??0);
+      if(Boolean(b.departureObservedAfterWarning)!==Boolean(a.departureObservedAfterWarning))return b.departureObservedAfterWarning?1:-1;
       return b.relevanceScore-a.relevanceScore;
     });
   }

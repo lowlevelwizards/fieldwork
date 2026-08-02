@@ -41,6 +41,26 @@ function authoredObserverSector(actor){
   };
 }
 
+function withdrawalMovement({mission,role,actor,zone}){
+  const plan=mission?.withdrawalPlan;
+  const routeRole=role?.fulfillment?.routeRole??role?.roleId;
+  if(!plan?.exitPoint||!routeRole)return null;
+  const offset=plan.roleOffsets?.[routeRole]??{x:0,y:0};
+  const destination=clampToZone({x:plan.exitPoint.x+(offset.x??0),y:plan.exitPoint.y+(offset.y??0)},zone,30);
+  return{
+    routeId:plan.id,
+    routeLabel:plan.label,
+    stageId:role.fulfillment.stageId,
+    destination,
+    policy:{
+      speedMultiplier:plan.speedMultiplier??.62,
+      arrivalRadius:plan.arrivalRadius??12,
+      claimSpacing:plan.claimSpacing??68
+    },
+    initialDistance:Math.hypot(destination.x-actor.x,destination.y-actor.y)
+  };
+}
+
 export function buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,currentObserveAction=null}={}){
   const teamActors=(game?.actors??[]).filter(candidate=>candidate.teamId===actor?.teamId&&!candidate.medical?.dead);
   const teamCenter=centroid(teamActors);
@@ -52,6 +72,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
   let sector=null;
   let focus=null;
   let warning=null;
+  let movement=null;
   let label=role?.label??"Assigned responsibility";
 
   if(need==="observe_contact"){
@@ -69,16 +90,16 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
     if(retainedSector){
       sector={...retainedSector};
     }else{
-    const side=actor.x<teamCenter.x?-1:1;
-    const angle=rotate(mainAngle,side*(role.fulfillment.angularOffsetDegrees??55));
-    const target=clampToZone(pointAt(actor,angle,role.fulfillment.distance??520),zone);
-    sector={
-      label:role.fulfillment.label??"Alternate approach",
-      x:target.x,
-      y:target.y,
-      maximumRange:role.fulfillment.maximumRange??900,
-      fieldOfViewDegrees:role.fulfillment.fieldOfViewDegrees??70
-    };
+      const side=actor.x<teamCenter.x?-1:1;
+      const angle=rotate(mainAngle,side*(role.fulfillment.angularOffsetDegrees??55));
+      const target=clampToZone(pointAt(actor,angle,role.fulfillment.distance??520),zone);
+      sector={
+        label:role.fulfillment.label??"Alternate approach",
+        x:target.x,
+        y:target.y,
+        maximumRange:role.fulfillment.maximumRange??900,
+        fieldOfViewDegrees:role.fulfillment.fieldOfViewDegrees??70
+      };
     }
   }else if(need==="hold_rear_ready"){
     const angle=rotate(mainAngle,180+(role.fulfillment.angularOffsetDegrees??0));
@@ -98,6 +119,24 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
         allowedActivities:[...(mission.boundary.allowedActivities??[])]
       }:null
     };
+  }else if(need==="staged_withdrawal"){
+    movement=withdrawalMovement({mission,role,actor,zone});
+    focus={...contactPosition};
+    label=role.fulfillment.waitingLabel??mission?.withdrawalPlan?.label??"Withdrawal route";
+  }else if(need==="rear_watch_then_withdraw"){
+    movement=withdrawalMovement({mission,role,actor,zone});
+    if(procedure?.phase?.id===role.fulfillment.stageId){
+      focus={...contactPosition};
+      label=mission?.withdrawalPlan?.label??"Withdrawal route";
+    }else{
+      sector={
+        label:role.fulfillment.label??"Warned contact sector",
+        x:contactPosition.x,
+        y:contactPosition.y,
+        maximumRange:role.fulfillment.maximumRange??1280,
+        fieldOfViewDegrees:role.fulfillment.fieldOfViewDegrees??78
+      };
+    }
   }
 
   return{
@@ -112,6 +151,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
     sector,
     focus,
     warning,
+    movement,
     label,
     permissions:{...(procedure?.permissions??{})}
   };

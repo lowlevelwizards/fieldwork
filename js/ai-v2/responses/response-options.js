@@ -30,6 +30,8 @@ function option({id,label,summary,base=0,terms,reason,eligible=null}){
 
 const relevantEncounter=({encounter})=>encounter?.state==="relevant"||encounter?.state==="potentially_incompatible";
 const boundaryWarningEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.boundaryTrigger>0;
+const silentWithdrawalEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.warningHeard>0&&ledger.withdrawalPlanAvailable>0;
+const monitorDepartureEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.warningIssued>0&&ledger.departureEvidence>0;
 
 export const TEAM_RESPONSE_OPTIONS=Object.freeze([
   option({
@@ -85,9 +87,46 @@ export const TEAM_RESPONSE_OPTIONS=Object.freeze([
       term("mission_value","concealment preserves mission value",ledger.missionValue,.08),
       term("stealth_orientation","mission favors remaining unseen",ledger.stealthOrientation,.15),
       term("position","current hidden position is useful",ledger.positionSecurity,.04),
-      term("warning_heard","a directed warning makes concealment more valuable",ledger.warningHeard,.10)
+      term("warning_heard","a directed warning confirms that remaining in place risks further discovery",ledger.warningHeard,-.24)
     ],
     reason:ledger=>`Preserving concealment and team longevity is the strongest way to continue the mission while the contact's identity and intent remain unknown.`
+  }),
+  option({
+    id:"withdraw_silently",
+    label:"Withdraw Silently",
+    summary:"End the compromised watch without replying, revealing identity, or escalating the encounter.",
+    base:.10,
+    eligible:silentWithdrawalEligible,
+    terms:ledger=>[
+      term("warning_heard","the warning indicates likely detection",ledger.warningHeard,.22),
+      term("preservation","withdrawal preserves the team",ledger.teamPreservation,.18),
+      term("detection_risk","remaining risks further discovery",ledger.detectionRisk,.17),
+      term("exit_options","a viable withdrawal route exists",ledger.exitOptions,.17),
+      term("stealth_orientation","silence preserves identity and intent",ledger.stealthOrientation,.13),
+      term("mobility","the team is prepared to disengage",ledger.mobilityOrientation,.11),
+      term("route_available","the mission has an authored withdrawal route",ledger.withdrawalPlanAvailable,.08),
+      term("reversible","withdrawal avoids irreversible escalation",ledger.reversibleCommunicationValue,.06),
+      term("mission_cost","leaving forfeits some remaining observation value",ledger.missionValue,-.08)
+    ],
+    reason:ledger=>`The warning makes continued concealment unreliable; ${ledger.exitLabel} allows the team to disengage without confirming its identity or escalating.`
+  }),
+  option({
+    id:"monitor_departure",
+    label:"Monitor Departure",
+    summary:"Hold the boundary, observe the group's departure, and avoid unnecessary pursuit or repeated warnings.",
+    base:.10,
+    eligible:monitorDepartureEligible,
+    terms:ledger=>[
+      term("departure","the warned group is leaving",ledger.departureEvidence,.30),
+      term("warning_issued","the boundary has already been communicated",ledger.warningIssued,.18),
+      term("mission_value","the approach still requires observation",ledger.missionValue,.12),
+      term("security_orientation","visible control is preserved without pursuit",ledger.securityOrientation,.11),
+      term("position","the team can hold a stable observation line",ledger.positionSecurity,.09),
+      term("preservation","not pursuing avoids unnecessary risk",ledger.teamPreservation,.08),
+      term("resource_conservation","monitoring consumes few resources",ledger.resourceConservation,.06),
+      term("no_hostile_evidence","no hostile act requires escalation",ledger.hostileEvidence,.08,{invert:true})
+    ],
+    reason:ledger=>`The warned group is departing the monitored area; holding position and observing completion satisfies the boundary without pursuit or repeated escalation.`
   }),
   option({
     id:"wait",

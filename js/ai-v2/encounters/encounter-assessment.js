@@ -105,6 +105,8 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
     warningHeard:Boolean(heardWarning),
     heardWarning:heardWarning?{...heardWarning,targetPoint:heardWarning.targetPoint?{...heardWarning.targetPoint}:null,approximateSourcePosition:heardWarning.approximateSourcePosition?{...heardWarning.approximateSourcePosition}:null,recipientIds:[...(heardWarning.recipientIds??[])]}:null,
     warningIssued:Boolean(outgoingWarning),
+    departureObserved:["withdrawing","lost"].includes(report.activity),
+    departureObservedAfterWarning:Boolean(outgoingWarning&&["withdrawing","lost"].includes(report.activity)&&(report.reportedAt??now)>=(outgoingWarning.issuedAt??0)),
     outgoingWarning:outgoingWarning?{...outgoingWarning,targetPoint:outgoingWarning.targetPoint?{...outgoingWarning.targetPoint}:null,approximateSourcePosition:outgoingWarning.approximateSourcePosition?{...outgoingWarning.approximateSourcePosition}:null,recipientIds:[...(outgoingWarning.recipientIds??[])]}:null,
     interferenceKind:mission.interference?.kind??null,
     interferenceLabel:mission.interference?.label??null,

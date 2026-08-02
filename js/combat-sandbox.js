@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20k-boundaries-challenge-warning-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20l-silent-withdrawal-deescalation-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -164,8 +164,21 @@ export const SANDBOX_FIXTURES={
       positionLabel:"the concealed brush position",
       exitLabel:"the covered southern withdrawal route"
      },
-     responsePolicy:{minimumHold:6,reassessEvery:3,switchMargin:.08},
-     responseBias:{maintain_concealment:.03,continue_observation:.03}
+     withdrawalPlan:{
+      id:"southern_brush_exit",
+      label:"covered southern withdrawal route",
+      exitPoint:{x:1960,y:1450},
+      roleOffsets:{
+       withdrawal_lead:{x:0,y:0},
+       protected_mover:{x:-95,y:0},
+       rear_watch:{x:-190,y:0}
+      },
+      speedMultiplier:.62,
+      arrivalRadius:12,
+      claimSpacing:68
+     },
+     responsePolicy:{minimumHold:6,reassessEvery:2.4,switchMargin:.06},
+     responseBias:{maintain_concealment:.03,continue_observation:.03,withdraw_silently:.18}
     },
     actors:[
      {x:1450,y:1280,role:"Scout",aiV2Assignment:{
@@ -388,6 +401,11 @@ export class CombatSandboxDirector{
       ...teamSpec.aiV2Mission.boundary,
       area:teamSpec.aiV2Mission.boundary.area?{...teamSpec.aiV2Mission.boundary.area}:null,
       allowedActivities:[...(teamSpec.aiV2Mission.boundary.allowedActivities??[])]
+     }:null,
+     withdrawalPlan:teamSpec.aiV2Mission.withdrawalPlan?{
+      ...teamSpec.aiV2Mission.withdrawalPlan,
+      exitPoint:teamSpec.aiV2Mission.withdrawalPlan.exitPoint?{...teamSpec.aiV2Mission.withdrawalPlan.exitPoint}:null,
+      roleOffsets:Object.fromEntries(Object.entries(teamSpec.aiV2Mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))
      }:null,
      decisionContext:teamSpec.aiV2Mission.decisionContext?{...teamSpec.aiV2Mission.decisionContext}:null,
      responsePolicy:teamSpec.aiV2Mission.responsePolicy?{...teamSpec.aiV2Mission.responsePolicy}:null,

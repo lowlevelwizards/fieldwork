@@ -1,3 +1,20 @@
+# Fieldwork 2.0L
+
+## Silent Withdrawal & De-escalation
+
+- Added an authored Commune withdrawal plan with one exit route, role-specific destinations, movement speed, spacing, and arrival requirements.
+- Added **Withdraw Silently** as an evidence-gated team response after a directed warning is heard.
+- Added **Break Contact Quietly** with Withdrawal Lead, Protected Mover, and Rear Watch responsibilities.
+- Added staged procedure phases so one operator moves at a time while the rear watch preserves contact awareness.
+- Added `WithdrawToRoute` as a persistent locomotion action using the existing scheduler, destination claims, and locomotion executor.
+- Added observed-departure evidence without revealing the withdrawing team’s hidden response, procedure, roles, or motive.
+- Added **Monitor Departure** so Northline holds its boundary and watches the group leave without pursuit or repeated warnings.
+- Added terminal **Withdrawal Complete** and **Boundary Restored** phases with a short visible hold before returning to idle work.
+- Added evidence-grounded outcome memories for both teams: `withdrew_without_reply` and `contact_departed_after_warning`.
+- Added withdrawal paths, role indicators, outcome presentation, and encounter-outcome diagnostics.
+- Preserved single-writer movement ownership and prevented destination churn, repeated withdrawals, pursuit, aiming, and firing.
+- Preserved Legacy 1.2H as a separate runtime.
+
 # Fieldwork 2.0K
 
 ## Boundaries, Challenge & Warning

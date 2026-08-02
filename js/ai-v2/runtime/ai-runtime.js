@@ -1,24 +1,25 @@
-import { ActionScheduler } from "../actions/action-scheduler.js?v=20k-boundaries-challenge-warning-20260802";
-import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20k-boundaries-challenge-warning-20260802";
-import { ReportContactAction } from "../actions/report-contact-action.js?v=20k-boundaries-challenge-warning-20260802";
-import { ReportContactUpdateAction } from "../actions/report-contact-update-action.js?v=20k-boundaries-challenge-warning-20260802";
-import { RoleActionRuntime } from "../actors/role-action-runtime.js?v=20k-boundaries-challenge-warning-20260802";
-import { RolePositionRuntime } from "../actors/role-position-runtime.js?v=20k-boundaries-challenge-warning-20260802";
-import { CommunicationExecutor } from "../communication/communication-executor.js?v=20k-boundaries-challenge-warning-20260802";
-import { DecisionLog } from "../diagnostics/decision-log.js?v=20k-boundaries-challenge-warning-20260802";
-import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20k-boundaries-challenge-warning-20260802";
-import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20k-boundaries-challenge-warning-20260802";
-import { AttentionExecutor } from "../execution/attention-executor.js?v=20k-boundaries-challenge-warning-20260802";
-import { LocomotionExecutor } from "../execution/locomotion-executor.js?v=20k-boundaries-challenge-warning-20260802";
-import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20k-boundaries-challenge-warning-20260802";
-import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20k-boundaries-challenge-warning-20260802";
-import { HeardCommunicationStore } from "../knowledge/heard-communication.js?v=20k-boundaries-challenge-warning-20260802";
-import { TeamMissionStore } from "../missions/team-mission.js?v=20k-boundaries-challenge-warning-20260802";
-import { TeamProcedureState } from "../procedures/team-procedure-state.js?v=20k-boundaries-challenge-warning-20260802";
-import { DestinationClaimService } from "../position/destination-claim-service.js?v=20k-boundaries-challenge-warning-20260802";
-import { PositionQueryService } from "../position/position-query-service.js?v=20k-boundaries-challenge-warning-20260802";
-import { TeamResponseState } from "../responses/team-response-state.js?v=20k-boundaries-challenge-warning-20260802";
-import { captureWorldSnapshot } from "./world-snapshot.js?v=20k-boundaries-challenge-warning-20260802";
+import { ActionScheduler } from "../actions/action-scheduler.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { ObserveSectorAction } from "../actions/observe-sector-action.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { ReportContactAction } from "../actions/report-contact-action.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { ReportContactUpdateAction } from "../actions/report-contact-update-action.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { RoleActionRuntime } from "../actors/role-action-runtime.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { RolePositionRuntime } from "../actors/role-position-runtime.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { CommunicationExecutor } from "../communication/communication-executor.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { DecisionLog } from "../diagnostics/decision-log.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { InvariantMonitor } from "../diagnostics/invariant-monitor.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { EncounterOutcomeMemory } from "../encounters/encounter-outcome-memory.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { AttentionExecutor } from "../execution/attention-executor.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { LocomotionExecutor } from "../execution/locomotion-executor.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { HeardCommunicationStore } from "../knowledge/heard-communication.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { TeamMissionStore } from "../missions/team-mission.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { TeamProcedureState } from "../procedures/team-procedure-state.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { DestinationClaimService } from "../position/destination-claim-service.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { PositionQueryService } from "../position/position-query-service.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { TeamResponseState } from "../responses/team-response-state.js?v=20l-silent-withdrawal-deescalation-20260802";
+import { captureWorldSnapshot } from "./world-snapshot.js?v=20l-silent-withdrawal-deescalation-20260802";
 
 export const AI_RUNTIME_MODES=Object.freeze({LEGACY:"legacy",V2:"v2"});
 const stateLabel=state=>String(state??"none").replaceAll("_"," ");
@@ -54,6 +55,7 @@ export class AIV2Runtime{
     this.heardCommunications=new HeardCommunicationStore({decisionLog:this.decisionLog});
     this.teamMissions=new TeamMissionStore();
     this.teamEncounters=new TeamEncounterMemory({decisionLog:this.decisionLog});
+    this.encounterOutcomes=new EncounterOutcomeMemory({decisionLog:this.decisionLog});
     this.teamResponses=new TeamResponseState({decisionLog:this.decisionLog});
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
     this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
@@ -66,7 +68,7 @@ export class AIV2Runtime{
     this.visibleByObserver=new Map();
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"boundaries_challenge_warning",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"silent_withdrawal_deescalation",scenario:game.scenarioMode}});
   }
 
   update(delta){
@@ -80,7 +82,7 @@ export class AIV2Runtime{
     this.#ensureContactReports();
     this.#ensureContactUpdateReports();
     this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,heardCommunications:this.heardCommunications,now:this.elapsed});
-    this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,now:this.elapsed});
+    this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamResponses,now:this.elapsed});
     this.roleActions.update({
       game:this.game,
@@ -96,6 +98,13 @@ export class AIV2Runtime{
       teamProcedures:this.teamProcedures,
       now:this.elapsed,
       context:this.#context(this.elapsed)
+    });
+    this.encounterOutcomes.update({
+      game:this.game,
+      teamProcedures:this.teamProcedures,
+      teamEncounters:this.teamEncounters,
+      heardCommunications:this.heardCommunications,
+      now:this.elapsed
     });
     this.#updateActorDiagnostics();
 
@@ -118,12 +127,13 @@ export class AIV2Runtime{
     const observers=scheduler.byType.ObserveSector??0;
     const ready=scheduler.byType.HoldReady??0;
     const repositioning=scheduler.byType.RepositionForResponsibility??0;
+    const withdrawing=scheduler.byType.WithdrawToRoute??0;
     const visible=this.personalKnowledge.summary().reduce((sum,entry)=>sum+entry.contacts.filter(contact=>contact.currentlyVisible).length,0);
     const reporting=(scheduler.byType.ReportContact??0)+(scheduler.byType.ReportContactUpdate??0);
     const issuingWarnings=scheduler.byType.IssueWarning??0;
     const activityUpdates=this.teamKnowledge.activityReportCount();
     const activeEncounterCount=this.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${reporting} reporting · ${issuingWarnings} warning · ${this.heardCommunications.count()} heard warning(s) · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} response(s) · ${this.teamProcedures.count()} procedure(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${reporting} reporting · ${issuingWarnings} warning · ${this.heardCommunications.count()} heard warning(s) · ${this.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${this.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${this.teamResponses.count()} response(s) · ${this.teamProcedures.count()} procedure(s) · ${this.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${this.invariants.current.length} invariant issue(s)`;
   }
 
   getDebugDetails(){
@@ -180,11 +190,21 @@ export class AIV2Runtime{
       const actor=this.game.actors.find(candidate=>candidate.id===entry.observerId);
       return `${actor?.name??entry.observerId}: ${stateLabel(contact.track.currentActivity)} · ${stateLabel(contact.track.intentHypothesis?.id)} · revision ${contact.track.activityRevision}`;
     })).join(" · ")||"none — no meaningful activity change observed";
-    return{assignment:actionAssignments,personalKnowledge:contacts,activity,communication,teamKnowledge:shared,encounter:encounters,response:responses,procedure:procedures,position:positions};
+    const outcomes=this.encounterOutcomes.summary().flatMap(entry=>entry.outcomes.map(outcome=>{
+      const faction=this.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
+      return `${faction}: ${outcome.label} · ${outcome.summary}`;
+    })).join(" · ")||"none — no encounter outcome remembered";
+    return{assignment:actionAssignments,personalKnowledge:contacts,activity,communication,teamKnowledge:shared,encounter:encounters,response:responses,procedure:procedures,position:positions,outcome:outcomes};
   }
 
   #ensureAuthoredObservationActions(){
     for(const actor of this.game.actors){
+      const resolvedOutcome=this.encounterOutcomes.getLatest(actor.teamId);
+      if(resolvedOutcome?.kind==="withdrew_without_reply"){
+        const observe=this.scheduler.getAction(actor.id,"ObserveSector");
+        if(observe&&observe.metadata?.provenance?.source==="authored_task")this.scheduler.cancelAction(actor.id,observe,{now:this.elapsed,reason:"encounter_resolved_by_withdrawal"});
+        continue;
+      }
       const directive=authoredObservationDirective(actor);
       if(!directive||this.scheduler.hasAction(actor.id,"ObserveSector"))continue;
       if(this.teamProcedures.getActorRole(actor.id))continue;
@@ -238,6 +258,7 @@ export class AIV2Runtime{
         heardCommunications:this.heardCommunications,
         teamMissions:this.teamMissions,
         teamEncounters:this.teamEncounters,
+        encounterOutcomes:this.encounterOutcomes,
         teamResponses:this.teamResponses,
         teamProcedures:this.teamProcedures,
         roleActions:this.roleActions,
@@ -257,6 +278,7 @@ export class AIV2Runtime{
       const observeAction=actions.find(action=>action.type==="ObserveSector")??null;
       const holdAction=actions.find(action=>action.type==="HoldReady")??null;
       const repositionAction=actions.find(action=>action.type==="RepositionForResponsibility")??null;
+      const withdrawalAction=actions.find(action=>action.type==="WithdrawToRoute")??null;
       const warningAction=actions.find(action=>action.type==="IssueWarning")??null;
       const assignment=actor.aiV2Assignment??null;
       const contact=this.personalKnowledge.getBestContact(actor.id);
@@ -272,6 +294,7 @@ export class AIV2Runtime{
       const reporting=warningAction??actions.find(action=>action.type==="ReportContactUpdate")??actions.find(action=>action.type==="ReportContact")??null;
       const sourceActor=received?this.game.actors.find(candidate=>candidate.id===received.sourceActorId):null;
       const heardWarning=this.heardCommunications.getLatestForActor(actor.id);
+      const encounterOutcome=this.encounterOutcomes.getLatest(actor.teamId);
       if(!observeAction)actor.aiV2Observation=null;
       if(!holdAction)actor.aiV2HoldReady=null;
       actor.aiV2Debug={
@@ -295,6 +318,11 @@ export class AIV2Runtime{
           status:"moving",progress:repositionAction.progress,destination:{...repositionAction.directive.destination},
           failureReason:repositionAction.directive.failureReason,roleId:repositionAction.directive.roleId,roleLabel:repositionAction.directive.roleLabel
         }:actor.aiV2Reposition?{...actor.aiV2Reposition,destination:actor.aiV2Reposition.destination?{...actor.aiV2Reposition.destination}:null}:null,
+        withdrawal:withdrawalAction?{
+          status:"moving",progress:withdrawalAction.progress,destination:{...withdrawalAction.directive.destination},
+          routeLabel:withdrawalAction.directive.routeLabel,roleId:withdrawalAction.directive.roleId,roleLabel:withdrawalAction.directive.roleLabel,
+          stageId:withdrawalAction.directive.phaseId
+        }:actor.aiV2Withdrawal?{...actor.aiV2Withdrawal,destination:actor.aiV2Withdrawal.destination?{...actor.aiV2Withdrawal.destination}:null}:null,
         positionRequirement:rolePosition?{
           ...rolePosition,acceptedPosition:rolePosition.acceptedPosition?{...rolePosition.acceptedPosition}:null,
           destination:rolePosition.destination?{...rolePosition.destination}:null,
@@ -343,7 +371,7 @@ export class AIV2Runtime{
           identity:encounter.identity,intent:encounter.intent,intentHypothesis:encounter.intentHypothesis?{...encounter.intentHypothesis}:null,
           activity:encounter.activity??null,activityLabel:encounter.activityLabel??null,activityRevision:encounter.activityRevision??0,
           interferenceLabel:encounter.interferenceLabel,response:response?.selected?.id??null,
-          warningHeard:Boolean(encounter.warningHeard),warningIssued:Boolean(encounter.warningIssued)
+          warningHeard:Boolean(encounter.warningHeard),warningIssued:Boolean(encounter.warningIssued),departureObserved:Boolean(encounter.departureObserved),departureObservedAfterWarning:Boolean(encounter.departureObservedAfterWarning)
         }:null,
         teamResponse:response?{
           id:response.selected.id,label:response.selected.label,score:response.selected.score,reason:response.selected.reason,
@@ -354,7 +382,8 @@ export class AIV2Runtime{
           id:teamProcedure.procedureId,label:teamProcedure.label,phase:{...teamProcedure.phase},permissions:{...teamProcedure.permissions},
           reassessmentTriggers:[...teamProcedure.reassessmentTriggers],roles:teamProcedure.roles.map(role=>({...role,fulfillment:role.fulfillment?{...role.fulfillment}:null}))
         }:null,
-        runtimeStage:"boundaries_challenge_warning"
+        encounterOutcome:encounterOutcome?{...encounterOutcome,facts:[...encounterOutcome.facts],evidence:[...encounterOutcome.evidence]}:null,
+        runtimeStage:"silent_withdrawal_deescalation"
       };
     }
   }

@@ -2,9 +2,9 @@
 
 AI V2 is a parallel causal runtime. It does not import the legacy tactical authorities.
 
-## Current milestone: 2.0K
+## Current milestone: 2.0L
 
-The Observation & Concealment fixture now runs this explicit chain:
+The Observation & Concealment fixture now completes this explicit chain:
 
 ```text
 Authored mission
@@ -19,46 +19,47 @@ Authored mission
 → temporary role
 → actor action proposal
 → scheduler
-→ position requirement
-→ procedure-authorized reposition
+→ responsibility-driven reposition
 → observable activity
 → cautious intent hypothesis
-→ communicated activity update
 → mission boundary activation
-→ Issue Warning response
-→ Challenge Unknown Contact
-→ directed voice execution
+→ directed warning
 → heard-warning memory
-→ Await Response
+→ Withdraw Silently response
+→ Break Contact Quietly
+→ staged route movement
+→ observed departure
+→ Monitor Departure
+→ encounter outcome memory
 ```
 
-Northline begins with **Heighten Watch**, then selects **Issue Warning** only after a credible activity update activates its mission boundary. The challenge procedure assigns a Challenger while preserving Primary Observer and Alternate Security responsibilities. The Commune hears the warning and keeps **Maintain Concealment**. No reply, hostility, aiming, or firing occurs.
+Northline first heightens its watch, then issues one boundary warning. The Commune hears it, judges the concealed watch compromised, and withdraws without replying. The Withdrawal Lead moves first, the Protected Mover follows, and the Rear Watch leaves last. Northline observes the departure, holds position rather than pursuing, and de-escalates. Both teams remember the same event from different evidence positions.
 
 ## Current modules
 
-- `runtime/` — update boundary and read-only world snapshots.
-- `actions/` — lifecycle, channels, scheduler, observation, reporting, ready posture, repositioning, and directed warning.
+- `runtime/` — update boundary, read-only snapshots, and system composition.
+- `actions/` — lifecycle, channels, scheduler, observation, reporting, ready posture, repositioning, warning, and staged withdrawal.
 - `actors/` — role context, local action evaluation, stable reconciliation, and role-position requirements.
-- `communication/` — local team reports plus directed raised-voice delivery.
-- `execution/` — narrow physical attention and locomotion execution.
+- `communication/` — local reports and directed raised-voice delivery.
+- `execution/` — narrow attention and locomotion execution.
 - `senses/` — visual evidence and observable-activity classification.
-- `knowledge/` — private visual memory, contact tracks, team reports, intent hypotheses, and heard-warning memories.
-- `missions/` — authored objectives, concern areas, decision context, response policy, and mission boundaries.
-- `encounters/` — mission-relative assessment plus incoming and outgoing warning evidence.
-- `decisions/` — descriptive team decision ledger, including boundary activation.
-- `responses/` — option evaluation, selection persistence, switching, and invalidation.
-- `procedures/` — response mapping, phases, temporary responsibilities, explicit events, and reassignment.
+- `knowledge/` — private memory, contact tracks, team reports, intent hypotheses, and heard-warning memories.
+- `missions/` — objectives, concern areas, decision context, boundaries, and authored withdrawal plans.
+- `encounters/` — mission-relative assessment, warning evidence, observed departure, and resolved outcome memory.
+- `decisions/` — descriptive team decision ledger.
+- `responses/` — option evaluation, persistence, switching, de-escalation, and terminal invalidation.
+- `procedures/` — response mapping, phases, temporary responsibilities, staged events, and reassignment.
 - `position/` — spatial queries and temporary destination claims.
 - `diagnostics/` — decision history and ownership invariants.
 
-## Ownership rules reinforced in 2.0K
+## Ownership rules reinforced in 2.0L
 
-- A mission boundary justifies a challenge; presence alone does not.
-- The response evaluator selects a warning but never speaks it.
-- The challenge procedure assigns a responsibility but never starts an action.
-- The actor evaluator proposes `IssueWarning`.
-- The scheduler owns start, completion, interruption, and cancellation.
-- The communication executor determines actual recipients.
-- Heard-warning memory stores recipient belief rather than source truth.
-- A delivered-warning event advances the procedure to `Await Response`.
-- Encounter assessment may use warning evidence but cannot classify hostility or choose compliance.
+- Hearing a warning changes evidence; it does not directly move actors.
+- The response evaluator may select silent withdrawal but never supplies coordinates.
+- The procedure owns withdrawal sequence and temporary responsibilities, not locomotion.
+- Each actor proposes `WithdrawToRoute` only during its assigned procedure phase.
+- The scheduler owns action lifecycle and channel conflicts.
+- The destination-claim service prevents overlapping route destinations.
+- The locomotion executor remains the sole writer of actor position and velocity.
+- Northline infers departure only from observed activity reports, not hidden Commune state.
+- Outcome memory records evidence-grounded consequences and does not create faction reputation or future policy by itself.

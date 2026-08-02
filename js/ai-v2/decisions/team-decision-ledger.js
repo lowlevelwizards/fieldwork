@@ -15,7 +15,7 @@ function boundaryAssessment(boundary,encounter,informationCertainty){
   const activityAllowed=boundary.allowedActivities?.includes(encounter.activity)??false;
   const activityReady=boundary.requireActivityUpdate?encounter.reportKind==="activity_update"&&activityAllowed:true;
   const confidenceReady=(encounter.reportConfidence??0)>=boundary.minimumConfidence;
-  const trigger=inside&&activityReady&&confidenceReady&&encounter.intent!=="hostile";
+  const trigger=inside&&activityReady&&confidenceReady&&encounter.intent!=="hostile"&&!encounter.warningIssued;
   return{
     established:true,
     inside,
@@ -63,6 +63,8 @@ export function buildTeamDecisionLedger({mission,encounter}={}){
   const reversibleCommunicationValue=hostileEvidence?0:1;
   const warningHeard=encounter.warningHeard?1:0;
   const warningIssued=encounter.warningIssued?1:0;
+  const departureEvidence=encounter.departureObservedAfterWarning?1:0;
+  const withdrawalPlanAvailable=mission.withdrawalPlan?.exitPoint?1:0;
   return{
     teamId:mission.teamId,
     missionId:mission.id,
@@ -98,6 +100,8 @@ export function buildTeamDecisionLedger({mission,encounter}={}){
     reversibleCommunicationValue,
     warningHeard,
     warningIssued,
+    departureEvidence,
+    withdrawalPlanAvailable,
     positionLabel:context.positionLabel,
     exitLabel:context.exitLabel,
     evidenceLabel:`${Math.round(encounter.reportConfidence??0)}% second-hand contact report`,

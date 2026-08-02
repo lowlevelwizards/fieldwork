@@ -1,4 +1,4 @@
-import { evaluateTeamResponses } from "./response-evaluator.js?v=20k-boundaries-challenge-warning-20260802";
+import { evaluateTeamResponses } from "./response-evaluator.js?v=20l-silent-withdrawal-deescalation-20260802";
 
 const ACTIVE_ENCOUNTER_STATES=new Set(["relevant","potentially_incompatible"]);
 
@@ -25,12 +25,23 @@ export class TeamResponseState{
     this.byTeam=new Map();
   }
 
-  update({missions,teamEncounters,now=0}={}){
+  update({missions,teamEncounters,encounterOutcomes=null,now=0}={}){
     const seenTeams=new Set();
     for(const mission of missions?.summary?.()??[]){
       seenTeams.add(mission.teamId);
       const encounter=teamEncounters?.getBestTeamHypothesis?.(mission.teamId)??null;
       const existing=this.byTeam.get(mission.teamId)??null;
+      const outcome=encounterOutcomes?.getLatest?.(mission.teamId)??null;
+      if(outcome?.resolved){
+        const terminalHold=Math.max(0,4-Math.max(0,now-(outcome.createdAt??now)));
+        if(existing&&terminalHold>0){
+          existing.lastEvaluatedAt=now;
+          existing.heldReason=`encounter outcome is resolved; holding the terminal posture for ${terminalHold.toFixed(1)}s`;
+          continue;
+        }
+        if(existing)this.#invalidate(existing,now,"encounter_outcome_resolved");
+        continue;
+      }
       if(!encounter||!ACTIVE_ENCOUNTER_STATES.has(encounter.state)){
         if(existing)this.#invalidate(existing,now,encounter?`encounter_${encounter.state}`:"no_current_encounter");
         continue;

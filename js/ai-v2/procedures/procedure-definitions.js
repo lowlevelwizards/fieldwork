@@ -105,6 +105,111 @@ const PROCEDURES=Object.freeze({
       })
     ])
   }),
+  monitor_departure:Object.freeze({
+    id:"monitor_departure",
+    label:"Monitor Departure",
+    responseId:"monitor_departure",
+    description:"Hold the established boundary while confirming that the warned group continues to leave without pursuit or renewed escalation.",
+    establishDuration:.45,
+    phases:Object.freeze([
+      phase("establish_responsibilities","Establish Responsibilities","The de-escalation response preserves contact observation, alternate security, and a ready reserve."),
+      phase("observe_departure","Observe Departure","The warned group is leaving; the team holds its line and watches the departure without pursuing."),
+      phase("boundary_restored","Boundary Restored","The group departed without violence; the team returns to a stable security posture without pursuit."),
+      phase("reassess","Reassess","A reversal, renewed approach, or hostile act would require a new response.")
+    ]),
+    activePhaseId:"observe_departure",
+    permissions:Object.freeze({observe:true,report:true,relocate:false,warn:false,fire:false}),
+    reassessmentTriggers:Object.freeze([
+      "departure_reversed",
+      "contact_lost",
+      "encounter_evidence_stale",
+      "team_member_incapable",
+      "mission_changed",
+      "hostile_action_observed"
+    ]),
+    roles:Object.freeze([
+      role({
+        id:"departure_observer",
+        label:"Departure Observer",
+        responsibility:"Maintain visual attention on the departing group and report any reversal or renewed approach.",
+        selectionReason:"Prefer the actor already carrying the primary observation responsibility.",
+        fulfillment:{need:"observe_contact",label:"Departing contact sector",maximumRange:1000,fieldOfViewDegrees:78},
+        preference:actor=>actor.aiV2Assignment?.action==="observe_sector"?100:0
+      }),
+      role({
+        id:"alternate_security",
+        label:"Alternate Security",
+        responsibility:"Preserve coverage of the alternate approach while the primary observer confirms departure.",
+        selectionReason:"Prefer a capable rifle or security operator who is not the departure observer.",
+        fulfillment:{need:"observe_alternate_approach",label:"Alternate approach",angularOffsetDegrees:55,distance:520,maximumRange:900,fieldOfViewDegrees:70},
+        preference:actor=>String(actor.role??"").toLowerCase().includes("rifle")?70:String(actor.role??"").toLowerCase().includes("security")?45:0
+      }),
+      role({
+        id:"team_reserve",
+        label:"Team Reserve",
+        responsibility:"Remain available while the team confirms that the encounter is ending without violence.",
+        selectionReason:"Assign the remaining capable actor after both observation responsibilities are covered.",
+        fulfillment:{need:"hold_rear_ready",label:"Rear ready sector",distance:300},
+        preference:actor=>String(actor.role??"").toLowerCase().includes("engineer")?35:0
+      })
+    ])
+  }),
+  withdraw_silently:Object.freeze({
+    id:"break_contact_quietly",
+    label:"Break Contact Quietly",
+    responseId:"withdraw_silently",
+    description:"Disengage in stages along the authored withdrawal route without replying, pursuing, or exposing every team member at once.",
+    establishDuration:.55,
+    phases:Object.freeze([
+      phase("establish_responsibilities","Establish Responsibilities","The withdrawal response requires a lead mover, a protected mover, and a rear watch."),
+      phase("lead_withdrawal","Lead Withdrawal","The withdrawal lead moves first to establish the route while the others remain covered."),
+      phase("protected_movement","Protected Movement","The protected mover follows while the rear watch preserves contact awareness."),
+      phase("rear_disengage","Rear Disengage","The rear watch leaves last after the other operators reach the withdrawal route."),
+      phase("withdrawal_complete","Withdrawal Complete","All assigned operators reached the withdrawal route without replying or escalating."),
+      phase("reassess","Reassess","A blocked route, incapable mover, or hostile action requires the team to reconsider the withdrawal.")
+    ]),
+    activePhaseId:"lead_withdrawal",
+    permissions:Object.freeze({observe:true,report:true,relocate:true,warn:false,fire:false}),
+    reassessmentTriggers:Object.freeze([
+      "withdrawal_stage_completed",
+      "withdrawal_move_failed",
+      "route_blocked",
+      "team_member_incapable",
+      "hostile_action_observed",
+      "mission_changed"
+    ]),
+    roles:Object.freeze([
+      role({
+        id:"withdrawal_lead",
+        label:"Withdrawal Lead",
+        responsibility:"Move first to the authored withdrawal route and establish the team's next safe position.",
+        selectionReason:"Prefer the scout who can lead movement without requiring the medical reserve to expose first.",
+        fulfillment:{need:"staged_withdrawal",stageId:"lead_withdrawal",routeRole:"withdrawal_lead",waitingLabel:"Holding route lead"},
+        preference:actor=>String(actor.role??"").toLowerCase().includes("scout")?95:0
+      }),
+      role({
+        id:"protected_mover",
+        label:"Protected Mover",
+        responsibility:"Follow the withdrawal lead after the route is established while remaining protected by the rear watch.",
+        selectionReason:"Prefer the field medic or support operator so the team preserves medically useful capacity.",
+        fulfillment:{need:"staged_withdrawal",stageId:"protected_movement",routeRole:"protected_mover",waitingLabel:"Awaiting protected movement"},
+        preference:actor=>String(actor.role??"").toLowerCase().includes("medic")?90:10
+      }),
+      role({
+        id:"rear_watch",
+        label:"Rear Watch",
+        responsibility:"Maintain awareness of the warned group until the other operators withdraw, then leave last.",
+        selectionReason:"Prefer the rifle or security operator who can preserve contact awareness during staged movement.",
+        fulfillment:{need:"rear_watch_then_withdraw",stageId:"rear_disengage",routeRole:"rear_watch",label:"Warned contact sector",maximumRange:1280,fieldOfViewDegrees:78},
+        preference:actor=>{
+          const roleName=String(actor.role??"").toLowerCase();
+          if(roleName.includes("rifle")||roleName.includes("security"))return 90;
+          if(roleName.includes("medic"))return -40;
+          return 0;
+        }
+      })
+    ])
+  }),
   maintain_concealment:Object.freeze({
     id:"concealed_observation",
     label:"Concealed Observation",

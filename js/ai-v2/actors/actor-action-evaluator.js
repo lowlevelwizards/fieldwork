@@ -1,6 +1,6 @@
 export class ActorActionEvaluator{
   evaluate(context){
-    const {role,procedure,mission,sector,focus,warning,label}=context??{};
+    const {actor,role,procedure,mission,sector,focus,warning,movement,label}=context??{};
     if(!role||!procedure)return[];
     const provenance={
       owner:"role_action_runtime",
@@ -54,6 +54,71 @@ export class ActorActionEvaluator{
       }
       return[];
     }
+
+    if(role.fulfillment?.need==="staged_withdrawal"){
+      if(procedure.phase?.id===role.fulfillment.stageId&&movement?.destination&&procedure.permissions?.relocate){
+        return[{
+          type:"WithdrawToRoute",
+          score:1,
+          reason:`${role.label} is the active mover in the team's staged silent withdrawal.`,
+          directive:{
+            ...common,
+            reason:`${role.label}: ${role.responsibility}`,
+            routeId:movement.routeId,
+            routeLabel:movement.routeLabel,
+            destination:{...movement.destination},
+            policy:{...movement.policy},
+            initialDistance:movement.initialDistance
+          }
+        }];
+      }
+      if(focus){
+        return[{
+          type:"HoldReady",
+          score:.92,
+          reason:`${role.label} waits in sequence while another operator completes the current withdrawal stage.`,
+          directive:{...common,reason:`${role.label}: preserve spacing and await the next withdrawal stage`,label,focus:{...focus}}
+        }];
+      }
+      return[];
+    }
+
+    if(role.fulfillment?.need==="rear_watch_then_withdraw"){
+      if(procedure.phase?.id===role.fulfillment.stageId&&movement?.destination&&procedure.permissions?.relocate){
+        return[{
+          type:"WithdrawToRoute",
+          score:1,
+          reason:`${role.label} leaves last after the other operators reach the withdrawal route.`,
+          directive:{
+            ...common,
+            reason:`${role.label}: ${role.responsibility}`,
+            routeId:movement.routeId,
+            routeLabel:movement.routeLabel,
+            destination:{...movement.destination},
+            policy:{...movement.policy},
+            initialDistance:movement.initialDistance
+          }
+        }];
+      }
+      if(sector&&procedure.permissions?.observe){
+        return[{
+          type:"ObserveSector",
+          score:.99,
+          reason:`${role.label} preserves contact awareness while the other operators withdraw.`,
+          directive:{...common,reason:`${role.label}: ${role.responsibility}`,sector:{...sector}}
+        }];
+      }
+      if(focus){
+        return[{
+          type:"HoldReady",
+          score:.9,
+          reason:`${role.label} has completed the rear disengagement and holds at the withdrawal route.`,
+          directive:{...common,reason:`${role.label}: withdrawal complete`,label,focus:{...focus}}
+        }];
+      }
+      return[];
+    }
+
     if(role.fulfillment?.need==="observe_contact"&&sector&&procedure.permissions?.observe){
       return[{
         type:"ObserveSector",
