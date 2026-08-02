@@ -6,7 +6,7 @@ import { CombatSystem } from "./combat.js?v=12h-reactive-fire-momentum-medical-r
 import { AICombatSystem } from "./ai-combat.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { WoundSystem } from "./wound-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { MedicalSystem } from "./medical-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CombatSandboxDirector, sandboxMap, getSandboxFixture, SANDBOX_FIXTURE_IDS } from "./combat-sandbox.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { CombatSandboxDirector, sandboxMap, getSandboxFixture, SANDBOX_FIXTURE_IDS } from "./combat-sandbox.js?v=20k-boundaries-challenge-warning-20260802";
 import { TacticalFrontSystem } from "./tactical-front.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { TeamResponseSystem } from "./team-response.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { CoverStateSystem } from "./cover-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
@@ -16,14 +16,14 @@ import { TeamCombatContextSystem } from "./team-combat-context.js?v=12h-reactive
 import { FireTeamControllerSystem } from "./fire-team-controller.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { FightAssessmentSystem } from "./fight-assessment.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
 import { CombatPostureSystem } from "./combat-posture.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js?v=20k-boundaries-challenge-warning-20260802";
 
 export class ContinuousGameState extends GameState {
   constructor({scenario="operations",aiRuntime=AI_RUNTIME_MODES.LEGACY,sandboxFixture=SANDBOX_FIXTURE_IDS.OPEN_CONTACT}={}) {
     super();
     this.scenarioMode=scenario;
     this.aiRuntimeMode=aiRuntime===AI_RUNTIME_MODES.V2?AI_RUNTIME_MODES.V2:AI_RUNTIME_MODES.LEGACY;
-    this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 — Activity & Intent":"Legacy 1.2H";
+    this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 — Challenge & Warning":"Legacy 1.2H";
     if(scenario==="sandbox"){
       const fixture=getSandboxFixture(sandboxFixture);
       this.map=sandboxMap;
@@ -246,7 +246,7 @@ export class ContinuousGameState extends GameState {
         this.aiCombat.update(delta);
         this.actorIntents.resolveAll(delta);
       }else{
-        // AI V2 advances observation, communication, mission interpretation, procedures,
+        // AI V2 advances observation, communication, mission interpretation, procedures, warning,
         // role-driven actions, and procedure-authorized responsibility repositioning. Player-facing drag and
         // treatment mechanics remain available, while
         // legacy NPC tactical authorities are deliberately not advanced.

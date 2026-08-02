@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=20k-boundaries-challenge-warning-20260802";
 import { drawOperator } from "./presentation/operator-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js?v=12e-fire-teams-suppression-authority-20260801";
 import { findEntity } from "./world-entities.js?v=12e-fire-teams-suppression-authority-20260801";
@@ -348,9 +348,10 @@ export class Renderer{
   const encounters=game.aiV2?.teamEncounters?.summary?.()??[];
   const responses=game.aiV2?.teamResponses?.summary?.()??[];
   const procedures=game.aiV2?.teamProcedures?.summary?.()??[];
+  const directedWarnings=game.aiV2?.heardCommunications?.summary?.()??{incoming:[],outgoing:[]};
   const responseByTeam=new Map(responses.map(response=>[response.teamId,response]));
   const procedureByTeam=new Map(procedures.map(procedure=>[procedure.teamId,procedure]));
-  if(!observers.length&&!readyActors.length&&!repositioningActors.length&&!reports.length&&!encounters.length&&!responses.length&&!procedures.length)return;
+  if(!observers.length&&!readyActors.length&&!repositioningActors.length&&!reports.length&&!encounters.length&&!responses.length&&!procedures.length&&!directedWarnings.incoming.length)return;
   const activeZone=game.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId);
   ctx.save();
   try{
@@ -358,11 +359,16 @@ export class Renderer{
 
    for(const speaker of game.actors){
     const communication=speaker.aiV2Debug?.communication;
-    if(communication?.status!=="transmitting")continue;
-    ctx.strokeStyle="rgba(235,205,128,.38)";ctx.lineWidth=2;ctx.setLineDash([5,9]);
+    if(!["transmitting","transmitting_update","issuing_warning"].includes(communication?.status))continue;
+    const warningLine=communication.status==="issuing_warning";
+    ctx.strokeStyle=warningLine?"rgba(232,154,71,.74)":"rgba(235,205,128,.38)";ctx.lineWidth=warningLine?3:2;ctx.setLineDash(warningLine?[12,7]:[5,9]);
     for(const recipientId of communication.recipientIds??[]){
      const recipient=game.actors.find(actor=>actor.id===recipientId);if(!recipient)continue;
      ctx.beginPath();ctx.moveTo(speaker.x,speaker.y-18);ctx.lineTo(recipient.x,recipient.y-18);ctx.stroke();
+    }
+    if(warningLine&&communication.targetPoint){
+     ctx.beginPath();ctx.moveTo(speaker.x,speaker.y-18);ctx.lineTo(communication.targetPoint.x,communication.targetPoint.y);ctx.stroke();
+     ctx.beginPath();ctx.arc(communication.targetPoint.x,communication.targetPoint.y,28,0,Math.PI*2);ctx.stroke();
     }
     ctx.setLineDash([]);
    }
@@ -434,6 +440,17 @@ export class Renderer{
     }
    }
 
+   for(const entry of directedWarnings.incoming){
+    const warning=entry.warning;if(!warning?.targetPoint)continue;
+    const p=warning.targetPoint;
+    ctx.fillStyle="rgba(18,27,22,.90)";ctx.beginPath();ctx.roundRect(p.x-58,p.y-62,116,20,10);ctx.fill();
+    ctx.strokeStyle="#e89a47";ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle="#e89a47";ctx.font="850 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText("WARNING HEARD",p.x,p.y-52);
+    ctx.fillStyle="rgba(238,226,196,.72)";ctx.font="650 6px system-ui";
+    ctx.fillText("STOP AND IDENTIFY",p.x,p.y-38);
+   }
+
    for(const teamEntry of encounters)for(const encounter of teamEntry.hypotheses){
     const position=encounter.approximatePosition;if(!position)continue;
     const source=game.actors.find(actor=>actor.teamId===teamEntry.teamId);
@@ -476,12 +493,19 @@ export class Renderer{
   const received=debug?.receivedKnowledge;
   const reportingUpdate=debug?.activeActions?.includes("ReportContactUpdate")&&debug?.communication?.status==="transmitting_update";
   const reporting=debug?.activeActions?.includes("ReportContact")&&debug?.communication?.status==="transmitting";
+  const issuingWarning=debug?.activeActions?.includes("IssueWarning")&&debug?.communication?.status==="issuing_warning";
+  const heardWarning=debug?.heardWarning;
+  const warningFresh=heardWarning&&((this._currentGame?.aiV2?.elapsed??0)-(heardWarning.heardAt??0)<=5.5);
   const procedureRole=debug?.procedureRole;
-  const showAction=Boolean(observing||holding||repositioning||reporting||reportingUpdate||received);
+  const showAction=Boolean(observing||holding||repositioning||reporting||reportingUpdate||issuingWarning||warningFresh||received);
   if(!showAction&&!procedureRole)return;
   const x=actor.x,y=actor.y-108;
   let title="UNASSIGNED",status="NO ACTION",footer="",accent="rgba(235,234,213,.58)";
-  if(reportingUpdate){
+  if(issuingWarning){
+   title="ISSUE WARNING";status=`VOICE ${debug.communication.recipientIds?.length??0} · ${Math.round((debug.communication.progress??0)*100)}%`;footer="STOP AND IDENTIFY";accent="#e89a47";
+  }else if(warningFresh){
+   title="WARNING HEARD";status="STOP AND IDENTIFY";footer="NO REPLY SELECTED";accent="#e89a47";
+  }else if(reportingUpdate){
    title="UPDATE";status=`${String(debug.communication.activity??"ACTIVITY").replaceAll("_"," ").toUpperCase()} · ${Math.round((debug.communication.progress??0)*100)}%`;footer="REPORTING CHANGE";accent="#e6c46f";
   }else if(reporting){
    title="REPORT";status=`VOICE ${debug.communication.recipientIds?.length??0} · ${Math.round((debug.communication.progress??0)*100)}%`;footer="SHARING";accent="#e6c46f";

@@ -1,14 +1,14 @@
 import { Camera } from "./camera.js?v=20a-causal-architecture-foundation-20260802";
-import { ContinuousGameState } from "./continuous-game-state.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { ContinuousGameState } from "./continuous-game-state.js?v=20k-boundaries-challenge-warning-20260802";
 import { InputController, CombatInputController } from "./input.js?v=20a-causal-architecture-foundation-20260802";
-import { Renderer } from "./renderer.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { Renderer } from "./renderer.js?v=20k-boundaries-challenge-warning-20260802";
 import { getItemDefinition } from "../data/items.js?v=20a-causal-architecture-foundation-20260802";
 import { findEntity } from "./world-entities.js?v=20a-causal-architecture-foundation-20260802";
 import { validateItemLocations } from "./item-locations.js?v=20a-causal-architecture-foundation-20260802";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20j-observable-activity-intent-hypotheses-20260802";
-import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { renderItemThumbnail } from "./presentation/item-renderer.js?v=20k-boundaries-challenge-warning-20260802";
+import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js?v=20k-boundaries-challenge-warning-20260802";
 
-const BUILD_ID="2.0J";
+const BUILD_ID="2.0K";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Observable activity: observers track meaningful movement, report changes, and form cautious intent hypotheses without triggering hostility or combat."
+    ?"Challenge and warning: mission boundaries can justify a directed warning, recipients remember what they heard, and both teams still stop before compliance or combat."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();

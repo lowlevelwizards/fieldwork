@@ -1,4 +1,4 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=20j-observable-activity-intent-hypotheses-20260802";
+import { projectOutsideObstacles } from "./actor-motion.js?v=20k-boundaries-challenge-warning-20260802";
 
 const FACTION_NAMES={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const KITS={
@@ -75,6 +75,22 @@ export const SANDBOX_FIXTURES={
       label:"May compromise approach security",
       reason:"An unknown armed group is inside the approach Northline is responsible for monitoring."
      },
+     boundary:{
+      id:"south_approach_identification_boundary",
+      label:"Southern identification boundary",
+      area:{type:"circle",label:"southern monitored boundary",x:1500,y:1230,radius:610,falloff:180},
+      policy:"Unidentified armed personnel inside the monitored approach should be challenged before escalation.",
+      condition:"A credible mission-relevant armed presence has changed position inside the monitored boundary.",
+      warningType:"stop_and_identify",
+      warningMessage:"Stop where you are and identify yourselves.",
+      minimumConfidence:28,
+      requireActivityUpdate:true,
+      allowedActivities:["approaching","repositioning","observing","lost"],
+      voiceRange:1120,
+      coneDegrees:88,
+      warningDuration:1.45,
+      awaitDuration:12
+     },
      decisionContext:{
       missionValue:.9,
       teamPreservation:.7,
@@ -92,8 +108,8 @@ export const SANDBOX_FIXTURES={
       positionLabel:"the established observation line",
       exitLabel:"the rear approach"
      },
-     responsePolicy:{minimumHold:6,reassessEvery:3,switchMargin:.08},
-     responseBias:{heighten_watch:.1,continue_observation:.03,warn:.01}
+     responsePolicy:{minimumHold:6,reassessEvery:2.2,switchMargin:.06},
+     responseBias:{heighten_watch:.1,continue_observation:.03,warn:.18}
     },
     actors:[
      {x:1550,y:450,role:"Security",aiV2Assignment:{
@@ -368,6 +384,11 @@ export class CombatSandboxDirector{
      ...teamSpec.aiV2Mission,
      concernArea:teamSpec.aiV2Mission.concernArea?{...teamSpec.aiV2Mission.concernArea}:null,
      interference:teamSpec.aiV2Mission.interference?{...teamSpec.aiV2Mission.interference}:null,
+     boundary:teamSpec.aiV2Mission.boundary?{
+      ...teamSpec.aiV2Mission.boundary,
+      area:teamSpec.aiV2Mission.boundary.area?{...teamSpec.aiV2Mission.boundary.area}:null,
+      allowedActivities:[...(teamSpec.aiV2Mission.boundary.allowedActivities??[])]
+     }:null,
      decisionContext:teamSpec.aiV2Mission.decisionContext?{...teamSpec.aiV2Mission.decisionContext}:null,
      responsePolicy:teamSpec.aiV2Mission.responsePolicy?{...teamSpec.aiV2Mission.responsePolicy}:null,
      responseBias:teamSpec.aiV2Mission.responseBias?{...teamSpec.aiV2Mission.responseBias}:null
