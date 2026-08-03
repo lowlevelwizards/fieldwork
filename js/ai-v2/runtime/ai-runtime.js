@@ -6,6 +6,7 @@ import { ReportCasualtyAction } from "../actions/report-casualty-action.js";
 import { ActorInitiativeRuntime } from "../actors/actor-initiative-runtime.js";
 import { RoleActionRuntime } from "../actors/role-action-runtime.js";
 import { RolePositionRuntime } from "../actors/role-position-runtime.js";
+import { DefensivePositionRuntime } from "../actors/defensive-position-runtime.js";
 import { CommunicationExecutor } from "../communication/communication-executor.js";
 import { DecisionLog } from "../diagnostics/decision-log.js";
 import { InvariantMonitor } from "../diagnostics/invariant-monitor.js";
@@ -25,6 +26,8 @@ import { TeamMissionStore } from "../missions/team-mission.js";
 import { TeamProcedureState } from "../procedures/team-procedure-state.js";
 import { DestinationClaimService } from "../position/destination-claim-service.js";
 import { PositionQueryService } from "../position/position-query-service.js";
+import { DirectionalCoverService } from "../position/directional-cover-service.js";
+import { PositionSlotClaimService } from "../position/position-slot-claim-service.js";
 import { EvacuationRouteService } from "../position/evacuation-route-service.js";
 import { TeamResponseState } from "../responses/team-response-state.js";
 import { evaluateCasualtyObservation } from "../senses/casualty-observation.js";
@@ -71,9 +74,12 @@ export class AIV2Runtime{
     this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog});
     this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
+    this.directionalCover=new DirectionalCoverService();
     this.evacuationRoutes=new EvacuationRouteService({decisionLog:this.decisionLog});
     this.destinationClaims=new DestinationClaimService({decisionLog:this.decisionLog});
+    this.positionSlots=new PositionSlotClaimService({decisionLog:this.decisionLog});
     this.rolePositions=new RolePositionRuntime({scheduler:this.scheduler,positionQueries:this.positionQueries,destinationClaims:this.destinationClaims,decisionLog:this.decisionLog});
+    this.defensivePositions=new DefensivePositionRuntime({scheduler:this.scheduler,directionalCover:this.directionalCover,positionSlots:this.positionSlots,decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
     this.locomotion=new LocomotionExecutor();
     this.casualtyCare=new CasualtyCareExecutor();
@@ -83,7 +89,7 @@ export class AIV2Runtime{
     this.consumedThreatEvents=new Set();
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"actor_initiative_protective_breakaway",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"directional_cover_position_commitment",scenario:game.scenarioMode}});
   }
 
   update(delta){
@@ -125,6 +131,14 @@ export class AIV2Runtime{
       now:this.elapsed,
       context:this.#context(this.elapsed)
     });
+    this.defensivePositions.update({
+      game:this.game,
+      teamProcedures:this.teamProcedures,
+      teamMissions:this.teamMissions,
+      teamEncounters:this.teamEncounters,
+      now:this.elapsed,
+      context:this.#context(this.elapsed)
+    });
     this.encounterOutcomes.update({
       game:this.game,
       teamProcedures:this.teamProcedures,
@@ -144,7 +158,9 @@ export class AIV2Runtime{
       procedures:this.teamProcedures.summary(),
       roleActions:this.roleActions.summary(),
       rolePositions:this.rolePositions.summary(),
+      defensivePositions:this.defensivePositions.summary(),
       destinationClaims:this.destinationClaims.summary(this.elapsed),
+      positionSlots:this.positionSlots.summary(this.elapsed),
       patientClaims:this.casualtyCare.summary(),
       scheduler:this.scheduler
     });
@@ -265,9 +281,12 @@ export class AIV2Runtime{
         teamProcedures:this.teamProcedures,
         roleActions:this.roleActions,
         rolePositions:this.rolePositions,
+        defensivePositions:this.defensivePositions,
         positionQueries:this.positionQueries,
+        directionalCover:this.directionalCover,
         evacuationRoutes:this.evacuationRoutes,
         destinationClaims:this.destinationClaims,
+        positionSlots:this.positionSlots,
         locomotion:this.locomotion,
         visibleByObserver:this.visibleByObserver
       }
