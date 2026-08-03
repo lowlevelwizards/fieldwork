@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { activeActions, entriesOf, simulateFixture } from "./helpers/simulate-fixture.mjs";
 
 test("objective initiative resumes and completes useful work after a natural interruption",()=>{
-  const game=simulateFixture("objective_initiative",{seconds:29});
+  const game=simulateFixture("objective_initiative",{seconds:42});
   const team=game.operations.teams.find(candidate=>candidate.factionId==="northline");
   assert.ok(team);
   assert.equal(team.operationStatus,"returning");
@@ -11,6 +11,7 @@ test("objective initiative resumes and completes useful work after a natural int
   assert.equal(actors.length,3);
   assert.equal(actors.some(actor=>actor.aiV2Assignment),false);
   assert.equal(game.aiV2.teamResponses.count(),0);
+  assert.equal(entriesOf(game,"team_response_changed").some(entry=>entry.teamId===team.id&&entry.data.to==="hold_defensively"),true);
 
   const agenda=game.aiV2.teamAgenda.get(team.id);
   assert.equal(agenda.source,"mission");
@@ -31,7 +32,8 @@ test("objective initiative resumes and completes useful work after a natural int
   assert.ok(moves.length>=3,"the resumed objective procedure should physically establish all three roles");
   assert.equal(new Set(moves.map(entry=>entry.data.roleId)).size,3);
   assert.equal(entriesOf(game,"action_completed","IssueWarning").filter(entry=>actorIds.has(entry.actorId)).length,1);
-  assert.equal(entriesOf(game,"action_completed","InspectObjective").filter(entry=>actorIds.has(entry.actorId)).length,1);
+  assert.equal(entriesOf(game,"action_completed","DemonstrativeFire").filter(entry=>actorIds.has(entry.actorId)).length,1);
+  assert.ok(entriesOf(game,"action_completed","InspectObjective").filter(entry=>actorIds.has(entry.actorId)).length>=1);
   assert.equal(entriesOf(game,"action_completed","PerformObjectiveWork").filter(entry=>actorIds.has(entry.actorId)).length,1);
   assert.equal(entriesOf(game,"objective_approach_selected").filter(entry=>entry.teamId===team.id).length,1);
   assert.equal(entriesOf(game,"objective_completed").filter(entry=>entry.teamId===team.id).length,1);

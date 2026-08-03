@@ -70,7 +70,8 @@ export function extendProtectiveBreakawayContext(context,{game,actor,role,proced
       movement:withdrawalMovement({mission,role,actor,game}),
       targetPoint:context.contactPosition?{...context.contactPosition}:null,
       maximumRounds:role.fulfillment.maximumRounds??4,
-      fireInterval:role.fulfillment.fireInterval??.26
+      fireInterval:role.fulfillment.fireInterval??.26,
+      emitThreatEvent:Boolean(mission?.firePolicy?.emitThreatEvents)
     }
   };
 }
@@ -107,7 +108,8 @@ export function evaluateProtectiveBreakawayActions(context){
         targetPoint:{...protectiveBreakaway.targetPoint},
         maximumRounds:protectiveBreakaway.maximumRounds,
         fireInterval:protectiveBreakaway.fireInterval,
-        spread:.052
+        spread:.052,
+        emitThreatEvent:Boolean(protectiveBreakaway.emitThreatEvent)
       }
     }];
   }

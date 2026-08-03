@@ -10,6 +10,7 @@ import { applyBehaviorLab2QOverlay } from "../data/behavior-lab-2.0q.js";
 import { OBJECTIVE_INITIATIVE_FIXTURE, OBJECTIVE_INITIATIVE_FIXTURE_ID } from "../data/behavior-lab-2.0r.js";
 import { applyBehaviorLab2SOverlay } from "../data/behavior-lab-2.0s.js";
 import { applyBehaviorLab2UOverlay } from "../data/behavior-lab-2.0u.js";
+import { applyBehaviorLab2VOverlay } from "../data/behavior-lab-2.0v.js";
 import { LivingSandboxState } from "./ai-v2/sandbox/living-sandbox-state.js";
 import { sandboxMap } from "../data/behavior-lab-map.js";
 
@@ -20,7 +21,7 @@ export const SANDBOX_FIXTURE_IDS=Object.freeze({
 export { sandboxMap };
 
 function applyCurrentOverlays(fixture){return applyBehaviorLab2QOverlay(applyBehaviorLab2POverlay(fixture));}
-const CURRENT_OBJECTIVE_INITIATIVE_FIXTURE=applyBehaviorLab2UOverlay(applyBehaviorLab2SOverlay(OBJECTIVE_INITIATIVE_FIXTURE));
+const CURRENT_OBJECTIVE_INITIATIVE_FIXTURE=applyBehaviorLab2VOverlay(applyBehaviorLab2UOverlay(applyBehaviorLab2SOverlay(OBJECTIVE_INITIATIVE_FIXTURE)));
 
 export const SANDBOX_FIXTURES=Object.freeze({
   ...Object.fromEntries(Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyCurrentOverlays(fixture)])),
@@ -236,6 +237,7 @@ export class CombatSandboxDirector{
  #compileLivingMission(operation,objective){
   const exit=operation.entryPoint;
   const worksiteBoundary=objective.sandboxNeed?.worksiteBoundary??null;
+  const pressesWarning=(operation.contactResolve??.5)>=.82;
   return{
    id:operation.id,
    problemKind:"baseline_objective",
@@ -244,6 +246,8 @@ export class CombatSandboxDirector{
    immediateTask:`Approach, inspect, restore, and secure ${objective.name??operation.objectiveLabel}.`,
    successCondition:`${objective.name??operation.objectiveLabel} is operational and the team can return to faction availability.`,
    abortCondition:"No capable technical specialist or physically usable approach remains.",
+   staleAfter:9,
+   forgetAfter:22,
    concernArea:{type:"circle",label:`${objective.name??operation.objectiveLabel} worksite`,x:objective.x,y:objective.y,radius:560,falloff:240},
    interference:worksiteBoundary?{
     kind:"active_worksite_intrusion",
@@ -254,6 +258,19 @@ export class CombatSandboxDirector{
     ...worksiteBoundary,
     area:{type:"circle",label:worksiteBoundary.label??`${objective.name??operation.objectiveLabel} worksite`,x:objective.x,y:objective.y,radius:worksiteBoundary.radius??460,falloff:worksiteBoundary.falloff??180},
     allowedActivities:[...(worksiteBoundary.allowedActivities??["approaching","repositioning","observing"])]
+   }:null,
+   defensivePlan:worksiteBoundary?{
+    id:`${operation.id}_defensive_plan`,
+    label:`${objective.name??operation.objectiveLabel} defensive cover`,
+    maximumCoverDistance:520,
+    maximumTravel:520,
+    maximumCohesionDistance:560,
+    minimumProtection:.68,
+    speedMultiplier:.68,
+    arrivalRadius:10,
+    coverGap:9,
+    minimumCommitmentDuration:6,
+    switchMargin:.14
    }:null,
    objectivePlan:{
     id:`${operation.id}_objective_plan`,
@@ -290,10 +307,13 @@ export class CombatSandboxDirector{
     exitLabel:`${operation.factionLabel} entry route`
    },
    contactPolicy:{passiveVision:true,maximumRange:820,fieldOfViewDegrees:118,report:{method:"local_voice",range:620,minimumConfidence:22,reason:"Share credible ambient contact and meaningful activity while the operation continues"}},
-   responsePolicy:{minimumHold:2.4,reassessEvery:.85,switchMargin:.06},
+   firePolicy:{emitThreatEvents:true},
+   responsePolicy:{minimumHold:.75,reassessEvery:.45,switchMargin:.01},
    responseBias:worksiteBoundary
-    ?{warn:.3,monitor_departure:.16,heighten_watch:-.08,continue_observation:-.04,withdraw_silently:.2}
-    :{heighten_watch:.12,continue_observation:.02,withdraw_silently:.24}
+    ?{warn:.3,demonstrative_fire:.35,hold_defensively:.35,break_contact_under_fire:-.35,monitor_departure:.12,heighten_watch:-.12,continue_observation:-.08,withdraw_silently:.08}
+    :pressesWarning
+      ?{press_operation:.35,withdraw_silently:-.3,break_contact_under_fire:.35,heighten_watch:-.08,continue_observation:-.08}
+      :{heighten_watch:.12,continue_observation:.02,withdraw_silently:.24,press_operation:-.2}
   };
  }
  #deployLivingOperation(operation){
@@ -346,11 +366,17 @@ export class CombatSandboxDirector{
   for(const operation of this.livingState?.activeOperations?.()??[]){
    if(operation.status!=="deployed"||!operation.teamId)continue;
    const outcome=this.game.aiV2?.encounterOutcomes?.getLatest?.(operation.teamId)??null;
-   if(!outcome?.id||this.processedLivingOutcomeIds.has(outcome.id)||outcome.kind!=="withdrew_without_reply")continue;
-   const blocker=(this.livingState?.activeOperations?.()??[]).find(candidate=>candidate.teamId===outcome.counterpartTeamId)??null;
+   const interruptKinds=new Set(["withdrew_without_reply","contact_broken_under_fire"]);
+   if(!outcome?.id||this.processedLivingOutcomeIds.has(outcome.id)||!interruptKinds.has(outcome.kind))continue;
+   const incomingWarning=this.game.aiV2?.heardCommunications?.getLatestForTeam?.(operation.teamId)??null;
+   const counterpartTeamId=outcome.counterpartTeamId??incomingWarning?.sourceTeamId??null;
+   const blocker=(this.livingState?.activeOperations?.()??[]).find(candidate=>candidate.teamId===counterpartTeamId)??null;
+   const armed=outcome.kind==="contact_broken_under_fire";
    if(!this.livingState?.interruptOperation?.(operation.id,{
     now:this.elapsed,
-    reason:"withdrew_after_worksite_warning",
+    reason:armed?"contact_broken_after_armed_worksite_escalation":"withdrew_after_worksite_warning",
+    result:armed?"deferred_after_armed_contact":"deferred",
+    violent:armed,
     blockingOperationId:blocker?.id??null,
     outcomeId:outcome.id
    }))continue;
@@ -363,7 +389,9 @@ export class CombatSandboxDirector{
     actor.currentTask="Returning after the operation was deferred";
     actor.currentAction="Withdrawal complete; preparing to leave the active world";
    }
-   this.game.pushMessage(`${operation.factionLabel} defers ${operation.objectiveLabel} after withdrawing from the active worksite.`,3.2);
+   this.game.pushMessage(outcome.kind==="contact_broken_under_fire"
+    ?`${operation.factionLabel} breaks contact under bounded fire and defers ${operation.objectiveLabel}.`
+    :`${operation.factionLabel} defers ${operation.objectiveLabel} after withdrawing from the active worksite.`,3.2);
   }
  }
  #beginLivingReturn(operation){

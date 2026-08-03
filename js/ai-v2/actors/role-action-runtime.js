@@ -13,6 +13,7 @@ import { EvacuateCasualtyAction } from "../actions/evacuate-casualty-action.js";
 import { ReassessEvacuationCasualtyAction } from "../actions/reassess-evacuation-casualty-action.js";
 import { TransferCasualtyAction } from "../actions/transfer-casualty-action.js";
 import { ProtectiveFireAction } from "../actions/protective-fire-action.js";
+import { DemonstrativeFireAction } from "../actions/demonstrative-fire-action.js";
 import { MoveToObjectivePositionAction } from "../actions/move-to-objective-position-action.js";
 import { InspectObjectiveAction } from "../actions/inspect-objective-action.js";
 import { PerformObjectiveWorkAction } from "../actions/perform-objective-work-action.js";
@@ -23,6 +24,10 @@ import {
   extendProtectiveBreakawayContext
 } from "./protective-breakaway-actions.js";
 import {
+  evaluateDemonstrativeFireActions,
+  extendDemonstrativeFireContext
+} from "./demonstrative-fire-actions.js";
+import {
   evaluateObjectiveMissionActions,
   extendObjectiveMissionContext
 } from "./objective-mission-actions.js";
@@ -31,7 +36,7 @@ const ROLE_ACTION_TYPES=new Set([
   "ObserveSector","HoldReady","IssueWarning","WithdrawToRoute",
   "ApproachCasualty","ApproachEvacuationCasualty","AssessCasualty","DragCasualty","StabilizeCasualty",
   "SelectEvacuationRoute","AdvanceRouteSecurity","EvacuateCasualty","ReassessEvacuationCasualty","TransferCasualty",
-  "ProtectiveFire","MoveToObjectivePosition","InspectObjective","PerformObjectiveWork"
+  "ProtectiveFire","DemonstrativeFire","MoveToObjectivePosition","InspectObjective","PerformObjectiveWork"
 ]);
 
 const ACTION_CONSTRUCTORS={
@@ -50,6 +55,7 @@ const ACTION_CONSTRUCTORS={
   ReassessEvacuationCasualty:directive=>new ReassessEvacuationCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
   TransferCasualty:directive=>new TransferCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
   ProtectiveFire:directive=>new ProtectiveFireAction({actorId:directive.actorId,directive:directive.directive}),
+  DemonstrativeFire:directive=>new DemonstrativeFireAction({actorId:directive.actorId,directive:directive.directive}),
   MoveToObjectivePosition:directive=>new MoveToObjectivePositionAction({actorId:directive.actorId,directive:directive.directive}),
   InspectObjective:directive=>new InspectObjectiveAction({actorId:directive.actorId,directive:directive.directive}),
   PerformObjectiveWork:directive=>new PerformObjectiveWorkAction({actorId:directive.actorId,directive:directive.directive})
@@ -82,7 +88,8 @@ export class RoleActionRuntime{
         const actor=game?.actors?.find(candidate=>candidate.id===role.actorId);if(!actor)continue;
         const baseContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,evacuationRoutes:context?.services?.evacuationRoutes,currentObserveAction:this.scheduler.getAction(actor.id,"ObserveSector")});
         const protectiveContext=extendProtectiveBreakawayContext(baseContext,{game,actor,role,procedure,mission});
-        const roleContext=extendObjectiveMissionContext(protectiveContext,{
+        const demonstrativeContext=extendDemonstrativeFireContext(protectiveContext,{game,actor,role,procedure,mission});
+        const roleContext=extendObjectiveMissionContext(demonstrativeContext,{
           game,actor,role,procedure,mission,now,
           objectives:context?.services?.objectives,
           objectiveApproaches:context?.services?.objectiveApproaches,
@@ -92,6 +99,7 @@ export class RoleActionRuntime{
         const candidates=[
           ...this.evaluator.evaluate(roleContext),
           ...evaluateProtectiveBreakawayActions(roleContext),
+          ...evaluateDemonstrativeFireActions(roleContext),
           ...evaluateObjectiveMissionActions(roleContext)
         ].sort((a,b)=>b.score-a.score);
         const selected=candidates[0]??null;if(!selected)continue;

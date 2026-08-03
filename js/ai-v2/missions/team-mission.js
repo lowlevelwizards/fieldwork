@@ -41,7 +41,14 @@ function normalizeBoundary(boundary){
     voiceRange:Math.max(120,finite(boundary.voiceRange,1120)),
     coneDegrees:clamp(boundary.coneDegrees??82,20,180),
     warningDuration:Math.max(.3,finite(boundary.warningDuration,1.4)),
-    awaitDuration:Math.max(1,finite(boundary.awaitDuration,12))
+    awaitDuration:Math.max(1,finite(boundary.awaitDuration,12)),
+    complianceDuration:Math.max(.5,finite(boundary.complianceDuration,2.4)),
+    enforcement:boundary.enforcement?{
+      enabled:boundary.enforcement.enabled!==false,
+      responseId:boundary.enforcement.responseId??"demonstrative_fire",
+      offsetDistance:Math.max(48,finite(boundary.enforcement.offsetDistance,92)),
+      maximumRounds:Math.max(1,Math.min(1,Math.round(finite(boundary.enforcement.maximumRounds,1))))
+    }:null
   };
 }
 
@@ -179,6 +186,11 @@ function normalizeContactPolicy(policy=null){
   };
 }
 
+function normalizeFirePolicy(policy=null){
+  if(!policy)return null;
+  return{emitThreatEvents:Boolean(policy.emitThreatEvents)};
+}
+
 function normalizeDecisionContext(context={}){
   const bounded=(key,fallback)=>clamp(context[key]??fallback,0,1);
   return{
@@ -244,6 +256,7 @@ function normalizeMission(team){
     defensivePlan:normalizeDefensivePlan(authored.defensivePlan),
     objectivePlan:normalizeObjectivePlan(authored.objectivePlan),
     contactPolicy:normalizeContactPolicy(authored.contactPolicy),
+    firePolicy:normalizeFirePolicy(authored.firePolicy),
     decisionContext:normalizeDecisionContext(authored.decisionContext),
     responsePolicy:normalizeResponsePolicy(authored.responsePolicy),
     responseBias:normalizeResponseBias(authored.responseBias)
@@ -270,7 +283,7 @@ export class TeamMissionStore{
       ...mission,
       concernArea:mission.concernArea?{...mission.concernArea}:null,
       interference:mission.interference?{...mission.interference}:null,
-      boundary:mission.boundary?{...mission.boundary,area:mission.boundary.area?{...mission.boundary.area}:null,allowedActivities:[...mission.boundary.allowedActivities]}:null,
+      boundary:mission.boundary?{...mission.boundary,area:mission.boundary.area?{...mission.boundary.area}:null,allowedActivities:[...mission.boundary.allowedActivities],enforcement:mission.boundary.enforcement?{...mission.boundary.enforcement}:null}:null,
       withdrawalPlan:mission.withdrawalPlan?{...mission.withdrawalPlan,exitPoint:{...mission.withdrawalPlan.exitPoint},roleOffsets:Object.fromEntries(Object.entries(mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))}:null,
       recoveryPlan:mission.recoveryPlan?{...mission.recoveryPlan,recoveryPoint:{...mission.recoveryPlan.recoveryPoint},securitySector:mission.recoveryPlan.securitySector?{...mission.recoveryPlan.securitySector}:null}:null,
       evacuationPlan:mission.evacuationPlan?{
@@ -281,6 +294,7 @@ export class TeamMissionStore{
       defensivePlan:mission.defensivePlan?{...mission.defensivePlan}:null,
       objectivePlan:mission.objectivePlan?{...mission.objectivePlan,approachPolicy:{...mission.objectivePlan.approachPolicy}}:null,
       contactPolicy:mission.contactPolicy?{...mission.contactPolicy,report:{...mission.contactPolicy.report}}:null,
+      firePolicy:mission.firePolicy?{...mission.firePolicy}:null,
       decisionContext:{...mission.decisionContext},
       responsePolicy:{...mission.responsePolicy},
       responseBias:{...mission.responseBias}

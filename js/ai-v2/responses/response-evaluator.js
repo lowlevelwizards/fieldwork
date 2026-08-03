@@ -2,8 +2,10 @@ import { buildTeamDecisionLedger } from "../decisions/team-decision-ledger.js";
 import { TEAM_RESPONSE_OPTIONS } from "./response-options.js";
 import { AI_V2_2_0P_RESPONSE_OPTIONS } from "./response-options-2.0p.js";
 import { AI_V2_2_0Q_RESPONSE_OPTIONS } from "./response-options-2.0q.js";
+import { AI_V2_2_0V_RESPONSE_OPTIONS } from "./response-options-2.0v.js";
 
 const ALL_RESPONSE_OPTIONS=Object.freeze([
+  ...AI_V2_2_0V_RESPONSE_OPTIONS,
   ...AI_V2_2_0Q_RESPONSE_OPTIONS,
   ...AI_V2_2_0P_RESPONSE_OPTIONS,
   ...TEAM_RESPONSE_OPTIONS

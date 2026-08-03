@@ -72,8 +72,16 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
     relevanceScore=clamp(relevanceScore+.08,0,1);
     reason=`${reason} A directed warning was heard from the contact area, increasing confidence that the team may have been detected.`;
   }
+  const warningAge=outgoingWarning?Math.max(0,now-(outgoingWarning.issuedAt??now)):0;
+  const complianceDuration=mission.boundary?.complianceDuration??2.4;
+  const warningIgnored=Boolean(
+    outgoingWarning&&!stale&&!outgoingWarning.enforcementUsed&&spatial.inside&&
+    (["approaching","repositioning"].includes(report.activity)||(report.activity==="lost"&&age<=3.5))&&
+    warningAge>=complianceDuration
+  );
   if(outgoingWarning&&!stale){
     reason=`${reason} The team has issued a boundary warning and is awaiting an observable response.`;
+    if(warningIgnored)reason=`${reason} The contact remains inside the boundary and continues moving after the compliance window.`;
   }
 
   return{
@@ -105,8 +113,11 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
     warningHeard:Boolean(heardWarning),
     heardWarning:heardWarning?{...heardWarning,targetPoint:heardWarning.targetPoint?{...heardWarning.targetPoint}:null,approximateSourcePosition:heardWarning.approximateSourcePosition?{...heardWarning.approximateSourcePosition}:null,recipientIds:[...(heardWarning.recipientIds??[])]}:null,
     warningIssued:Boolean(outgoingWarning),
-    departureObserved:["withdrawing","lost"].includes(report.activity),
-    departureObservedAfterWarning:Boolean(outgoingWarning&&["withdrawing","lost"].includes(report.activity)&&(report.reportedAt??now)>=(outgoingWarning.issuedAt??0)),
+    warningAge,
+    warningIgnored,
+    warningEnforcementUsed:Boolean(outgoingWarning?.enforcementUsed),
+    departureObserved:report.activity==="withdrawing"||(report.activity==="lost"&&!spatial.inside),
+    departureObservedAfterWarning:Boolean(outgoingWarning&&(report.activity==="withdrawing"||(report.activity==="lost"&&!spatial.inside))&&(report.reportedAt??now)>=(outgoingWarning.issuedAt??0)),
     outgoingWarning:outgoingWarning?{...outgoingWarning,targetPoint:outgoingWarning.targetPoint?{...outgoingWarning.targetPoint}:null,approximateSourcePosition:outgoingWarning.approximateSourcePosition?{...outgoingWarning.approximateSourcePosition}:null,recipientIds:[...(outgoingWarning.recipientIds??[])]}:null,
     interferenceKind:mission.interference?.kind??null,
     interferenceLabel:mission.interference?.label??null,
@@ -165,6 +176,9 @@ export function assessFriendlyCasualtyHypothesis({mission,report,now=0}={}){
     intentHypothesis:null,
     warningHeard:false,
     warningIssued:false,
+    warningAge:0,
+    warningIgnored:false,
+    warningEnforcementUsed:false,
     departureObserved:false,
     departureObservedAfterWarning:false,
     outgoingWarning:null,

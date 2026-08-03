@@ -43,6 +43,7 @@ function normalizedFaction(spec,index){
     label:spec.label??spec.id,
     priorityOrder:index,
     priorities:{restore_infrastructure:clamp(spec.priorities?.restore_infrastructure??.5)},
+    contactResolve:clamp(spec.contactResolve??.5),
     entryPoint:{x:finite(spec.entryPoint?.x,0),y:finite(spec.entryPoint?.y,0),facing:spec.entryPoint?.facing??"down"},
     roster:(spec.roster??[]).map((member,memberIndex)=>({
       id:member.id??`${spec.id}_operator_${memberIndex+1}`,
@@ -198,6 +199,7 @@ export class LivingSandboxState{
       capabilityNeeds:{...selected.need.capabilityNeeds},
       capabilityFit:selected.capabilityFit,
       score:selected.score,
+      contactResolve:selected.faction.contactResolve,
       rosterIds:selected.team.map(member=>member.id),
       assignments,
       actorIds:[],
@@ -261,11 +263,12 @@ export class LivingSandboxState{
     return true;
   }
 
-  interruptOperation(operationId,{now=0,reason="mission_interrupted",blockingOperationId=null,outcomeId=null}={}){
+  interruptOperation(operationId,{now=0,reason="mission_interrupted",blockingOperationId=null,outcomeId=null,result="deferred",violent=false}={}){
     const operation=this.operations.get(operationId);
     if(!operation||operation.status!=="deployed")return false;
     operation.status="interrupted";
-    operation.result="deferred";
+    operation.result=result;
+    operation.violent=Boolean(violent);
     operation.interruptedAt=now;
     operation.interruptionReason=reason;
     operation.blockingOperationId=blockingOperationId;
@@ -279,7 +282,7 @@ export class LivingSandboxState{
       need.retryAfter=now+this.blockedRetryDelay;
       need.lastChangedAt=now;
     }
-    this.#record("faction_operation_interrupted",now,{operationId,teamId:operation.teamId,factionId:operation.factionId,needId:operation.needId,reason,blockingOperationId,outcomeId,returnReadyAt:operation.returnReadyAt});
+    this.#record("faction_operation_interrupted",now,{operationId,teamId:operation.teamId,factionId:operation.factionId,needId:operation.needId,reason,result:operation.result,violent:operation.violent,blockingOperationId,outcomeId,returnReadyAt:operation.returnReadyAt});
     return true;
   }
 
@@ -309,7 +312,7 @@ export class LivingSandboxState{
     if(!operation||!["returning","interrupted"].includes(operation.status))return false;
     const interrupted=operation.status==="interrupted";
     operation.status=interrupted?"deferred":"completed";
-    operation.result=interrupted?"deferred":"completed";
+    operation.result=interrupted?(operation.result??"deferred"):"completed";
     operation.completedAt=now;
     const need=[...this.needs.values()].find(candidate=>candidate.id===operation.needId)??null;
     if(need){
@@ -334,7 +337,7 @@ export class LivingSandboxState{
       member.deployedActorId=null;
       member.availableAt=this.recoveryDuration>0?now+this.recoveryDuration:0;
     }
-    this.#record(interrupted?"faction_operation_deferred":"faction_operation_completed",now,{operationId,factionId:operation.factionId,needId:operation.needId,objectiveId:operation.objectiveId,blockingOperationId:operation.blockingOperationId,outcomeId:operation.outcomeId});
+    this.#record(interrupted?"faction_operation_deferred":"faction_operation_completed",now,{operationId,factionId:operation.factionId,needId:operation.needId,objectiveId:operation.objectiveId,result:operation.result,violent:Boolean(operation.violent),blockingOperationId:operation.blockingOperationId,outcomeId:operation.outcomeId});
     return true;
   }
 

@@ -101,7 +101,7 @@ export function buildTeamDecisionLedger({mission,encounter,outcome=null}={}){
       activityEvidence:0,
       boundaryEstablished:0,boundaryInside:0,boundaryProximity:0,boundaryTrigger:0,
       boundaryLabel:"not applicable",boundaryPolicy:null,boundaryWarningType:null,
-      reversibleCommunicationValue:1,warningHeard:0,warningIssued:0,departureEvidence:0,withdrawalPlanAvailable:0,
+      reversibleCommunicationValue:1,warningHeard:0,warningIssued:0,warningAge:0,warningIgnored:0,boundaryEnforcementAvailable:0,departureEvidence:0,withdrawalPlanAvailable:0,
       positionLabel:context.positionLabel,
       exitLabel:evacuationRequired?(mission.evacuationPlan?.label??context.exitLabel):(mission.recoveryPlan?.label??context.exitLabel),
       evidenceLabel:`${Math.round(encounter.reportConfidence??0)}% friendly casualty report`,
@@ -116,6 +116,9 @@ export function buildTeamDecisionLedger({mission,encounter,outcome=null}={}){
   const reversibleCommunicationValue=hostileEvidence?0:1;
   const warningHeard=encounter.warningHeard?1:0;
   const warningIssued=encounter.warningIssued?1:0;
+  const warningAge=Math.max(0,Number(encounter.warningAge)||0);
+  const warningIgnored=encounter.warningIgnored?1:0;
+  const boundaryEnforcementAvailable=mission.boundary?.enforcement?.enabled&&!encounter.warningEnforcementUsed?1:0;
   const departureEvidence=encounter.departureObservedAfterWarning?1:0;
   const withdrawalPlanAvailable=mission.withdrawalPlan?.exitPoint?1:0;
   return{
@@ -153,6 +156,9 @@ export function buildTeamDecisionLedger({mission,encounter,outcome=null}={}){
     reversibleCommunicationValue,
     warningHeard,
     warningIssued,
+    warningAge,
+    warningIgnored,
+    boundaryEnforcementAvailable,
     departureEvidence,
     withdrawalPlanAvailable,
     positionLabel:context.positionLabel,

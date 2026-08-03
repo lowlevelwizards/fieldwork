@@ -42,7 +42,7 @@ export class FireExecutor{
     return actor.aiV2WeaponState;
   }
 
-  fireProtectiveShot({game,actor,targetPoint,shotIndex=0,spread=.055}={}){
+  fireProtectiveShot({game,actor,targetPoint,shotIndex=0,spread=.055,eventKind="near_miss",eventConfidence=94,emitThreatEvent=false}={}){
     if(!game||!actor||!targetPoint)return{fired:false,reason:"missing_fire_context"};
     if(actor.medical?.dead||actor.medical?.unconscious)return{fired:false,reason:"actor_unavailable"};
     const weapon=this.ensureWeapon(actor);
@@ -95,11 +95,33 @@ export class FireExecutor{
     game.combat?.effects?.push?.({type:"tracer",x1:origin.x,y1:origin.y,x2:nearest.point.x,y2:nearest.point.y,life:.13,maxLife:.13,source:"ai_v2"});
     game.combat?.decals?.push?.({type:"impact",x:nearest.point.x,y:nearest.point.y,angle:shotAngle,life:22,maxLife:22});
 
+    let nearestThreat=null;
     for(const candidate of game.actors??[]){
       if(candidate.teamId===actor.teamId||candidate.medical?.dead)continue;
       const miss=this.#pointSegmentDistance(candidate,origin,nearest.point);
-      if(miss>115)continue;
-      candidate.aiV2Suppression=clamp((candidate.aiV2Suppression??0)+18*(1-miss/115),0,100);
+      if(miss<=115)candidate.aiV2Suppression=clamp((candidate.aiV2Suppression??0)+18*(1-miss/115),0,100);
+      if(miss>128)continue;
+      if(!nearestThreat||miss<nearestThreat.miss)nearestThreat={candidate,miss};
+    }
+
+    let threatEventId=null;
+    if(nearestThreat&&emitThreatEvent){
+      threatEventId=`ai_v2_shot_${actor.id}_${weapon.shotsFired}`;
+      game.aiV2ThreatEvents??=[];
+      game.aiV2ThreatEvents.push({
+        id:threatEventId,
+        subjectId:`threat_source_${actor.id}`,
+        kind:eventKind,
+        targetActorId:nearestThreat.candidate.id,
+        sourceActorId:actor.id,
+        sourceTeamId:actor.teamId,
+        sourcePoint:{...origin},
+        impactPoint:{...nearest.point},
+        nearMissDistance:nearestThreat.miss,
+        confidence:eventConfidence,
+        immediateDuration:3.2,
+        emittedAt:game.aiV2?.elapsed??0
+      });
     }
 
     return{
@@ -108,6 +130,9 @@ export class FireExecutor{
       origin,
       end:{...nearest.point},
       obstacle:Boolean(nearest.obstacle),
+      threatEventId,
+      nearMissActorId:nearestThreat?.candidate.id??null,
+      nearMissDistance:nearestThreat?.miss??null,
       ammoRemaining:actor.ammoInMagazine
     };
   }

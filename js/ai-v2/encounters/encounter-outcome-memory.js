@@ -22,11 +22,12 @@ export class EncounterOutcomeMemory{
       if(procedure.procedureId==="protective_breakaway"&&procedure.phase?.id==="contact_broken"){
         this.completedProcedures.add(key);
         const encounter=teamEncounters?.getBestTeamHypothesis?.(procedure.teamId)??null;
+        const incomingWarning=heardCommunications?.getLatestForTeam?.(procedure.teamId)??null;
         const teamActors=(game?.actors??[]).filter(actor=>actor.teamId===procedure.teamId&&!actor.medical?.dead);
         const roundsFired=teamActors.reduce((sum,actor)=>sum+(actor.aiV2ProtectiveFire?.shotsFired??0),0);
         this.#remember({
           teamId:procedure.teamId,
-          counterpartTeamId:null,
+          counterpartTeamId:incomingWarning?.sourceTeamId??null,
           kind:"contact_broken_under_fire",
           label:"Contact broken under fire",
           summary:"The team reacted to physical hostile evidence, reported the threat, used one bounded protective burst, and left the exposed lane in stages.",

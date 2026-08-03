@@ -40,7 +40,7 @@ export class ThreatKnowledgeStore{
       eventId:event.id,
       observerId:actor.id,
       teamId:actor.teamId,
-      subjectId:`threat_source_${event.id}`,
+      subjectId:event.subjectId??`threat_source_${event.id}`,
       classification:"armed_contact",
       identity:"unknown",
       factionId:null,

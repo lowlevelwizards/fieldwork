@@ -55,6 +55,9 @@ export class HeardCommunicationStore{
       issuedAt:now,
       range,
       hostile:false,
+      enforcementUsed:false,
+      enforcementUsedAt:null,
+      enforcementEventId:null,
       response:null
     };
 
@@ -81,6 +84,17 @@ export class HeardCommunicationStore{
       data:{warningId,warningType,message,recipientIds:[...recipientIds],recipientTeamId,method}
     });
     return cloneWarning(warning);
+  }
+
+
+  markEnforcementUsed(teamId,{now=0,eventId=null}={}){
+    const warning=this.outgoingByTeam.get(teamId);
+    if(!warning||warning.enforcementUsed)return false;
+    warning.enforcementUsed=true;
+    warning.enforcementUsedAt=now;
+    warning.enforcementEventId=eventId;
+    this.decisionLog?.record?.({type:"warning_enforcement_used",time:now,teamId,data:{warningId:warning.id,eventId}});
+    return true;
   }
 
   getLatestForActor(actorId){return cloneWarning(this.byActor.get(actorId)?.[0]??null);}

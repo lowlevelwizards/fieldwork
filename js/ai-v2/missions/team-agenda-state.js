@@ -1,4 +1,4 @@
-const SUPPORTING_RESPONSE_IDS=new Set(["continue_observation","heighten_watch","wait"]);
+const SUPPORTING_RESPONSE_IDS=new Set(["continue_observation","heighten_watch","wait","press_operation"]);
 
 function cloneSelected(selected){return selected?{...selected,contributions:(selected.contributions??[]).map(item=>({...item}))}:null;}
 function cloneSupporting(supporting){return supporting?{...supporting,selected:cloneSelected(supporting.selected)}:null;}
