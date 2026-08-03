@@ -5,7 +5,7 @@ export class InvariantMonitor{
     this.signature="";
   }
 
-  inspect(snapshot,{now=0,procedures=[],roleActions=[],rolePositions=[],destinationClaims=[],patientClaims=[],scheduler=null}={}){
+  inspect(snapshot,{now=0,procedures=[],roleActions=[],rolePositions=[],defensivePositions=[],destinationClaims=[],positionSlots=[],patientClaims=[],scheduler=null}={}){
     const violations=[];
     const ids=new Set();
     for(const actor of snapshot.actors){
@@ -24,7 +24,6 @@ export class InvariantMonitor{
       }
     }
 
-
     const positionByActor=new Map();
     for(const position of rolePositions){
       if(positionByActor.has(position.actorId))violations.push({code:"duplicate_role_position_state",actorId:position.actorId});
@@ -38,6 +37,24 @@ export class InvariantMonitor{
       }
     }
 
+    const defensiveByActor=new Map();
+    const defensiveSlots=new Set();
+    for(const position of defensivePositions){
+      if(defensiveByActor.has(position.actorId))violations.push({code:"duplicate_defensive_position_state",actorId:position.actorId});
+      defensiveByActor.set(position.actorId,position);
+      if(!ids.has(position.actorId))violations.push({code:"unknown_defensive_position_actor",actorId:position.actorId});
+      if(position.slot?.id){
+        if(defensiveSlots.has(position.slot.id))violations.push({code:"duplicate_defensive_slot_assignment",slotId:position.slot.id});
+        defensiveSlots.add(position.slot.id);
+      }
+      if(position.status==="moving"&&scheduler&&!scheduler.hasAction(position.actorId,"MoveToPositionSlot")){
+        violations.push({code:"moving_defensive_position_without_action",actorId:position.actorId});
+      }
+      if(position.status==="holding"&&scheduler&&!scheduler.hasAction(position.actorId,"HoldPosition")){
+        violations.push({code:"held_defensive_position_without_action",actorId:position.actorId});
+      }
+    }
+
     const claimActors=new Set();
     for(const claim of destinationClaims){
       if(claimActors.has(claim.actorId))violations.push({code:"duplicate_destination_claim",actorId:claim.actorId});
@@ -46,6 +63,18 @@ export class InvariantMonitor{
       if(scheduler&&!scheduler.hasAction(claim.actorId,"RepositionForResponsibility")&&!scheduler.hasAction(claim.actorId,"WithdrawToRoute")&&!scheduler.hasAction(claim.actorId,"ApproachCasualty")&&!scheduler.hasAction(claim.actorId,"DragCasualty")&&!scheduler.hasAction(claim.actorId,"AdvanceRouteSecurity")&&!scheduler.hasAction(claim.actorId,"EvacuateCasualty")){
         violations.push({code:"destination_claim_without_movement_action",actorId:claim.actorId});
       }
+    }
+
+    const slotIds=new Set();
+    const slotActors=new Set();
+    for(const claim of positionSlots){
+      if(slotIds.has(claim.slotId))violations.push({code:"duplicate_position_slot_claim",slotId:claim.slotId});
+      if(slotActors.has(claim.actorId))violations.push({code:"actor_claimed_multiple_position_slots",actorId:claim.actorId});
+      slotIds.add(claim.slotId);
+      slotActors.add(claim.actorId);
+      if(!ids.has(claim.actorId))violations.push({code:"unknown_position_slot_actor",actorId:claim.actorId});
+      if(scheduler&&claim.status==="reserved"&&!scheduler.hasAction(claim.actorId,"MoveToPositionSlot"))violations.push({code:"reserved_slot_without_movement_action",actorId:claim.actorId,slotId:claim.slotId});
+      if(scheduler&&claim.status==="occupied"&&!scheduler.hasAction(claim.actorId,"HoldPosition"))violations.push({code:"occupied_slot_without_hold_action",actorId:claim.actorId,slotId:claim.slotId});
     }
 
     const claimedPatients=new Set();
@@ -65,7 +94,7 @@ export class InvariantMonitor{
         assigned.add(role.actorId);
         if(!ids.has(role.actorId))violations.push({code:"unknown_procedure_role_actor",teamId:procedure.teamId,actorId:role.actorId});
         if(procedure.phase.id!=="establish_responsibilities"){
-          const fulfillment=roleActionByActor.get(role.actorId);
+          const fulfillment=roleActionByActor.get(role.actorId)??defensiveByActor.get(role.actorId);
           if(!fulfillment)violations.push({code:"procedure_role_without_actor_action",teamId:procedure.teamId,actorId:role.actorId,roleId:role.roleId});
           else if(fulfillment.roleId!==role.roleId||fulfillment.procedureId!==procedure.procedureId){
             violations.push({code:"role_action_provenance_mismatch",teamId:procedure.teamId,actorId:role.actorId,roleId:role.roleId});
