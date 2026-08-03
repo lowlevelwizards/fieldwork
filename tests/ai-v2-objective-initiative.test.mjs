@@ -9,12 +9,13 @@ test("objective initiative begins useful work without an authored assignment or 
   const actors=game.actors.filter(actor=>actor.teamId===team.id);
   assert.equal(actors.length,3);
   assert.equal(actors.some(actor=>actor.aiV2Assignment),false);
-  assert.equal(game.aiV2.teamResponses.count(),0);
+  assert.equal(game.aiV2.teamResponses.count(),2);
 
   const agenda=game.aiV2.teamAgenda.get(team.id);
   assert.equal(agenda.source,"mission");
   assert.equal(agenda.intentId,"restore_objective");
   assert.equal(agenda.objectiveComplete,true);
+  assert.equal(agenda.supporting?.intentId,"heighten_watch");
 
   const procedure=game.aiV2.teamProcedures.get(team.id);
   assert.equal(procedure.procedureId,"restore_field_relay");
@@ -24,13 +25,14 @@ test("objective initiative begins useful work without an authored assignment or 
   assert.equal(actors.find(actor=>actor.id===procedure.roles.find(role=>role.roleId==="objective_specialist").actorId).role,"Engineer");
   assert.equal(actors.find(actor=>actor.id===procedure.roles.find(role=>role.roleId==="local_security").actorId).role,"Security");
 
-  const moves=entriesOf(game,"action_completed","MoveToObjectivePosition");
+  const actorIds=new Set(actors.map(actor=>actor.id));
+  const moves=entriesOf(game,"action_completed","MoveToObjectivePosition").filter(entry=>actorIds.has(entry.actorId));
   assert.equal(moves.length,3);
   assert.equal(new Set(moves.map(entry=>entry.data.roleId)).size,3);
-  assert.equal(entriesOf(game,"action_completed","InspectObjective").length,1);
-  assert.equal(entriesOf(game,"action_completed","PerformObjectiveWork").length,1);
-  assert.equal(entriesOf(game,"objective_approach_selected").length,1);
-  assert.equal(entriesOf(game,"objective_completed").length,1);
+  assert.equal(entriesOf(game,"action_completed","InspectObjective").filter(entry=>actorIds.has(entry.actorId)).length,1);
+  assert.equal(entriesOf(game,"action_completed","PerformObjectiveWork").filter(entry=>actorIds.has(entry.actorId)).length,1);
+  assert.equal(entriesOf(game,"objective_approach_selected").filter(entry=>entry.teamId===team.id).length,1);
+  assert.equal(entriesOf(game,"objective_completed").filter(entry=>entry.teamId===team.id).length,1);
 
   const objective=game.aiV2.objectives.get("central_field_relay");
   assert.equal(objective.state,"operational");
@@ -39,7 +41,7 @@ test("objective initiative begins useful work without an authored assignment or 
   assert.equal(game.aiV2.objectives.claimSummary().length,0);
   assert.deepEqual(game.aiV2.destinationClaims.summary(game.aiV2.elapsed),[]);
 
-  const holds=activeActions(game).filter(action=>action.type==="HoldReady");
+  const holds=activeActions(game).filter(action=>action.type==="HoldReady"&&actorIds.has(action.actorId));
   assert.equal(holds.length,3);
   assert.deepEqual(game.aiV2.invariants.current,[]);
 });

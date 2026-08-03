@@ -85,7 +85,9 @@ export class RoleActionRuntime{
         const roleContext=extendObjectiveMissionContext(protectiveContext,{
           game,actor,role,procedure,mission,now,
           objectives:context?.services?.objectives,
-          objectiveApproaches:context?.services?.objectiveApproaches
+          objectiveApproaches:context?.services?.objectiveApproaches,
+          teamKnowledge,
+          teamAgenda:context?.services?.teamAgenda
         });
         const candidates=[
           ...this.evaluator.evaluate(roleContext),
