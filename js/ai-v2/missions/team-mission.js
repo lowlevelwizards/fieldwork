@@ -237,10 +237,14 @@ export class TeamMissionStore{
   constructor(){this.byTeam=new Map();}
   syncFromGame(game){
     const teams=game?.operations?.teams??[];
+    const seen=new Set();
     for(const team of teams){
+      seen.add(team.id);
       const mission=normalizeMission(team);
       if(mission)this.byTeam.set(team.id,mission);
+      else this.byTeam.delete(team.id);
     }
+    for(const teamId of [...this.byTeam.keys()])if(!seen.has(teamId))this.byTeam.delete(teamId);
   }
   get(teamId){return this.byTeam.get(teamId)??null;}
   has(teamId){return this.byTeam.has(teamId);}
