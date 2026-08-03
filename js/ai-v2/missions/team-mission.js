@@ -163,6 +163,22 @@ function normalizeObjectivePlan(plan){
   };
 }
 
+function normalizeContactPolicy(policy=null){
+  if(!policy)return null;
+  const report=policy.report??{};
+  return{
+    passiveVision:policy.passiveVision!==false,
+    maximumRange:Math.max(120,finite(policy.maximumRange,780)),
+    fieldOfViewDegrees:clamp(policy.fieldOfViewDegrees??112,30,180),
+    report:{
+      method:report.method??"local_voice",
+      range:Math.max(120,finite(report.range,560)),
+      minimumConfidence:clamp(report.minimumConfidence??22,0,100),
+      reason:report.reason??"Share a credible ambient contact with nearby teammates"
+    }
+  };
+}
+
 function normalizeDecisionContext(context={}){
   const bounded=(key,fallback)=>clamp(context[key]??fallback,0,1);
   return{
@@ -227,6 +243,7 @@ function normalizeMission(team){
     evacuationPlan:normalizeEvacuationPlan(authored.evacuationPlan),
     defensivePlan:normalizeDefensivePlan(authored.defensivePlan),
     objectivePlan:normalizeObjectivePlan(authored.objectivePlan),
+    contactPolicy:normalizeContactPolicy(authored.contactPolicy),
     decisionContext:normalizeDecisionContext(authored.decisionContext),
     responsePolicy:normalizeResponsePolicy(authored.responsePolicy),
     responseBias:normalizeResponseBias(authored.responseBias)
@@ -263,6 +280,7 @@ export class TeamMissionStore{
       }:null,
       defensivePlan:mission.defensivePlan?{...mission.defensivePlan}:null,
       objectivePlan:mission.objectivePlan?{...mission.objectivePlan,approachPolicy:{...mission.objectivePlan.approachPolicy}}:null,
+      contactPolicy:mission.contactPolicy?{...mission.contactPolicy,report:{...mission.contactPolicy.report}}:null,
       decisionContext:{...mission.decisionContext},
       responsePolicy:{...mission.responsePolicy},
       responseBias:{...mission.responseBias}

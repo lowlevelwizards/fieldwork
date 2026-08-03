@@ -1,6 +1,6 @@
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 
-export function extendObjectiveMissionContext(baseContext,{game,actor,role,procedure,mission,objectives,objectiveApproaches,now=0}={}){
+export function extendObjectiveMissionContext(baseContext,{game,actor,role,procedure,mission,objectives,objectiveApproaches,teamKnowledge,teamAgenda,now=0}={}){
   if(procedure?.procedureId!=="restore_field_relay")return baseContext;
   const objectiveId=mission?.objectivePlan?.objectiveId??null;
   const objective=objectiveId?objectives?.get?.(objectiveId):null;
@@ -9,7 +9,11 @@ export function extendObjectiveMissionContext(baseContext,{game,actor,role,proce
   const approach=objectiveApproaches?.getOrSelect?.({game,teamId:actor.teamId,objective,teamActors,plan:mission.objectivePlan?.approachPolicy??{},now})??null;
   const destination=approach?.rolePoints?.[role.roleId]??null;
   const forward=approach?{x:-approach.vector.x,y:-approach.vector.y}:{x:0,y:-1};
-  const focus={x:objective.x+forward.x*(mission.objectivePlan?.securityFocusDistance??320),y:objective.y+forward.y*(mission.objectivePlan?.securityFocusDistance??320)};
+  const defaultFocus={x:objective.x+forward.x*(mission.objectivePlan?.securityFocusDistance??320),y:objective.y+forward.y*(mission.objectivePlan?.securityFocusDistance??320)};
+  const supporting=teamAgenda?.get?.(actor.teamId)?.supporting??null;
+  const report=supporting?.subjectId?teamKnowledge?.getTeamContacts?.(actor.teamId)?.find(item=>item.subjectId===supporting.subjectId)??null:null;
+  const supportingContact=report?{subjectId:report.subjectId,approximatePosition:{...report.approximatePosition},confidence:report.confidence,label:supporting.selected?.label??"Heightened watch"}:null;
+  const focus=role.roleId==="local_security"&&supportingContact?{...supportingContact.approximatePosition}:defaultFocus;
   return{
     ...baseContext,
     objectiveMission:{
@@ -18,6 +22,7 @@ export function extendObjectiveMissionContext(baseContext,{game,actor,role,proce
       approach,
       destination:destination?{...destination}:null,
       focus,
+      supportingContact,
       rolePositionEstablished:Boolean(procedure.objective?.arrivedRoles?.includes(role.roleId)),
       distanceToObjective:distance(actor,objective),
       interactionRadius:objective.interactionRadius??78,
@@ -46,7 +51,7 @@ export function evaluateObjectiveMissionActions(context){
 
   if(phaseId==="approach_objective"&&objectiveMission.rolePositionEstablished){
     return[{type:"HoldReady",score:.94,reason:`${role.label} has reached its distinct objective position and holds while the remaining responsibilities arrive.`,directive:{
-      ...common,reason:`${role.label}: preserve the established approach position`,label:"Established objective approach",focus:{...objectiveMission.focus}
+      ...common,reason:`${role.label}: preserve the established approach position`,label:objectiveMission.supportingContact&&role.roleId==="local_security"?"Reported contact watch":"Established objective approach",focus:{...objectiveMission.focus}
     }}];
   }
 
@@ -71,11 +76,14 @@ export function evaluateObjectiveMissionActions(context){
 
   if(["inspect_objective","perform_objective_work","objective_operational"].includes(phaseId)){
     const completed=phaseId==="objective_operational";
-    return[{type:"HoldReady",score:.92,reason:completed
+    const contactWatch=role.roleId==="local_security"&&objectiveMission.supportingContact;
+    return[{type:"HoldReady",score:.92,reason:contactWatch
+      ?`${role.label} watches the approximate reported contact while the objective mission remains governing.`
+      :completed
       ?`${role.label} maintains a coherent worksite posture around the restored objective.`
       :`${role.label} preserves local security while the Objective Specialist works.`,directive:{
-        ...common,reason:completed?`${role.label}: hold the completed worksite`:`${role.label}: preserve worksite security`,
-        label:completed?"Completed objective perimeter":"Objective worksite security",focus:{...objectiveMission.focus}
+        ...common,reason:contactWatch?`${role.label}: watch the reported contact without interrupting objective work`:completed?`${role.label}: hold the completed worksite`:`${role.label}: preserve worksite security`,
+        label:contactWatch?"Reported contact watch":completed?"Completed objective perimeter":"Objective worksite security",focus:{...objectiveMission.focus}
       }}];
   }
 

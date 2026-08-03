@@ -34,6 +34,7 @@ import { PositionSlotClaimService } from "../position/position-slot-claim-servic
 import { EvacuationRouteService } from "../position/evacuation-route-service.js";
 import { TeamResponseState } from "../responses/team-response-state.js";
 import { evaluateCasualtyObservation } from "../senses/casualty-observation.js";
+import { AmbientPerceptionRuntime } from "../senses/ambient-perception-runtime.js";
 import { captureWorldSnapshot } from "./world-snapshot.js";
 
 export const AI_RUNTIME_MODES=Object.freeze({LEGACY:"legacy",V2:"v2"});
@@ -77,6 +78,7 @@ export class AIV2Runtime{
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
     this.objectives=new ObjectiveStateStore({decisionLog:this.decisionLog});
     this.objectiveApproaches=new ObjectiveApproachService({decisionLog:this.decisionLog});
+    this.ambientPerception=new AmbientPerceptionRuntime({decisionLog:this.decisionLog});
     this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog});
     this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
@@ -107,6 +109,13 @@ export class AIV2Runtime{
     this.#consumeThreatEvents();
     this.#updateCasualtyObservations(delta);
     this.#ensureAuthoredObservationActions();
+    this.ambientPerception.update(delta,{
+      game:this.game,
+      missions:this.teamMissions,
+      personalKnowledge:this.personalKnowledge,
+      visibleByObserver:this.visibleByObserver,
+      now:this.elapsed
+    });
     this.initiative.update({
       game:this.game,
       teamKnowledge:this.teamKnowledge,
@@ -238,13 +247,25 @@ export class AIV2Runtime{
 
   #ensureContactReports(){
     for(const actor of this.game.actors){
-      const assignment=actor.aiV2Assignment;
-      if(!assignment||assignment.action!=="observe_sector")continue;
       if(this.scheduler.hasAction(actor.id,"ReportContact"))continue;
-      const contact=this.personalKnowledge.getBestContact(actor.id);
+      const authored=actor.aiV2Assignment?.action==="observe_sector"?actor.aiV2Assignment:null;
+      const mission=this.teamMissions.get(actor.teamId);
+      const policy=mission?.contactPolicy??null;
+      if(!authored&&policy?.passiveVision){
+        const teamActors=this.game.actors.filter(candidate=>candidate.teamId===actor.teamId&&!candidate.medical?.dead&&!candidate.medical?.unconscious);
+        const reporter=teamActors.slice().sort((left,right)=>(Number(right.aiV2Capabilities?.observation)||0)-(Number(left.aiV2Capabilities?.observation)||0)||String(left.id).localeCompare(String(right.id)))[0]??null;
+        if(reporter?.id!==actor.id||this.teamKnowledge.hasInitialReportFrom(actor.teamId,actor.id))continue;
+      }
+      const assignment=authored??(policy?.passiveVision?{
+        task:mission?.immediateTask??actor.currentTask,
+        report:{...policy.report}
+      }:null);
+      if(!assignment)continue;
       const minimumConfidence=assignment.report?.minimumConfidence??35;
-      if(!contact?.currentlyVisible||contact.confidence<minimumConfidence)continue;
-      if(this.teamKnowledge.hasInitialReportFrom(actor.teamId,actor.id))continue;
+      const contact=this.personalKnowledge.getContacts(actor.id)
+        .filter(candidate=>candidate.currentlyVisible&&candidate.confidence>=minimumConfidence)
+        .filter(candidate=>!this.teamKnowledge.hasReportFrom(actor.teamId,actor.id,candidate.subjectId))[0]??null;
+      if(!contact)continue;
       const action=new ReportContactAction({actorId:actor.id,contact,assignment});
       this.scheduler.start(action,{now:this.elapsed,context:this.#context(this.elapsed)});
     }
@@ -288,6 +309,7 @@ export class AIV2Runtime{
         encounterOutcomes:this.encounterOutcomes,
         teamResponses:this.teamResponses,
         teamAgenda:this.teamAgenda,
+        ambientPerception:this.ambientPerception,
         teamProcedures:this.teamProcedures,
         objectives:this.objectives,
         objectiveApproaches:this.objectiveApproaches,

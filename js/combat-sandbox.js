@@ -156,6 +156,7 @@ function cloneMission(teamSpec){
    rearSecuritySector:teamSpec.aiV2Mission.evacuationPlan.rearSecuritySector?{...teamSpec.aiV2Mission.evacuationPlan.rearSecuritySector}:null
   }:null,
   decisionContext:teamSpec.aiV2Mission.decisionContext?{...teamSpec.aiV2Mission.decisionContext}:null,
+  contactPolicy:teamSpec.aiV2Mission.contactPolicy?{...teamSpec.aiV2Mission.contactPolicy,report:{...(teamSpec.aiV2Mission.contactPolicy.report??{})}}:null,
   responsePolicy:teamSpec.aiV2Mission.responsePolicy?{...teamSpec.aiV2Mission.responsePolicy}:null,
   responseBias:teamSpec.aiV2Mission.responseBias?{...teamSpec.aiV2Mission.responseBias}:null
  }:null;
@@ -275,8 +276,9 @@ export class CombatSandboxDirector{
     positionLabel:`${objective.name??operation.objectiveLabel} worksite`,
     exitLabel:`${operation.factionLabel} entry route`
    },
+   contactPolicy:{passiveVision:true,maximumRange:820,fieldOfViewDegrees:118,report:{method:"local_voice",range:620,minimumConfidence:22,reason:"Share a credible ambient contact while the operation continues"}},
    responsePolicy:{minimumHold:3,reassessEvery:1.2,switchMargin:.08},
-   responseBias:{}
+   responseBias:{heighten_watch:.16,continue_observation:.04}
   };
  }
  #deployLivingOperation(operation){

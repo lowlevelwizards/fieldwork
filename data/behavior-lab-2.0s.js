@@ -22,8 +22,8 @@ export function applyBehaviorLab2SOverlay(fixture){
   if(!fixture||fixture.id!==OBJECTIVE_INITIATIVE_FIXTURE_ID)return fixture;
   return Object.freeze({
     ...fixture,
-    question:"Can persistent world needs cause factions to propose operations, dispatch teams, complete work, and continue the simulation?",
-    purpose:"Extend objective initiative into a strategic-to-tactical loop: world needs, faction priorities, reusable rosters, operation generation, AI V2 mission execution, abstract return, recovery, and a second operation without fixture-authored teams.",
+    question:"Can concurrent faction operations share a world, notice one another, and continue useful work without fixture-authored contact?",
+    purpose:"Extend the living operations loop with concurrent dispatch, ambient visual evidence, local contact reporting, supporting security awareness, and mission continuity.",
     objectives:[
       {
         id:"central_field_relay",
@@ -79,7 +79,7 @@ export function applyBehaviorLab2SOverlay(fixture){
       postCompletionHold:14,
       recoveryDuration:28,
       teamSize:3,
-      maxActiveOperations:1,
+      maxActiveOperations:2,
       factions:[
         {
           id:"northline",
