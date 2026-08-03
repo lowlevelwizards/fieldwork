@@ -19,6 +19,35 @@ export class EncounterOutcomeMemory{
     for(const procedure of teamProcedures?.summary?.()??[]){
       const key=`${procedure.teamId}:${procedure.startedAt}`;
       if(this.completedProcedures.has(key))continue;
+      if(procedure.procedureId==="protective_breakaway"&&procedure.phase?.id==="contact_broken"){
+        this.completedProcedures.add(key);
+        const encounter=teamEncounters?.getBestTeamHypothesis?.(procedure.teamId)??null;
+        const teamActors=(game?.actors??[]).filter(actor=>actor.teamId===procedure.teamId&&!actor.medical?.dead);
+        const roundsFired=teamActors.reduce((sum,actor)=>sum+(actor.aiV2ProtectiveFire?.shotsFired??0),0);
+        this.#remember({
+          teamId:procedure.teamId,
+          counterpartTeamId:null,
+          kind:"contact_broken_under_fire",
+          label:"Contact broken under fire",
+          summary:"The team reacted to physical hostile evidence, reported the threat, used one bounded protective burst, and left the exposed lane in stages.",
+          facts:[
+            "incoming fire personally perceived",
+            "hostile direction reported to teammates",
+            "lead mover reached safety",
+            "protected mover reached safety",
+            "protective fire remained bounded",
+            "covering operator disengaged last",
+            "team broke contact"
+          ],
+          evidence:[procedure.procedureId,encounter?.reportId].filter(Boolean),
+          immediateHazardResolved:true,
+          missionResolved:true,
+          followUp:"hostile_contact_remembered",
+          violent:roundsFired>0,
+          now
+        });
+        continue;
+      }
       if(procedure.procedureId==="casualty_evacuation"&&procedure.phase?.id==="safe_return"){
         const prior=this.getLatest(procedure.teamId);
         const casualtyId=prior?.kind==="casualty_stabilized"?prior.subjectId:null;
@@ -131,6 +160,7 @@ export class EncounterOutcomeMemory{
     routeLabel=null,
     carrierHandoffs=0,
     originalMissionStatus=null,
+    violent=false,
     now
   }){
     const outcome={
@@ -144,7 +174,7 @@ export class EncounterOutcomeMemory{
       evidence:[...evidence],
       subjectId,
       createdAt:now,
-      violent:false,
+      violent:Boolean(violent),
       immediateHazardResolved:Boolean(immediateHazardResolved),
       missionResolved:Boolean(missionResolved),
       followUp,
