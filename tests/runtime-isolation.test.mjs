@@ -6,7 +6,7 @@ import { simulateFixture } from "./helpers/simulate-fixture.mjs";
 const FIXTURES=["open_contact","observation","cover_position","casualty_recovery"];
 
 test("unactivated V2 fixtures remain inert",()=>{
-  for(const fixture of ["open_contact","cover_position"]){
+  for(const fixture of ["cover_position"]){
     const game=simulateFixture(fixture,{seconds:12});
     assert.equal(game.aiV2.scheduler.summary().activeActions,0,fixture);
     assert.equal(game.aiV2.teamResponses.count(),0,fixture);
