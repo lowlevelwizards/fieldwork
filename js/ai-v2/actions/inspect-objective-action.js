@@ -8,7 +8,7 @@ export class InspectObjectiveAction extends AIV2Action{
     super({
       type:"InspectObjective",actorId,
       purpose:directive?.reason??"Inspect the assigned objective before beginning work",
-      channels:[ACTION_CHANNELS.ATTENTION,ACTION_CHANNELS.INTERACTION],primary:true,displayPriority:72,
+      channels:[ACTION_CHANNELS.ATTENTION,ACTION_CHANNELS.HANDS],primary:true,displayPriority:72,
       metadata:{directive:{...directive},provenance:directive?.provenance??null}
     });
     this.directive={...directive,objectivePoint:directive?.objectivePoint?{...directive.objectivePoint}:null};
