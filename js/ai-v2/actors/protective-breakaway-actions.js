@@ -111,5 +111,18 @@ export function evaluateProtectiveBreakawayActions(context){
       }
     }];
   }
+  if(procedure.phase?.id==="contact_broken"&&protectiveBreakaway?.targetPoint){
+    return[{
+      type:"HoldReady",
+      score:.9,
+      reason:`${role.label} has stopped firing and holds at the break-contact route while the outcome is recorded.`,
+      directive:{
+        ...common,
+        reason:`${role.label}: contact broken and weapon held`,
+        label:"Former threat direction",
+        focus:{...protectiveBreakaway.targetPoint}
+      }
+    }];
+  }
   return[];
 }
