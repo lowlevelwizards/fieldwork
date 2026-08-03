@@ -1,4 +1,4 @@
-import { mapData, MAP_WIDTH, MAP_HEIGHT } from "../data/map.js";
+import { mapData, MAP_WIDTH, MAP_HEIGHT, activateMapBounds } from "../data/map.js";
 import { operatorDefinition } from "../data/operators.js";
 import { getItemDefinition } from "../data/items.js";
 import { createWorldEntities, findEntity } from "./world-entities.js";
@@ -28,6 +28,7 @@ export function resolveFacing(move, currentFacing) {
 export class GameState {
   constructor() {
     this.map = mapData;
+    activateMapBounds(this.map);
     this.siteLayoutIndex = Math.floor(Math.random() * 3);
     this.siteLayoutId = ["A", "B", "C"][this.siteLayoutIndex];
     this.entities = createWorldEntities(mapData, this.siteLayoutIndex);
@@ -70,6 +71,7 @@ export class GameState {
   }
 
   getCollisionReason(x = this.operator.x, y = this.operator.y, radius = this.operator.radius) {
+    activateMapBounds(this.map);
     if (x - radius < 0 || y - radius < 0 || x + radius > MAP_WIDTH || y + radius > MAP_HEIGHT) return "map boundary";
     for (let i = 0; i < this.map.obstacles.length; i++) {
       const obstacle = this.map.obstacles[i], dx = x - obstacle.x, dy = y - obstacle.y, minimum = radius + obstacle.radius;
@@ -199,6 +201,7 @@ export class GameState {
     }
   }
   #moveAxis(axis, amount) {
+    activateMapBounds(this.map);
     const op = this.operator, previous = op[axis];
     op[axis] += amount;
     op.x = clamp(op.x, op.radius, MAP_WIDTH - op.radius);
@@ -208,6 +211,7 @@ export class GameState {
     else this.lastCollisionReason = null;
   }
   isRectBlocked(rect, ignoredEntityId = null, includeOperator = false) {
+    activateMapBounds(this.map);
     if (rect.x < 0 || rect.y < 0 || rect.x + rect.width > MAP_WIDTH || rect.y + rect.height > MAP_HEIGHT) return true;
     if (this.#shedWalls().some(w => rectsOverlap(rect, w))) return true;
     for (const obstacle of this.map.obstacles) if (circleRectCollision(obstacle.x, obstacle.y, obstacle.radius, rect)) return true;
