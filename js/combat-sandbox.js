@@ -8,20 +8,26 @@ import {
 import { applyBehaviorLab2POverlay } from "../data/behavior-lab-2.0p.js";
 import { applyBehaviorLab2QOverlay } from "../data/behavior-lab-2.0q.js";
 import { OBJECTIVE_INITIATIVE_FIXTURE, OBJECTIVE_INITIATIVE_FIXTURE_ID } from "../data/behavior-lab-2.0r.js";
+import { applyBehaviorLab2SOverlay } from "../data/behavior-lab-2.0s.js";
+import { LivingSandboxState } from "./ai-v2/sandbox/living-sandbox-state.js";
 import { sandboxMap } from "../data/behavior-lab-map.js";
 
-export const SANDBOX_FIXTURE_IDS=Object.freeze({...BASE_SANDBOX_FIXTURE_IDS,OBJECTIVE_INITIATIVE:OBJECTIVE_INITIATIVE_FIXTURE_ID});
+export const SANDBOX_FIXTURE_IDS=Object.freeze({
+ ...BASE_SANDBOX_FIXTURE_IDS,
+ OBJECTIVE_INITIATIVE:OBJECTIVE_INITIATIVE_FIXTURE_ID
+});
 export { sandboxMap };
 
 function applyCurrentOverlays(fixture){return applyBehaviorLab2QOverlay(applyBehaviorLab2POverlay(fixture));}
+const CURRENT_OBJECTIVE_INITIATIVE_FIXTURE=applyBehaviorLab2SOverlay(OBJECTIVE_INITIATIVE_FIXTURE);
 
 export const SANDBOX_FIXTURES=Object.freeze({
   ...Object.fromEntries(Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyCurrentOverlays(fixture)])),
-  [OBJECTIVE_INITIATIVE_FIXTURE_ID]:OBJECTIVE_INITIATIVE_FIXTURE
+  [OBJECTIVE_INITIATIVE_FIXTURE_ID]:CURRENT_OBJECTIVE_INITIATIVE_FIXTURE
 });
 
 export function getSandboxFixture(id){
-  if(id===OBJECTIVE_INITIATIVE_FIXTURE_ID)return OBJECTIVE_INITIATIVE_FIXTURE;
+  if(id===OBJECTIVE_INITIATIVE_FIXTURE_ID)return CURRENT_OBJECTIVE_INITIATIVE_FIXTURE;
   return SANDBOX_FIXTURES[id]??applyCurrentOverlays(getBaseSandboxFixture(id));
 }
 
@@ -33,17 +39,17 @@ const {
 }=BEHAVIOR_LAB_ACTOR_CATALOG;
 
 function actorFromSpec(faction,teamId,index,spec,fixture){
- const id=`sandbox_${fixture.id}_${faction}_${index}`;
+ const id=spec.actorId??`sandbox_${fixture.id}_${faction}_${index}`;
  const roles=DEFAULT_ROLES[faction];
  return {
   id,
-  name:NAMES[faction][index%NAMES[faction].length],
+  name:spec.name??NAMES[faction][index%NAMES[faction].length],
   role:spec.role??roles[index%roles.length],
   type:"actor",
   teamId,
   factionId:faction,
-  operationId:`behavior_lab_${fixture.id}`,
-  kitId:KITS[faction][index%KITS[faction].length],
+  operationId:spec.operationId??`behavior_lab_${fixture.id}`,
+  kitId:spec.kitId??KITS[faction][index%KITS[faction].length],
   x:spec.x,
   y:spec.y,
   width:44,
@@ -52,7 +58,7 @@ function actorFromSpec(faction,teamId,index,spec,fixture){
   radius:18,
   vx:0,
   vy:0,
-  moveSpeed:112+(index%3)*8,
+  moveSpeed:spec.moveSpeed??112+(index%3)*8,
   facing:spec.facing??"down",
   walkingPhase:0,
   backpackLoadRatio:.35,
@@ -71,7 +77,7 @@ function actorFromSpec(faction,teamId,index,spec,fixture){
   greeting:[`${FACTION_NAMES[faction]} test team.`,fixture.question],
   seated:false,
   sandboxFixtureId:fixture.id,
-  sandboxStatic:true,
+  sandboxStatic:spec.sandboxStatic??true,
   medicalPreset:spec.medicalPreset??null,
   squadMission:spec.mission??"hold_fixture",
   aiV2Assignment:spec.aiV2Assignment?{
@@ -110,9 +116,49 @@ function objectiveFromSpec(spec){
   state:spec.state??"offline",
   progress:spec.progress??0,
   objectiveRequirements:{...(spec.requirements??{})},
+  sandboxNeed:spec.sandboxNeed?{
+   ...spec.sandboxNeed,
+   capabilityNeeds:{...(spec.sandboxNeed.capabilityNeeds??{})}
+  }:null,
   completedByTeamId:null,
   lastChangedAt:0
  };
+}
+
+function cloneMission(teamSpec){
+ return teamSpec.aiV2Mission?{
+  ...teamSpec.aiV2Mission,
+  concernArea:teamSpec.aiV2Mission.concernArea?{...teamSpec.aiV2Mission.concernArea}:null,
+  interference:teamSpec.aiV2Mission.interference?{...teamSpec.aiV2Mission.interference}:null,
+  boundary:teamSpec.aiV2Mission.boundary?{
+   ...teamSpec.aiV2Mission.boundary,
+   area:teamSpec.aiV2Mission.boundary.area?{...teamSpec.aiV2Mission.boundary.area}:null,
+   allowedActivities:[...(teamSpec.aiV2Mission.boundary.allowedActivities??[])]
+  }:null,
+  withdrawalPlan:teamSpec.aiV2Mission.withdrawalPlan?{
+   ...teamSpec.aiV2Mission.withdrawalPlan,
+   exitPoint:teamSpec.aiV2Mission.withdrawalPlan.exitPoint?{...teamSpec.aiV2Mission.withdrawalPlan.exitPoint}:null,
+   roleOffsets:Object.fromEntries(Object.entries(teamSpec.aiV2Mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))
+  }:null,
+  defensivePlan:teamSpec.aiV2Mission.defensivePlan?{...teamSpec.aiV2Mission.defensivePlan}:null,
+  objectivePlan:teamSpec.aiV2Mission.objectivePlan?{
+   ...teamSpec.aiV2Mission.objectivePlan,
+   approachPolicy:teamSpec.aiV2Mission.objectivePlan.approachPolicy?{...teamSpec.aiV2Mission.objectivePlan.approachPolicy}:null
+  }:null,
+  recoveryPlan:teamSpec.aiV2Mission.recoveryPlan?{
+   ...teamSpec.aiV2Mission.recoveryPlan,
+   recoveryPoint:teamSpec.aiV2Mission.recoveryPlan.recoveryPoint?{...teamSpec.aiV2Mission.recoveryPlan.recoveryPoint}:null,
+   securitySector:teamSpec.aiV2Mission.recoveryPlan.securitySector?{...teamSpec.aiV2Mission.recoveryPlan.securitySector}:null
+  }:null,
+  evacuationPlan:teamSpec.aiV2Mission.evacuationPlan?{
+   ...teamSpec.aiV2Mission.evacuationPlan,
+   routeOptions:(teamSpec.aiV2Mission.evacuationPlan.routeOptions??[]).map(route=>({...route,waypoints:(route.waypoints??[]).map(waypoint=>({...waypoint}))})),
+   rearSecuritySector:teamSpec.aiV2Mission.evacuationPlan.rearSecuritySector?{...teamSpec.aiV2Mission.evacuationPlan.rearSecuritySector}:null
+  }:null,
+  decisionContext:teamSpec.aiV2Mission.decisionContext?{...teamSpec.aiV2Mission.decisionContext}:null,
+  responsePolicy:teamSpec.aiV2Mission.responsePolicy?{...teamSpec.aiV2Mission.responsePolicy}:null,
+  responseBias:teamSpec.aiV2Mission.responseBias?{...teamSpec.aiV2Mission.responseBias}:null
+ }:null;
 }
 
 export class CombatSandboxDirector{
@@ -126,77 +172,197 @@ export class CombatSandboxDirector{
   this.initialized=false;
   this.stimulusEmitted=false;
   this.fixture=getSandboxFixture(fixtureId);
+  this.livingState=this.fixture.livingSandbox?new LivingSandboxState({config:this.fixture.livingSandbox}):null;
  }
- getOperation(){return null;}
+ getOperation(id){return this.livingState?.getOperation(id)??null;}
  claim(){return false;}
  get selectedOperation(){return null;}
- summary(){return[];}
+ summary(){
+  if(!this.livingState)return[];
+  return this.livingState.summary().operations.map(operation=>({
+   id:operation.id,
+   factionId:operation.factionId,
+   title:operation.label,
+   summary:`${operation.factionLabel} operation for ${operation.objectiveLabel}.`,
+   status:operation.status,
+   current:operation.status==="returning"?"Returning from the completed worksite":operation.status==="completed"?"Returned and recovering":"AI V2 mission active",
+   playerEligible:false,
+   claimed:false
+  }));
+ }
  start(){
   if(this.initialized)return;
   this.initialized=true;
   this.game.sandboxFixture=this.fixture;
+  if(this.livingState){
+   this.livingState.decisionLog=this.game.aiV2?.decisionLog??null;
+   this.game.livingSandbox=this.livingState;
+  }
   for(const spec of this.fixture.objectives??[]){
    if(!this.game.entities.some(entity=>entity.id===spec.id))this.game.entities.push(objectiveFromSpec(spec));
   }
-  for(const [teamIndex,teamSpec] of this.fixture.teams.entries()){
-   const teamId=`sandbox_team_${this.fixture.id}_${teamSpec.factionId}_${teamIndex}`;
-   const members=[];
-   for(const [actorIndex,spec] of teamSpec.actors.entries()){
-    const actor=actorFromSpec(teamSpec.factionId,teamId,actorIndex,{
-     ...spec,
-     facing:spec.facing??teamSpec.facing,
-     task:teamSpec.task,
-     mission:teamSpec.mission
-    },this.fixture);
-    const clear=projectOutsideObstacles(this.game,actor.x,actor.y,actor.radius);
-    actor.x=clear.x;actor.y=clear.y;actor.groundY=actor.y+34;
-    this.game.actors.push(actor);
-    members.push(actor.id);
-    if(actor.medicalPreset==="critical")this.#seedCriticalCasualty(actor);
-   }
-   this.teams.push({
-    id:teamId,
-    factionId:teamSpec.factionId,
-    memberIds:members,
-    mission:teamSpec.mission,
-    task:teamSpec.task,
-    fixtureId:this.fixture.id,
-    aiV2Mission:teamSpec.aiV2Mission?{
-     ...teamSpec.aiV2Mission,
-     concernArea:teamSpec.aiV2Mission.concernArea?{...teamSpec.aiV2Mission.concernArea}:null,
-     interference:teamSpec.aiV2Mission.interference?{...teamSpec.aiV2Mission.interference}:null,
-     boundary:teamSpec.aiV2Mission.boundary?{
-      ...teamSpec.aiV2Mission.boundary,
-      area:teamSpec.aiV2Mission.boundary.area?{...teamSpec.aiV2Mission.boundary.area}:null,
-      allowedActivities:[...(teamSpec.aiV2Mission.boundary.allowedActivities??[])]
-     }:null,
-     withdrawalPlan:teamSpec.aiV2Mission.withdrawalPlan?{
-      ...teamSpec.aiV2Mission.withdrawalPlan,
-      exitPoint:teamSpec.aiV2Mission.withdrawalPlan.exitPoint?{...teamSpec.aiV2Mission.withdrawalPlan.exitPoint}:null,
-      roleOffsets:Object.fromEntries(Object.entries(teamSpec.aiV2Mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))
-     }:null,
-     defensivePlan:teamSpec.aiV2Mission.defensivePlan?{...teamSpec.aiV2Mission.defensivePlan}:null,
-     objectivePlan:teamSpec.aiV2Mission.objectivePlan?{
-      ...teamSpec.aiV2Mission.objectivePlan,
-      approachPolicy:teamSpec.aiV2Mission.objectivePlan.approachPolicy?{...teamSpec.aiV2Mission.objectivePlan.approachPolicy}:null
-     }:null,
-     recoveryPlan:teamSpec.aiV2Mission.recoveryPlan?{
-      ...teamSpec.aiV2Mission.recoveryPlan,
-      recoveryPoint:teamSpec.aiV2Mission.recoveryPlan.recoveryPoint?{...teamSpec.aiV2Mission.recoveryPlan.recoveryPoint}:null,
-      securitySector:teamSpec.aiV2Mission.recoveryPlan.securitySector?{...teamSpec.aiV2Mission.recoveryPlan.securitySector}:null
-     }:null,
-     evacuationPlan:teamSpec.aiV2Mission.evacuationPlan?{
-      ...teamSpec.aiV2Mission.evacuationPlan,
-      routeOptions:(teamSpec.aiV2Mission.evacuationPlan.routeOptions??[]).map(route=>({...route,waypoints:(route.waypoints??[]).map(waypoint=>({...waypoint}))})),
-      rearSecuritySector:teamSpec.aiV2Mission.evacuationPlan.rearSecuritySector?{...teamSpec.aiV2Mission.evacuationPlan.rearSecuritySector}:null
-     }:null,
-     decisionContext:teamSpec.aiV2Mission.decisionContext?{...teamSpec.aiV2Mission.decisionContext}:null,
-     responsePolicy:teamSpec.aiV2Mission.responsePolicy?{...teamSpec.aiV2Mission.responsePolicy}:null,
-     responseBias:teamSpec.aiV2Mission.responseBias?{...teamSpec.aiV2Mission.responseBias}:null
-    }:null
-   });
-  }
+  for(const [teamIndex,teamSpec] of this.fixture.teams.entries())this.#spawnAuthoredTeam(teamSpec,teamIndex);
   this.game.pushMessage(`${this.fixture.index} ${this.fixture.label} — ${this.fixture.question}`,4.8);
+ }
+ #spawnAuthoredTeam(teamSpec,teamIndex){
+  const teamId=`sandbox_team_${this.fixture.id}_${teamSpec.factionId}_${teamIndex}`;
+  const members=[];
+  for(const [actorIndex,spec] of teamSpec.actors.entries()){
+   const actor=actorFromSpec(teamSpec.factionId,teamId,actorIndex,{
+    ...spec,
+    facing:spec.facing??teamSpec.facing,
+    task:teamSpec.task,
+    mission:teamSpec.mission
+   },this.fixture);
+   const clear=projectOutsideObstacles(this.game,actor.x,actor.y,actor.radius);
+   actor.x=clear.x;actor.y=clear.y;actor.groundY=actor.y+34;
+   this.game.actors.push(actor);
+   members.push(actor.id);
+   if(actor.medicalPreset==="critical")this.#seedCriticalCasualty(actor);
+  }
+  this.teams.push({
+   id:teamId,
+   factionId:teamSpec.factionId,
+   memberIds:members,
+   mission:teamSpec.mission,
+   task:teamSpec.task,
+   fixtureId:this.fixture.id,
+   aiV2Mission:cloneMission(teamSpec)
+  });
+ }
+ #compileLivingMission(operation,objective){
+  const exit=operation.entryPoint;
+  return{
+   id:operation.id,
+   problemKind:"baseline_objective",
+   title:operation.label,
+   objective:`Restore ${objective.name??operation.objectiveLabel} because the current world state requires functioning route infrastructure.`,
+   immediateTask:`Approach, inspect, restore, and secure ${objective.name??operation.objectiveLabel}.`,
+   successCondition:`${objective.name??operation.objectiveLabel} is operational and the team can return to faction availability.`,
+   abortCondition:"No capable technical specialist or physically usable approach remains.",
+   concernArea:{type:"circle",label:`${objective.name??operation.objectiveLabel} worksite`,x:objective.x,y:objective.y,radius:560,falloff:240},
+   objectivePlan:{
+    id:`${operation.id}_objective_plan`,
+    objectiveId:objective.id,
+    desiredState:operation.desiredState,
+    securityFocusDistance:330,
+    approachPolicy:{maximumTravel:1500,stagingDistance:250,interactionDistance:68,roleSpacing:108,speedMultiplier:.74,arrivalRadius:11,claimSpacing:72}
+   },
+   withdrawalPlan:{
+    id:`${operation.id}_return_route`,
+    label:`${operation.factionLabel} entry route`,
+    exitPoint:{x:exit.x,y:exit.y},
+    roleOffsets:{lead:{x:-70,y:0},middle:{x:0,y:0},rear:{x:70,y:0}},
+    speedMultiplier:.68,
+    arrivalRadius:14,
+    claimSpacing:70
+   },
+   decisionContext:{
+    missionValue:.92,
+    teamPreservation:.82,
+    informationNeed:.5,
+    positionSecurity:.6,
+    concealmentValue:.2,
+    detectionRisk:.14,
+    timePressure:.52+operation.urgency*.2,
+    resourceConservation:.84,
+    exitOptions:.78,
+    enemyDisruption:.08,
+    securityOrientation:.72,
+    stealthOrientation:.28,
+    mobilityOrientation:.76,
+    careOrientation:.52,
+    positionLabel:`${objective.name??operation.objectiveLabel} worksite`,
+    exitLabel:`${operation.factionLabel} entry route`
+   },
+   responsePolicy:{minimumHold:3,reassessEvery:1.2,switchMargin:.08},
+   responseBias:{}
+  };
+ }
+ #deployLivingOperation(operation){
+  const objective=this.game.entities.find(entity=>entity.id===operation.objectiveId);
+  const faction=this.livingState?.getFaction(operation.factionId);
+  if(!objective||!faction)return false;
+  const teamId=`living_team_${operation.id}`;
+  const rosterById=new Map(faction.roster.map(member=>[member.id,member]));
+  const actorIds=[];
+  const offsets=[-82,0,82];
+  for(const [index,rosterId] of operation.rosterIds.entries()){
+   const member=rosterById.get(rosterId);
+   if(!member)continue;
+   const actor=actorFromSpec(operation.factionId,teamId,index,{
+    actorId:`living_actor_${operation.id}_${rosterId}`,
+    name:member.name,
+    role:member.role,
+    kitId:member.kitId,
+    operationId:operation.id,
+    x:operation.entryPoint.x+offsets[index%offsets.length],
+    y:operation.entryPoint.y+Math.abs(offsets[index%offsets.length])*.12,
+    facing:operation.entryPoint.facing,
+    task:`Deploying for ${operation.label}`,
+    mission:operation.label,
+    sandboxStatic:false,
+    aiV2Capabilities:{...member.capabilities}
+   },this.fixture);
+   const clear=projectOutsideObstacles(this.game,actor.x,actor.y,actor.radius);
+   actor.x=clear.x;actor.y=clear.y;actor.groundY=actor.y+34;
+   this.game.actors.push(actor);
+   actorIds.push(actor.id);
+  }
+  if(actorIds.length!==operation.rosterIds.length)return false;
+  this.teams.push({
+   id:teamId,
+   factionId:operation.factionId,
+   memberIds:actorIds,
+   mission:operation.label,
+   task:`Restore ${objective.name??operation.objectiveLabel}`,
+   fixtureId:this.fixture.id,
+   operationId:operation.id,
+   operationStatus:"deployed",
+   aiV2Mission:this.#compileLivingMission(operation,objective)
+  });
+  this.livingState.markDeployed({operationId:operation.id,teamId,actorIds,now:this.elapsed});
+  this.game.pushMessage(`${operation.factionLabel} dispatches a team: ${operation.label}`,3.2);
+  return true;
+ }
+ #beginLivingReturn(operation){
+  if(!this.livingState?.beginReturn(operation.id,{now:this.elapsed}))return;
+  const team=this.teams.find(candidate=>candidate.id===operation.teamId);
+  if(team)team.operationStatus="returning";
+  for(const actorId of operation.actorIds){
+   const actor=this.game.actors.find(candidate=>candidate.id===actorId);
+   if(!actor)continue;
+   actor.currentTask="Packing the completed worksite for return";
+   actor.currentAction="Holding before abstract return";
+  }
+  this.game.pushMessage(`${operation.factionLabel} completed ${operation.objectiveLabel} and is preparing to return.`,3);
+ }
+ #completeLivingReturn(operation){
+  for(const actorId of operation.actorIds)this.game.aiV2?.scheduler?.cancelActor?.(actorId,{now:this.elapsed,reason:"operation_returned"});
+  const actorSet=new Set(operation.actorIds);
+  this.game.actors=this.game.actors.filter(actor=>!actorSet.has(actor.id));
+  this.teams=this.teams.filter(team=>team.id!==operation.teamId);
+  this.livingState?.completeReturn(operation.id,{now:this.elapsed});
+  this.game.pushMessage(`${operation.factionLabel} team returned; its operators are recovering.`,3);
+ }
+ #updateLivingSandbox(){
+  if(!this.livingState||this.game.aiRuntimeMode!=="v2")return;
+  const objectives=this.game.entities.filter(entity=>entity.aiObjective);
+  this.livingState.decisionLog??=this.game.aiV2?.decisionLog??null;
+  this.livingState.updateRecovery({now:this.elapsed});
+  this.livingState.syncObjectives(objectives,{now:this.elapsed});
+
+  for(const operation of this.livingState.activeOperations()){
+   if(operation.status!=="deployed")continue;
+   const objective=objectives.find(candidate=>candidate.id===operation.objectiveId);
+   if(objective?.state===operation.desiredState)this.#beginLivingReturn(operation);
+  }
+  for(const operation of this.livingState.readyReturns({now:this.elapsed}))this.#completeLivingReturn(operation);
+
+  const proposal=this.livingState.proposeDispatch({objectives,now:this.elapsed});
+  if(proposal&&!this.#deployLivingOperation(proposal)){
+   this.game.pushMessage(`Unable to assemble ${proposal.factionLabel} operation.`,2.4);
+  }
  }
  #seedCriticalCasualty(actor){
   const medical=this.game.wounds.ensure(actor);
@@ -241,9 +407,11 @@ export class CombatSandboxDirector{
  update(delta){
   this.start();
   this.elapsed+=delta;
-  this.#emitHostileStimulus();
-  // The fixture director authors only world facts: actors, terrain, objectives,
-  // and any explicitly controlled physical stimulus. AI V2 owns all reactions,
-  // mission initiative, role assignment, movement, work, and completion.
+  if(this.livingState)this.#updateLivingSandbox();
+  else this.#emitHostileStimulus();
+  // Fixtures author world facts and controlled stimuli. AI V2 owns mission
+  // initiative, role assignment, movement, work, and tactical reactions.
+  // The living sandbox additionally owns strategic need recognition,
+  // faction dispatch, abstract return, roster recovery, and operation history.
  }
 }
