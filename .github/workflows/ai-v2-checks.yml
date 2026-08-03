@@ -1,0 +1,26 @@
+name: AI V2 checks
+
+on:
+  push:
+    branches:
+      - AI-2.0
+  pull_request:
+    branches:
+      - AI-2.0
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Run syntax, import, and regression checks
+        run: npm test
