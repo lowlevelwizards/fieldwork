@@ -45,7 +45,6 @@ function normalizeBoundary(boundary){
   };
 }
 
-
 function normalizeWithdrawalPlan(plan){
   if(!plan?.exitPoint)return null;
   return{
@@ -58,7 +57,6 @@ function normalizeWithdrawalPlan(plan){
     claimSpacing:Math.max(24,finite(plan.claimSpacing,68))
   };
 }
-
 
 function normalizeRecoveryPlan(plan){
   if(!plan?.recoveryPoint)return null;
@@ -128,6 +126,43 @@ function normalizeEvacuationPlan(plan){
   };
 }
 
+function normalizeDefensivePlan(plan){
+  if(!plan)return null;
+  return{
+    id:plan.id??"directional_defensive_plan",
+    label:plan.label??"defensive position",
+    maximumCoverDistance:Math.max(80,finite(plan.maximumCoverDistance,520)),
+    maximumTravel:Math.max(80,finite(plan.maximumTravel,520)),
+    maximumCohesionDistance:Math.max(100,finite(plan.maximumCohesionDistance,560)),
+    minimumProtection:clamp(plan.minimumProtection??.72,0,1),
+    speedMultiplier:clamp(plan.speedMultiplier??.64,.2,1.2),
+    arrivalRadius:Math.max(4,finite(plan.arrivalRadius,10)),
+    coverGap:Math.max(2,finite(plan.coverGap,9)),
+    minimumCommitmentDuration:Math.max(0,finite(plan.minimumCommitmentDuration,8)),
+    switchMargin:clamp(plan.switchMargin??.18,0,.5)
+  };
+}
+
+function normalizeObjectivePlan(plan){
+  if(!plan?.objectiveId)return null;
+  const approach=plan.approachPolicy??{};
+  return{
+    id:plan.id??"objective_mission_plan",
+    objectiveId:plan.objectiveId,
+    desiredState:plan.desiredState??"operational",
+    securityFocusDistance:Math.max(120,finite(plan.securityFocusDistance,320)),
+    approachPolicy:{
+      maximumTravel:Math.max(200,finite(approach.maximumTravel,1400)),
+      stagingDistance:Math.max(120,finite(approach.stagingDistance,250)),
+      interactionDistance:Math.max(48,finite(approach.interactionDistance,68)),
+      roleSpacing:Math.max(60,finite(approach.roleSpacing,105)),
+      speedMultiplier:clamp(approach.speedMultiplier??.68,.2,1.2),
+      arrivalRadius:Math.max(4,finite(approach.arrivalRadius,11)),
+      claimSpacing:Math.max(24,finite(approach.claimSpacing,68))
+    }
+  };
+}
+
 function normalizeDecisionContext(context={}){
   const bounded=(key,fallback)=>clamp(context[key]??fallback,0,1);
   return{
@@ -190,6 +225,8 @@ function normalizeMission(team){
     withdrawalPlan:normalizeWithdrawalPlan(authored.withdrawalPlan),
     recoveryPlan:normalizeRecoveryPlan(authored.recoveryPlan),
     evacuationPlan:normalizeEvacuationPlan(authored.evacuationPlan),
+    defensivePlan:normalizeDefensivePlan(authored.defensivePlan),
+    objectivePlan:normalizeObjectivePlan(authored.objectivePlan),
     decisionContext:normalizeDecisionContext(authored.decisionContext),
     responsePolicy:normalizeResponsePolicy(authored.responsePolicy),
     responseBias:normalizeResponseBias(authored.responseBias)
@@ -197,10 +234,7 @@ function normalizeMission(team){
 }
 
 export class TeamMissionStore{
-  constructor(){
-    this.byTeam=new Map();
-  }
-
+  constructor(){this.byTeam=new Map();}
   syncFromGame(game){
     const teams=game?.operations?.teams??[];
     for(const team of teams){
@@ -208,15 +242,8 @@ export class TeamMissionStore{
       if(mission)this.byTeam.set(team.id,mission);
     }
   }
-
-  get(teamId){
-    return this.byTeam.get(teamId)??null;
-  }
-
-  has(teamId){
-    return this.byTeam.has(teamId);
-  }
-
+  get(teamId){return this.byTeam.get(teamId)??null;}
+  has(teamId){return this.byTeam.has(teamId);}
   summary(){
     return [...this.byTeam.values()].map(mission=>({
       ...mission,
@@ -230,6 +257,8 @@ export class TeamMissionStore{
         routeOptions:mission.evacuationPlan.routeOptions.map(route=>({...route,waypoints:route.waypoints.map(waypoint=>({...waypoint}))})),
         rearSecuritySector:mission.evacuationPlan.rearSecuritySector?{...mission.evacuationPlan.rearSecuritySector}:null
       }:null,
+      defensivePlan:mission.defensivePlan?{...mission.defensivePlan}:null,
+      objectivePlan:mission.objectivePlan?{...mission.objectivePlan,approachPolicy:{...mission.objectivePlan.approachPolicy}}:null,
       decisionContext:{...mission.decisionContext},
       responsePolicy:{...mission.responsePolicy},
       responseBias:{...mission.responseBias}
