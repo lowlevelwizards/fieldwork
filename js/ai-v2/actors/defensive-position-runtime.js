@@ -31,9 +31,10 @@ export class DefensivePositionRuntime{
     for(const procedure of teamProcedures?.summary?.()??[]){
       if(procedure.procedureId!=="defensive_position"||procedure.phase?.id==="establish_responsibilities")continue;
       const mission=teamMissions?.get?.(procedure.teamId)??null;
+      const authoredTeam=game?.operations?.teams?.find(team=>team.id===procedure.teamId)??null;
       const encounter=teamEncounters?.getBestTeamHypothesis?.(procedure.teamId)??null;
       const threatPoint=encounter?.approximatePosition??null;
-      const policy=mission?.defensivePlan??null;
+      const policy=authoredTeam?.aiV2Mission?.defensivePlan??null;
       if(!threatPoint||!policy)continue;
       const teamActors=(game?.actors??[]).filter(actor=>actor.teamId===procedure.teamId&&capable(actor));
 
@@ -77,7 +78,7 @@ export class DefensivePositionRuntime{
         const slot=cloneSlot(search.best);
         const claimed=this.positionSlots.claim({actorId:actor.id,slot,now,duration:8,purpose:`${role.roleId}_defensive_position`});
         if(!claimed.ok)continue;
-        this.#startMove({actor,role,procedure,mission,slot,now,context});
+        this.#startMove({actor,role,procedure,mission,policy,slot,now,context});
         const record={
           actorId:actor.id,
           teamId:actor.teamId,
@@ -114,7 +115,7 @@ export class DefensivePositionRuntime{
 
   summary(){return[...this.byActor.keys()].map(actorId=>this.get(actorId));}
 
-  #startMove({actor,role,procedure,mission,slot,now,context}){
+  #startMove({actor,role,procedure,mission,policy,slot,now,context}){
     const directive={
       task:mission?.immediateTask??null,
       roleId:role.roleId,
@@ -126,7 +127,7 @@ export class DefensivePositionRuntime{
       reason:`${role.label}: ${role.responsibility}`,
       slot:cloneSlot(slot),
       initialDistance:distance(actor,slot.point),
-      policy:{speedMultiplier:mission?.defensivePlan?.speedMultiplier??.62,arrivalRadius:mission?.defensivePlan?.arrivalRadius??10},
+      policy:{speedMultiplier:policy.speedMultiplier??.62,arrivalRadius:policy.arrivalRadius??10},
       provenance:{owner:"defensive_position_runtime",source:"directional_cover_slot",teamId:actor.teamId,procedureId:procedure.procedureId,phaseId:procedure.phase?.id??null,roleId:role.roleId,roleLabel:role.label}
     };
     const action=new MoveToPositionSlotAction({actorId:actor.id,directive});
