@@ -9,9 +9,10 @@ const HOLD_DEFENSIVELY=Object.freeze({
   id:"hold_defensively",
   label:"Hold Defensively",
   summary:"Translate the known hostile direction into distinct persistent cover responsibilities instead of abandoning a mission-critical position.",
-  evaluate({ledger,mission,encounter}={}){
+  evaluate({ledger,encounter}={}){
+    const authoredForMission=(ledger?.responseBias?.hold_defensively??0)>0;
     const eligible=Boolean(
-      ledger&&mission?.defensivePlan&&
+      ledger&&authoredForMission&&
       encounter?.subjectKind!=="friendly_casualty"&&
       (encounter?.state==="relevant"||encounter?.state==="potentially_incompatible")&&
       encounter?.intent==="hostile"
@@ -36,7 +37,7 @@ const HOLD_DEFENSIVELY=Object.freeze({
       score,
       bias,
       contributions,
-      reason:`Hostile evidence threatens ${ledger.positionLabel}, but the mission remains valuable and ${mission.defensivePlan.label} offers distinct directional cover slots that can be occupied without crowding or continuous repositioning.`,
+      reason:`Hostile evidence threatens ${ledger.positionLabel}, but the mission remains valuable and nearby terrain can support distinct directional cover slots without crowding or continuous repositioning.`,
       eligible:true
     };
   }
