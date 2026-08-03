@@ -1,8 +1,8 @@
-# Fieldwork 2.0O — Adaptive Evacuation & Safe Return
+# Fieldwork 2.0P — Actor Initiative & Protective Breakaway
 
 Fieldwork is an isometric extraction-survival prototype about small teams doing necessary work in an unstable conflict zone.
 
-Build 2.0O preserves Legacy 1.2H and extends the causal AI V2 foundation through the first deliberately adaptive care procedure. A stabilized critical casualty now creates an evacuation obligation that can reprioritize the team, select a route from current world affordances, survive a carrier-capability failure, reassign responsibilities, and reach safety.
+Build 2.0P preserves Legacy 1.2H and extends the causal AI V2 foundation through the first bounded combat behavior. A physical hostile act now creates personal threat evidence, an operator may react and report before team deliberation is complete, and the team can organize a finite protective breakaway instead of entering an unrestricted firefight.
 
 ## AI runtimes
 
@@ -45,23 +45,37 @@ friendly casualty perceived
 → safe return
 ```
 
-Stabilization controls immediate deterioration. It does not restore a critical casualty to duty. Safe return resolves the local evacuation mission while preserving continued-care and field-unavailability consequences.
+### Hostile Contact & Protective Breakaway
 
-## 2.0O adaptive proof
+```text
+physical hostile event
+→ personal threat evidence
+→ immediate operator initiative
+→ urgent local report
+→ shared hostile encounter
+→ Break Contact Under Fire
+→ Protective Breakaway
+→ bounded protective fire and staged movement
+→ contact broken
+→ persistent outcome memory
+```
 
-- Added **Evacuate Casualty** as a response to the unresolved `evacuation_required` obligation.
-- Added **Adaptive Casualty Evacuation** with Carrier, Route Security, and Rear Security responsibilities.
-- Added route evaluation over multiple authored world affordances instead of one forced route.
-- Added persistent route-selection, route-security, casualty-transport, reassessment, and transfer actions.
-- Added capability-based role eligibility and scoring without actor-name or fixture-ID dependencies.
-- Added a controlled mid-procedure capability loss. The patient is safely released, the invalid Carrier assignment is detected, responsibilities are reassigned, and the procedure resumes.
-- Added safe-return outcome memory while keeping the casualty stable critical and unavailable for field duty.
-- Added selected-route, active-leg, carrier-handoff, transfer, and safe-return presentation.
-- Added deterministic tests for two different capability/route configurations using the same procedure.
+## 2.0P proof
+
+- Added personal threat knowledge grounded in a physical near-miss rather than faction identity.
+- Added action priority, interruptibility, and explicit scheduler preemption.
+- Added `ReactToIncomingFire` as an immediate individual action that can occur before team coordination.
+- Reused local voice reporting to promote only the approximate threat information the operator personally knows.
+- Added **Break Contact Under Fire** and **Protective Breakaway**.
+- Added Lead Mover, Protected Mover, and Covering Operator responsibilities.
+- Added deterministic, finite `ProtectiveFire` execution with ammunition consumption and friendly-line rejection.
+- Reused the existing staged withdrawal action and destination-claim system for all three breakaway movements.
+- Added `contact_broken_under_fire` outcome memory.
+- Preserved the observation, warning, silent-withdrawal, casualty-recovery, adaptive-evacuation, and Legacy-runtime chains.
 
 ## Behavior Lab fixtures
 
-1. Open Contact — staged and inert in V2
+1. Open Contact — complete personal-threat, urgent-report, bounded-fire, and protective-breakaway chain
 2. Observation & Concealment — complete warning, withdrawal, and de-escalation chain
 3. Cover & Position — staged and inert in V2
 4. Casualty Recovery — complete recovery, adaptive evacuation, reassignment, and safe-return chain
@@ -72,4 +86,4 @@ Run the committed checks with:
 npm test
 ```
 
-See `docs/architecture/19_ADAPTIVE_EVACUATION_SAFE_RETURN.md` for the procedure, local-decision, failure-recovery, and sandbox-readiness boundaries.
+See `docs/architecture/20_ACTOR_INITIATIVE_PROTECTIVE_BREAKAWAY.md` for the actor-authority, scheduler-preemption, bounded-fire, procedure, and explicit-scope contracts.
