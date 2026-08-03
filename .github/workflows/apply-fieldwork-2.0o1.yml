@@ -29,7 +29,9 @@ jobs:
           base64 -d .fieldwork-2.0o1/apply.py.gz.b64 | gzip -d > /tmp/apply-fieldwork-2.0o1.py
           python -c "from pathlib import Path; p=Path('/tmp/apply-fieldwork-2.0o1.py'); s=p.read_text(); old='ROOT = Path(__file__).resolve().parents[1]'; assert old in s; p.write_text(s.replace(old,'ROOT = Path.cwd()',1))"
       - name: Apply physical handoff fix
-        run: python /tmp/apply-fieldwork-2.0o1.py
+        run: |
+          python /tmp/apply-fieldwork-2.0o1.py
+          python .fieldwork-2.0o1/followup.py
       - name: Verify formatting and syntax
         run: |
           git diff --check
