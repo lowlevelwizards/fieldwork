@@ -18,6 +18,7 @@ export function extendObjectiveMissionContext(baseContext,{game,actor,role,proce
       approach,
       destination:destination?{...destination}:null,
       focus,
+      rolePositionEstablished:Boolean(procedure.objective?.arrivedRoles?.includes(role.roleId)),
       distanceToObjective:distance(actor,objective),
       interactionRadius:objective.interactionRadius??78,
       inspectDuration:objective.requirements?.inspectDuration??1.2,
@@ -42,6 +43,12 @@ export function evaluateObjectiveMissionActions(context){
     objectivePoint:{x:objectiveMission.objective.x,y:objectiveMission.objective.y},provenance
   };
   const phaseId=procedure.phase?.id;
+
+  if(phaseId==="approach_objective"&&objectiveMission.rolePositionEstablished){
+    return[{type:"HoldReady",score:.94,reason:`${role.label} has reached its distinct objective position and holds while the remaining responsibilities arrive.`,directive:{
+      ...common,reason:`${role.label}: preserve the established approach position`,label:"Established objective approach",focus:{...objectiveMission.focus}
+    }}];
+  }
 
   if(phaseId==="approach_objective"&&objectiveMission.destination&&procedure.permissions?.relocate){
     return[{type:"MoveToObjectivePosition",score:1,reason:`${role.label} must physically establish its distinct objective position before work can begin.`,directive:{
