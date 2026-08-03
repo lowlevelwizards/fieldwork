@@ -1,9 +1,12 @@
 name: Apply Fieldwork 2.0O.1
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/fieldwork-2.0o1-physical-carrier-handoff
+      - AI-2.0
+    types:
+      - opened
+      - reopened
 
 permissions:
   contents: write
@@ -14,6 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
           persist-credentials: true
       - uses: actions/setup-node@v4
@@ -39,4 +43,4 @@ jobs:
           git add -A
           git diff --cached --check
           git commit -m "Fieldwork 2.0O.1 physical carrier handoff"
-          git push
+          git push origin HEAD:${{ github.head_ref }}
