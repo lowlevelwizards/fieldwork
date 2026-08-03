@@ -6,16 +6,19 @@ import {
   getSandboxFixture as getBaseSandboxFixture
 } from "../data/behavior-lab-fixtures.js";
 import { applyBehaviorLab2POverlay } from "../data/behavior-lab-2.0p.js";
+import { applyBehaviorLab2QOverlay } from "../data/behavior-lab-2.0q.js";
 import { sandboxMap } from "../data/behavior-lab-map.js";
 
 export { SANDBOX_FIXTURE_IDS, sandboxMap };
 
+function applyCurrentOverlays(fixture){return applyBehaviorLab2QOverlay(applyBehaviorLab2POverlay(fixture));}
+
 export const SANDBOX_FIXTURES=Object.freeze(Object.fromEntries(
-  Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyBehaviorLab2POverlay(fixture)])
+  Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyCurrentOverlays(fixture)])
 ));
 
 export function getSandboxFixture(id){
-  return SANDBOX_FIXTURES[id]??applyBehaviorLab2POverlay(getBaseSandboxFixture(id));
+  return SANDBOX_FIXTURES[id]??applyCurrentOverlays(getBaseSandboxFixture(id));
 }
 
 const {
@@ -139,6 +142,7 @@ export class CombatSandboxDirector{
       exitPoint:teamSpec.aiV2Mission.withdrawalPlan.exitPoint?{...teamSpec.aiV2Mission.withdrawalPlan.exitPoint}:null,
       roleOffsets:Object.fromEntries(Object.entries(teamSpec.aiV2Mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))
      }:null,
+     defensivePlan:teamSpec.aiV2Mission.defensivePlan?{...teamSpec.aiV2Mission.defensivePlan}:null,
      recoveryPlan:teamSpec.aiV2Mission.recoveryPlan?{
       ...teamSpec.aiV2Mission.recoveryPlan,
       recoveryPoint:teamSpec.aiV2Mission.recoveryPlan.recoveryPoint?{...teamSpec.aiV2Mission.recoveryPlan.recoveryPoint}:null,
