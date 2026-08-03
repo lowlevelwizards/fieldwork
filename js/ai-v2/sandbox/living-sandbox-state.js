@@ -66,6 +66,8 @@ export class LivingSandboxState{
     this.dispatchDelay=Math.max(0,finite(config.dispatchDelay,1.2));
     this.minimumDispatchGap=Math.max(0,finite(config.minimumDispatchGap,1.5));
     this.postCompletionHold=Math.max(0,finite(config.postCompletionHold,4));
+    this.interruptedReturnHold=Math.max(0,finite(config.interruptedReturnHold,1.2));
+    this.blockedRetryDelay=Math.max(1,finite(config.blockedRetryDelay,30));
     this.recoveryDuration=Math.max(0,finite(config.recoveryDuration,24));
     this.teamSize=Math.max(1,Math.round(finite(config.teamSize,3)));
     this.maxActiveOperations=Math.max(1,Math.round(finite(config.maxActiveOperations,1)));
@@ -126,6 +128,10 @@ export class LivingSandboxState{
         },
         status:"open",
         operationId:null,
+        attemptCount:0,
+        blockedAt:null,
+        blockedByOperationId:null,
+        retryAfter:null,
         createdAt:now,
         lastChangedAt:now,
         satisfiedAt:null,
@@ -148,7 +154,8 @@ export class LivingSandboxState{
   }
 
   proposeDispatch({objectives=[],now=0}={}){
-    const active=[...this.operations.values()].filter(operation=>["proposed","deployed","returning"].includes(operation.status));
+    this.updateBlockedNeeds({now});
+    const active=[...this.operations.values()].filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status));
     if(active.length>=this.maxActiveOperations)return null;
     if(now<this.dispatchDelay||now-this.lastDispatchAt<this.minimumDispatchGap)return null;
 
@@ -200,11 +207,21 @@ export class LivingSandboxState{
       deployedAt:null,
       objectiveCompletedAt:null,
       returnReadyAt:null,
-      completedAt:null
+      completedAt:null,
+      attemptNumber:(selected.need.attemptCount??0)+1,
+      result:null,
+      interruptedAt:null,
+      interruptionReason:null,
+      blockingOperationId:null,
+      outcomeId:null
     };
     this.operations.set(operationId,operation);
     selected.need.status="assigned";
     selected.need.operationId=operationId;
+    selected.need.attemptCount=(selected.need.attemptCount??0)+1;
+    selected.need.blockedAt=null;
+    selected.need.blockedByOperationId=null;
+    selected.need.retryAfter=null;
     selected.need.lastChangedAt=now;
     for(const member of selected.team){
       member.status="assigned";
@@ -244,22 +261,68 @@ export class LivingSandboxState{
     return true;
   }
 
+  interruptOperation(operationId,{now=0,reason="mission_interrupted",blockingOperationId=null,outcomeId=null}={}){
+    const operation=this.operations.get(operationId);
+    if(!operation||operation.status!=="deployed")return false;
+    operation.status="interrupted";
+    operation.result="deferred";
+    operation.interruptedAt=now;
+    operation.interruptionReason=reason;
+    operation.blockingOperationId=blockingOperationId;
+    operation.outcomeId=outcomeId;
+    operation.returnReadyAt=now+this.interruptedReturnHold;
+    const need=[...this.needs.values()].find(candidate=>candidate.id===operation.needId)??null;
+    if(need){
+      need.status="blocked";
+      need.blockedAt=now;
+      need.blockedByOperationId=blockingOperationId;
+      need.retryAfter=now+this.blockedRetryDelay;
+      need.lastChangedAt=now;
+    }
+    this.#record("faction_operation_interrupted",now,{operationId,teamId:operation.teamId,factionId:operation.factionId,needId:operation.needId,reason,blockingOperationId,outcomeId,returnReadyAt:operation.returnReadyAt});
+    return true;
+  }
+
+  updateBlockedNeeds({now=0}={}){
+    for(const need of this.needs.values()){
+      if(need.status!=="blocked"||need.operationId)continue;
+      const blocker=need.blockedByOperationId?this.operations.get(need.blockedByOperationId):null;
+      const blockerActive=Boolean(blocker&&["proposed","deployed","returning","interrupted"].includes(blocker.status));
+      if(blockerActive&&finite(need.retryAfter,Infinity)>now)continue;
+      need.status="open";
+      need.blockedAt=null;
+      need.blockedByOperationId=null;
+      need.retryAfter=null;
+      need.lastChangedAt=now;
+      this.#record("world_need_retry_opened",now,{needId:need.id,objectiveId:need.objectiveId,attemptCount:need.attemptCount??0});
+    }
+  }
+
   readyReturns({now=0}={}){
     return[...this.operations.values()]
-      .filter(operation=>operation.status==="returning"&&finite(operation.returnReadyAt,Infinity)<=now)
+      .filter(operation=>["returning","interrupted"].includes(operation.status)&&finite(operation.returnReadyAt,Infinity)<=now)
       .map(cloneOperation);
   }
 
   completeReturn(operationId,{now=0}={}){
     const operation=this.operations.get(operationId);
-    if(!operation||operation.status!=="returning")return false;
-    operation.status="completed";
+    if(!operation||!["returning","interrupted"].includes(operation.status))return false;
+    const interrupted=operation.status==="interrupted";
+    operation.status=interrupted?"deferred":"completed";
+    operation.result=interrupted?"deferred":"completed";
     operation.completedAt=now;
     const need=[...this.needs.values()].find(candidate=>candidate.id===operation.needId)??null;
     if(need){
-      need.status="resolved";
-      need.operationId=operationId;
-      need.resolvedAt=now;
+      if(interrupted){
+        need.status="blocked";
+        need.operationId=null;
+        need.blockedAt=need.blockedAt??now;
+        need.retryAfter=need.retryAfter??now+this.blockedRetryDelay;
+      }else{
+        need.status="resolved";
+        need.operationId=operationId;
+        need.resolvedAt=now;
+      }
       need.lastChangedAt=now;
     }
     const faction=this.factions.get(operation.factionId);
@@ -271,14 +334,14 @@ export class LivingSandboxState{
       member.deployedActorId=null;
       member.availableAt=this.recoveryDuration>0?now+this.recoveryDuration:0;
     }
-    this.#record("faction_operation_completed",now,{operationId,factionId:operation.factionId,needId:operation.needId,objectiveId:operation.objectiveId});
+    this.#record(interrupted?"faction_operation_deferred":"faction_operation_completed",now,{operationId,factionId:operation.factionId,needId:operation.needId,objectiveId:operation.objectiveId,blockingOperationId:operation.blockingOperationId,outcomeId:operation.outcomeId});
     return true;
   }
 
   getOperation(operationId){return cloneOperation(this.operations.get(operationId)??null);}
   getFaction(factionId){const faction=this.factions.get(factionId);return faction?cloneFaction(faction):null;}
   getNeedByObjective(objectiveId){return cloneNeed(this.needs.get(objectiveId)??null);}
-  activeOperations(){return[...this.operations.values()].filter(operation=>["proposed","deployed","returning"].includes(operation.status)).map(cloneOperation);}
+  activeOperations(){return[...this.operations.values()].filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status)).map(cloneOperation);}
 
   summary(){
     return{

@@ -9,6 +9,7 @@ import { applyBehaviorLab2POverlay } from "../data/behavior-lab-2.0p.js";
 import { applyBehaviorLab2QOverlay } from "../data/behavior-lab-2.0q.js";
 import { OBJECTIVE_INITIATIVE_FIXTURE, OBJECTIVE_INITIATIVE_FIXTURE_ID } from "../data/behavior-lab-2.0r.js";
 import { applyBehaviorLab2SOverlay } from "../data/behavior-lab-2.0s.js";
+import { applyBehaviorLab2UOverlay } from "../data/behavior-lab-2.0u.js";
 import { LivingSandboxState } from "./ai-v2/sandbox/living-sandbox-state.js";
 import { sandboxMap } from "../data/behavior-lab-map.js";
 
@@ -19,7 +20,7 @@ export const SANDBOX_FIXTURE_IDS=Object.freeze({
 export { sandboxMap };
 
 function applyCurrentOverlays(fixture){return applyBehaviorLab2QOverlay(applyBehaviorLab2POverlay(fixture));}
-const CURRENT_OBJECTIVE_INITIATIVE_FIXTURE=applyBehaviorLab2SOverlay(OBJECTIVE_INITIATIVE_FIXTURE);
+const CURRENT_OBJECTIVE_INITIATIVE_FIXTURE=applyBehaviorLab2UOverlay(applyBehaviorLab2SOverlay(OBJECTIVE_INITIATIVE_FIXTURE));
 
 export const SANDBOX_FIXTURES=Object.freeze({
   ...Object.fromEntries(Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyCurrentOverlays(fixture)])),
@@ -172,6 +173,7 @@ export class CombatSandboxDirector{
   this.teams=[];
   this.initialized=false;
   this.stimulusEmitted=false;
+  this.processedLivingOutcomeIds=new Set();
   this.fixture=getSandboxFixture(fixtureId);
   this.livingState=this.fixture.livingSandbox?new LivingSandboxState({config:this.fixture.livingSandbox}):null;
  }
@@ -233,6 +235,7 @@ export class CombatSandboxDirector{
  }
  #compileLivingMission(operation,objective){
   const exit=operation.entryPoint;
+  const worksiteBoundary=objective.sandboxNeed?.worksiteBoundary??null;
   return{
    id:operation.id,
    problemKind:"baseline_objective",
@@ -242,6 +245,16 @@ export class CombatSandboxDirector{
    successCondition:`${objective.name??operation.objectiveLabel} is operational and the team can return to faction availability.`,
    abortCondition:"No capable technical specialist or physically usable approach remains.",
    concernArea:{type:"circle",label:`${objective.name??operation.objectiveLabel} worksite`,x:objective.x,y:objective.y,radius:560,falloff:240},
+   interference:worksiteBoundary?{
+    kind:"active_worksite_intrusion",
+    label:"Approach conflicts with active technical work",
+    reason:`An unknown armed contact is moving inside ${worksiteBoundary.label??"the active worksite"}; the approach may interfere with the operation.`
+   }:null,
+   boundary:worksiteBoundary?{
+    ...worksiteBoundary,
+    area:{type:"circle",label:worksiteBoundary.label??`${objective.name??operation.objectiveLabel} worksite`,x:objective.x,y:objective.y,radius:worksiteBoundary.radius??460,falloff:worksiteBoundary.falloff??180},
+    allowedActivities:[...(worksiteBoundary.allowedActivities??["approaching","repositioning","observing"])]
+   }:null,
    objectivePlan:{
     id:`${operation.id}_objective_plan`,
     objectiveId:objective.id,
@@ -276,9 +289,11 @@ export class CombatSandboxDirector{
     positionLabel:`${objective.name??operation.objectiveLabel} worksite`,
     exitLabel:`${operation.factionLabel} entry route`
    },
-   contactPolicy:{passiveVision:true,maximumRange:820,fieldOfViewDegrees:118,report:{method:"local_voice",range:620,minimumConfidence:22,reason:"Share a credible ambient contact while the operation continues"}},
-   responsePolicy:{minimumHold:3,reassessEvery:1.2,switchMargin:.08},
-   responseBias:{heighten_watch:.16,continue_observation:.04}
+   contactPolicy:{passiveVision:true,maximumRange:820,fieldOfViewDegrees:118,report:{method:"local_voice",range:620,minimumConfidence:22,reason:"Share credible ambient contact and meaningful activity while the operation continues"}},
+   responsePolicy:{minimumHold:2.4,reassessEvery:.85,switchMargin:.06},
+   responseBias:worksiteBoundary
+    ?{warn:.3,monitor_departure:.16,heighten_watch:-.08,continue_observation:-.04,withdraw_silently:.2}
+    :{heighten_watch:.12,continue_observation:.02,withdraw_silently:.24}
   };
  }
  #deployLivingOperation(operation){
@@ -327,6 +342,30 @@ export class CombatSandboxDirector{
   this.game.pushMessage(`${operation.factionLabel} dispatches a team: ${operation.label}`,3.2);
   return true;
  }
+ #consumeLivingOperationOutcomes(){
+  for(const operation of this.livingState?.activeOperations?.()??[]){
+   if(operation.status!=="deployed"||!operation.teamId)continue;
+   const outcome=this.game.aiV2?.encounterOutcomes?.getLatest?.(operation.teamId)??null;
+   if(!outcome?.id||this.processedLivingOutcomeIds.has(outcome.id)||outcome.kind!=="withdrew_without_reply")continue;
+   const blocker=(this.livingState?.activeOperations?.()??[]).find(candidate=>candidate.teamId===outcome.counterpartTeamId)??null;
+   if(!this.livingState?.interruptOperation?.(operation.id,{
+    now:this.elapsed,
+    reason:"withdrew_after_worksite_warning",
+    blockingOperationId:blocker?.id??null,
+    outcomeId:outcome.id
+   }))continue;
+   this.processedLivingOutcomeIds.add(outcome.id);
+   const team=this.teams.find(candidate=>candidate.id===operation.teamId);
+   if(team)team.operationStatus="interrupted";
+   for(const actorId of operation.actorIds){
+    const actor=this.game.actors.find(candidate=>candidate.id===actorId);
+    if(!actor)continue;
+    actor.currentTask="Returning after the operation was deferred";
+    actor.currentAction="Withdrawal complete; preparing to leave the active world";
+   }
+   this.game.pushMessage(`${operation.factionLabel} defers ${operation.objectiveLabel} after withdrawing from the active worksite.`,3.2);
+  }
+ }
  #beginLivingReturn(operation){
   if(!this.livingState?.beginReturn(operation.id,{now:this.elapsed}))return;
   const team=this.teams.find(candidate=>candidate.id===operation.teamId);
@@ -340,12 +379,15 @@ export class CombatSandboxDirector{
   this.game.pushMessage(`${operation.factionLabel} completed ${operation.objectiveLabel} and is preparing to return.`,3);
  }
  #completeLivingReturn(operation){
-  for(const actorId of operation.actorIds)this.game.aiV2?.scheduler?.cancelActor?.(actorId,{now:this.elapsed,reason:"operation_returned"});
+  const interrupted=operation.status==="interrupted";
+  for(const actorId of operation.actorIds)this.game.aiV2?.scheduler?.cancelActor?.(actorId,{now:this.elapsed,reason:interrupted?"operation_deferred":"operation_returned"});
   const actorSet=new Set(operation.actorIds);
   this.game.actors=this.game.actors.filter(actor=>!actorSet.has(actor.id));
   this.teams=this.teams.filter(team=>team.id!==operation.teamId);
   this.livingState?.completeReturn(operation.id,{now:this.elapsed});
-  this.game.pushMessage(`${operation.factionLabel} team returned; its operators are recovering.`,3);
+  this.game.pushMessage(interrupted
+   ?`${operation.factionLabel} team returned with the operation deferred for retry.`
+   :`${operation.factionLabel} team returned; its operators are recovering.`,3);
  }
  #updateLivingSandbox(){
   if(!this.livingState||this.game.aiRuntimeMode!=="v2")return;
@@ -353,6 +395,7 @@ export class CombatSandboxDirector{
   this.livingState.decisionLog??=this.game.aiV2?.decisionLog??null;
   this.livingState.updateRecovery({now:this.elapsed});
   this.livingState.syncObjectives(objectives,{now:this.elapsed});
+  this.#consumeLivingOperationOutcomes();
 
   for(const operation of this.livingState.activeOperations()){
    if(operation.status!=="deployed")continue;

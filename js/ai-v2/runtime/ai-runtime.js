@@ -56,6 +56,12 @@ function authoredObservationDirective(actor){
   };
 }
 
+function preferredAmbientReporter(game,teamId){
+  return(game?.actors??[])
+    .filter(actor=>actor.teamId===teamId&&!actor.medical?.dead&&!actor.medical?.unconscious)
+    .sort((left,right)=>(Number(right.aiV2Capabilities?.observation)||0)-(Number(left.aiV2Capabilities?.observation)||0)||String(left.id).localeCompare(String(right.id)))[0]??null;
+}
+
 export class AIV2Runtime{
   constructor(game){
     this.game=game;
@@ -252,8 +258,7 @@ export class AIV2Runtime{
       const mission=this.teamMissions.get(actor.teamId);
       const policy=mission?.contactPolicy??null;
       if(!authored&&policy?.passiveVision){
-        const teamActors=this.game.actors.filter(candidate=>candidate.teamId===actor.teamId&&!candidate.medical?.dead&&!candidate.medical?.unconscious);
-        const reporter=teamActors.slice().sort((left,right)=>(Number(right.aiV2Capabilities?.observation)||0)-(Number(left.aiV2Capabilities?.observation)||0)||String(left.id).localeCompare(String(right.id)))[0]??null;
+        const reporter=preferredAmbientReporter(this.game,actor.teamId);
         if(reporter?.id!==actor.id||this.teamKnowledge.hasInitialReportFrom(actor.teamId,actor.id))continue;
       }
       const assignment=authored??(policy?.passiveVision?{
@@ -273,12 +278,22 @@ export class AIV2Runtime{
 
   #ensureContactUpdateReports(){
     for(const actor of this.game.actors){
-      const assignment=actor.aiV2Assignment;
-      if(!assignment||assignment.action!=="observe_sector")continue;
+      const authored=actor.aiV2Assignment?.action==="observe_sector"?actor.aiV2Assignment:null;
+      const mission=this.teamMissions.get(actor.teamId);
+      const policy=mission?.contactPolicy??null;
+      if(!authored&&policy?.passiveVision){
+        const reporter=preferredAmbientReporter(this.game,actor.teamId);
+        if(reporter?.id!==actor.id)continue;
+      }
+      const assignment=authored??(policy?.passiveVision?{
+        task:mission?.immediateTask??actor.currentTask,
+        report:{...policy.report}
+      }:null);
+      if(!assignment)continue;
       if(this.scheduler.hasAction(actor.id,"ReportContact")||this.scheduler.hasAction(actor.id,"ReportContactUpdate"))continue;
-      if(!this.teamKnowledge.hasInitialReportFrom(actor.teamId,actor.id))continue;
       const contact=this.personalKnowledge.getContacts(actor.id)
         .filter(candidate=>(candidate.track?.activityRevision??0)>0)
+        .filter(candidate=>this.teamKnowledge.hasReportFrom(actor.teamId,actor.id,candidate.subjectId))
         .filter(candidate=>!this.teamKnowledge.hasActivityRevision(actor.teamId,actor.id,candidate.subjectId,candidate.track.activityRevision))
         .sort((a,b)=>(b.track?.lastActivityChangedAt??0)-(a.track?.lastActivityChangedAt??0))[0]??null;
       const revision=contact?.track?.activityRevision??0;
