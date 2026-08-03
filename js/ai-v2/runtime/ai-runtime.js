@@ -3,6 +3,7 @@ import { ObserveSectorAction } from "../actions/observe-sector-action.js";
 import { ReportContactAction } from "../actions/report-contact-action.js";
 import { ReportContactUpdateAction } from "../actions/report-contact-update-action.js";
 import { ReportCasualtyAction } from "../actions/report-casualty-action.js";
+import { ActorInitiativeRuntime } from "../actors/actor-initiative-runtime.js";
 import { RoleActionRuntime } from "../actors/role-action-runtime.js";
 import { RolePositionRuntime } from "../actors/role-position-runtime.js";
 import { CommunicationExecutor } from "../communication/communication-executor.js";
@@ -14,10 +15,12 @@ import { EncounterOutcomeMemory } from "../encounters/encounter-outcome-memory.j
 import { AttentionExecutor } from "../execution/attention-executor.js";
 import { LocomotionExecutor } from "../execution/locomotion-executor.js";
 import { CasualtyCareExecutor } from "../execution/casualty-care-executor.js";
+import { FireExecutor } from "../execution/fire-executor.js";
 import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js";
 import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js";
 import { HeardCommunicationStore } from "../knowledge/heard-communication.js";
 import { CasualtyKnowledgeStore } from "../knowledge/casualty-knowledge.js";
+import { ThreatKnowledgeStore } from "../knowledge/threat-knowledge.js";
 import { TeamMissionStore } from "../missions/team-mission.js";
 import { TeamProcedureState } from "../procedures/team-procedure-state.js";
 import { DestinationClaimService } from "../position/destination-claim-service.js";
@@ -59,11 +62,13 @@ export class AIV2Runtime{
     this.teamKnowledge=new TeamKnowledgeStore({decisionLog:this.decisionLog});
     this.heardCommunications=new HeardCommunicationStore({decisionLog:this.decisionLog});
     this.casualtyKnowledge=new CasualtyKnowledgeStore({decisionLog:this.decisionLog});
+    this.threatKnowledge=new ThreatKnowledgeStore({decisionLog:this.decisionLog});
     this.teamMissions=new TeamMissionStore();
     this.teamEncounters=new TeamEncounterMemory({decisionLog:this.decisionLog});
     this.encounterOutcomes=new EncounterOutcomeMemory({decisionLog:this.decisionLog});
     this.teamResponses=new TeamResponseState({decisionLog:this.decisionLog});
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
+    this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog});
     this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
     this.evacuationRoutes=new EvacuationRouteService({decisionLog:this.decisionLog});
@@ -72,22 +77,32 @@ export class AIV2Runtime{
     this.attention=new AttentionExecutor();
     this.locomotion=new LocomotionExecutor();
     this.casualtyCare=new CasualtyCareExecutor();
+    this.fire=new FireExecutor();
     this.communication=new CommunicationExecutor();
     this.visibleByObserver=new Map();
+    this.consumedThreatEvents=new Set();
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"adaptive_evacuation_safe_return",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"actor_initiative_protective_breakaway",scenario:game.scenarioMode}});
   }
 
   update(delta){
     this.elapsed+=delta;
     this.visibleByObserver=new Map();
     this.teamMissions.syncFromGame(this.game);
+    this.#consumeThreatEvents();
     this.#updateCasualtyObservations(delta);
     this.#ensureAuthoredObservationActions();
+    this.initiative.update({
+      game:this.game,
+      teamKnowledge:this.teamKnowledge,
+      now:this.elapsed,
+      context:this.#context(this.elapsed)
+    });
     this.scheduler.update(delta,{now:this.elapsed,context:this.#context(this.elapsed)});
     this.personalKnowledge.update(delta,{now:this.elapsed,visibleByObserver:this.visibleByObserver});
     this.teamKnowledge.update(delta,{now:this.elapsed});
+    this.threatKnowledge.update(delta,{now:this.elapsed});
     this.#ensureContactReports();
     this.#ensureContactUpdateReports();
     this.#ensureCasualtyReports();
@@ -135,12 +150,21 @@ export class AIV2Runtime{
     });
   }
 
-  getDebugSummary(){
-    return getAIV2DebugSummary(this);
-  }
+  getDebugSummary(){return getAIV2DebugSummary(this);}
+  getDebugDetails(){return getAIV2DebugDetails(this);}
 
-  getDebugDetails(){
-    return getAIV2DebugDetails(this);
+  #consumeThreatEvents(){
+    for(const event of this.game.aiV2ThreatEvents??[]){
+      if(!event?.id||this.consumedThreatEvents.has(event.id))continue;
+      this.consumedThreatEvents.add(event.id);
+      this.threatKnowledge.observeEvent({event,game:this.game,now:this.elapsed});
+      this.decisionLog.record({
+        type:"physical_threat_event_consumed",
+        time:this.elapsed,
+        actorId:event.targetActorId,
+        data:{eventId:event.id,eventKind:event.kind??"incoming_fire"}
+      });
+    }
   }
 
   #updateCasualtyObservations(delta){
@@ -176,7 +200,7 @@ export class AIV2Runtime{
       const resolvedOutcome=this.encounterOutcomes.getLatest(actor.teamId);
       if(resolvedOutcome?.kind==="withdrew_without_reply"){
         const observe=this.scheduler.getAction(actor.id,"ObserveSector");
-        if(observe&&observe.metadata?.provenance?.source==="authored_task")this.scheduler.cancelAction(actor.id,observe,{now:this.elapsed,reason:"encounter_resolved_by_withdrawal"});
+        if(observe&&observe.metadata?.provenance?.source==="authored_task")this.scheduler.cancelAction(actor.id,observe,{now:this.elapsed,reason:"encounter_resolved_by_withdrawal",context:this.#context(this.elapsed)});
         continue;
       }
       const directive=authoredObservationDirective(actor);
@@ -231,7 +255,9 @@ export class AIV2Runtime{
         teamKnowledge:this.teamKnowledge,
         heardCommunications:this.heardCommunications,
         casualtyKnowledge:this.casualtyKnowledge,
+        threatKnowledge:this.threatKnowledge,
         casualtyCare:this.casualtyCare,
+        fire:this.fire,
         teamMissions:this.teamMissions,
         teamEncounters:this.teamEncounters,
         encounterOutcomes:this.encounterOutcomes,
@@ -248,7 +274,5 @@ export class AIV2Runtime{
     };
   }
 
-  #updateActorDiagnostics(){
-    updateAIV2ActorDiagnostics(this);
-  }
+  #updateActorDiagnostics(){updateAIV2ActorDiagnostics(this);}
 }

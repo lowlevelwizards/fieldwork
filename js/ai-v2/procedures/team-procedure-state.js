@@ -2,7 +2,7 @@ import {
   getProcedureDefinitionForResponse,
   getProcedurePhase,
   getProcedureTransition
-} from "./procedure-definitions.js";
+} from "./procedure-registry.js";
 
 function capable(actor){
   const medical=actor?.medical;

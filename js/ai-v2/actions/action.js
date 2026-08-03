@@ -12,7 +12,18 @@ export const ACTION_STATES=Object.freeze({
 let nextActionSequence=1;
 
 export class AIV2Action{
-  constructor({type,actorId,purpose="",channels=[],primary=true,displayPriority=0,metadata={}}={}){
+  constructor({
+    type,
+    actorId,
+    purpose="",
+    channels=[],
+    primary=true,
+    displayPriority=0,
+    priority=null,
+    interruptible=true,
+    preemptionMargin=1,
+    metadata={}
+  }={}){
     if(!type)throw new Error("AI V2 actions require a type");
     if(!actorId)throw new Error("AI V2 actions require an actorId");
     this.id=`v2_action_${nextActionSequence++}`;
@@ -22,6 +33,9 @@ export class AIV2Action{
     this.channels=normalizeActionChannels(channels);
     this.primary=Boolean(primary);
     this.displayPriority=Number.isFinite(displayPriority)?displayPriority:0;
+    this.priority=Number.isFinite(priority)?priority:this.displayPriority;
+    this.interruptible=Boolean(interruptible);
+    this.preemptionMargin=Math.max(0,Number(preemptionMargin)||0);
     this.metadata={...metadata};
     this.state=ACTION_STATES.PROPOSED;
     this.startedAt=null;
@@ -33,6 +47,8 @@ export class AIV2Action{
   canStart(){return true;}
   canContinue(){return true;}
   update(){return null;}
+  onInterrupted(){}
+  onCancelled(){}
 
   start(now){
     this.state=ACTION_STATES.ACTIVE;

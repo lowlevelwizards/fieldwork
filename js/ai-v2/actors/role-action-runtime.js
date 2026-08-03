@@ -12,13 +12,19 @@ import { AdvanceRouteSecurityAction } from "../actions/advance-route-security-ac
 import { EvacuateCasualtyAction } from "../actions/evacuate-casualty-action.js";
 import { ReassessEvacuationCasualtyAction } from "../actions/reassess-evacuation-casualty-action.js";
 import { TransferCasualtyAction } from "../actions/transfer-casualty-action.js";
+import { ProtectiveFireAction } from "../actions/protective-fire-action.js";
 import { buildRoleActionContext } from "./role-action-context.js";
 import { ActorActionEvaluator } from "./actor-action-evaluator.js";
+import {
+  evaluateProtectiveBreakawayActions,
+  extendProtectiveBreakawayContext
+} from "./protective-breakaway-actions.js";
 
 const ROLE_ACTION_TYPES=new Set([
   "ObserveSector","HoldReady","IssueWarning","WithdrawToRoute",
   "ApproachCasualty","ApproachEvacuationCasualty","AssessCasualty","DragCasualty","StabilizeCasualty",
-  "SelectEvacuationRoute","AdvanceRouteSecurity","EvacuateCasualty","ReassessEvacuationCasualty","TransferCasualty"
+  "SelectEvacuationRoute","AdvanceRouteSecurity","EvacuateCasualty","ReassessEvacuationCasualty","TransferCasualty",
+  "ProtectiveFire"
 ]);
 
 const ACTION_CONSTRUCTORS={
@@ -35,7 +41,8 @@ const ACTION_CONSTRUCTORS={
   AdvanceRouteSecurity:directive=>new AdvanceRouteSecurityAction({actorId:directive.actorId,directive:directive.directive}),
   EvacuateCasualty:directive=>new EvacuateCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
   ReassessEvacuationCasualty:directive=>new ReassessEvacuationCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
-  TransferCasualty:directive=>new TransferCasualtyAction({actorId:directive.actorId,directive:directive.directive})
+  TransferCasualty:directive=>new TransferCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
+  ProtectiveFire:directive=>new ProtectiveFireAction({actorId:directive.actorId,directive:directive.directive})
 };
 
 function authoredDirective(actor){
@@ -63,8 +70,12 @@ export class RoleActionRuntime{
       for(const role of procedure.roles??[]){
         if(!role.actorId)continue;
         const actor=game?.actors?.find(candidate=>candidate.id===role.actorId);if(!actor)continue;
-        const roleContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,evacuationRoutes:context?.services?.evacuationRoutes,currentObserveAction:this.scheduler.getAction(actor.id,"ObserveSector")});
-        const candidates=this.evaluator.evaluate(roleContext).sort((a,b)=>b.score-a.score);
+        const baseContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,evacuationRoutes:context?.services?.evacuationRoutes,currentObserveAction:this.scheduler.getAction(actor.id,"ObserveSector")});
+        const roleContext=extendProtectiveBreakawayContext(baseContext,{game,actor,role,procedure,mission});
+        const candidates=[
+          ...this.evaluator.evaluate(roleContext),
+          ...evaluateProtectiveBreakawayActions(roleContext)
+        ].sort((a,b)=>b.score-a.score);
         const selected=candidates[0]??null;if(!selected)continue;
         desiredByActor.set(actor.id,{actor,role,procedure,mission,candidates,selected});
       }
@@ -104,7 +115,7 @@ export class RoleActionRuntime{
   }
 
   #cancelWithCleanup(actor,action,{now,context,reason}){
-    this.scheduler.cancelAction(actor.id,action,{now,reason});
+    this.scheduler.cancelAction(actor.id,action,{now,reason,context});
     if(["WithdrawToRoute","ApproachCasualty","ApproachEvacuationCasualty","DragCasualty","AdvanceRouteSecurity","EvacuateCasualty"].includes(action.type))context?.services?.destinationClaims?.release?.(actor.id,{now,reason});
     if(["DragCasualty","EvacuateCasualty"].includes(action.type)){
       const patientId=action.directive?.casualtyId;const patient=context?.game?.actors?.find(candidate=>candidate.id===patientId);

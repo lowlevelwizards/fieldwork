@@ -1,3 +1,21 @@
+# Fieldwork 2.0P
+
+## Actor Initiative & Protective Breakaway
+
+- Activated the Open Contact Behavior Lab fixture in AI V2.
+- Added personal threat knowledge grounded in a physical hostile event without revealing exact shooter identity.
+- Added action priority, interruptibility, and explicit scheduler preemption.
+- Added `ReactToIncomingFire` for immediate operator initiative before team deliberation completes.
+- Reused local voice reporting to promote only the approximate threat information personally perceived.
+- Added **Break Contact Under Fire** and **Protective Breakaway**.
+- Added Lead Mover, Protected Mover, and Covering Operator responsibilities.
+- Added deterministic finite `ProtectiveFire` execution with ammunition consumption and friendly-line rejection.
+- Reused staged withdrawal movement and destination claims for the complete break-contact sequence.
+- Added `contact_broken_under_fire` outcome memory.
+- Added GitHub Actions execution of syntax, import, cycle, and regression checks.
+- Preserved Legacy 1.2H, observation/de-escalation, casualty recovery, physical carrier handoff, adaptive evacuation, and safe return.
+- Kept target optimization, cover selection, pursuit, assault, flanking, morale, and unrestricted firefights out of scope.
+
 # Fieldwork 2.0O.1
 
 ## Physical Carrier Handoff
