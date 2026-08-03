@@ -1,9 +1,9 @@
 name: Apply 2.0P release metadata
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/2.0p-protective-breakaway
+      - AI-2.0
     paths:
       - .github/workflows/apply-2.0p-metadata.yml
 
@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   apply:
+    if: github.event.pull_request.head.ref == 'agent/2.0p-protective-breakaway'
     runs-on: ubuntu-latest
     steps:
       - name: Check out work branch
@@ -28,7 +29,7 @@ jobs:
           source = source.replace('const BUILD_ID="2.0O";', 'const BUILD_ID="2.0P";')
           source = source.replace(
               '?"Adaptive causal AI: a stabilized casualty becomes an evacuation obligation, current route affordances are compared, capability loss causes responsibility reassignment, and the team completes safe return."',
-              '?"Adaptive causal AI: operators can react to personal hostile evidence, teams can coordinate a bounded protective breakaway, and stabilized casualties still continue through adaptive evacuation and safe return."'
+              '?"Adaptive causal AI: operators react to personal hostile evidence, teams coordinate a bounded protective breakaway, and casualty care still continues through adaptive evacuation and safe return."'
           )
           source = source.replace(
               '''    objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
@@ -75,8 +76,7 @@ jobs:
 
           changelog = Path("CHANGELOG.md")
           existing = changelog.read_text()
-          heading = "# Fieldwork 2.0P"
-          if not existing.startswith(heading):
+          if not existing.startswith("# Fieldwork 2.0P"):
               section = '''# Fieldwork 2.0P
 
 ## Actor Initiative & Protective Breakaway
