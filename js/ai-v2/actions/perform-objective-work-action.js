@@ -8,7 +8,7 @@ export class PerformObjectiveWorkAction extends AIV2Action{
     super({
       type:"PerformObjectiveWork",actorId,
       purpose:directive?.reason??"Complete the assigned field objective work",
-      channels:[ACTION_CHANNELS.ATTENTION,ACTION_CHANNELS.INTERACTION],primary:true,displayPriority:78,
+      channels:[ACTION_CHANNELS.ATTENTION,ACTION_CHANNELS.HANDS],primary:true,displayPriority:78,
       metadata:{directive:{...directive},provenance:directive?.provenance??null}
     });
     this.directive={...directive,objectivePoint:directive?.objectivePoint?{...directive.objectivePoint}:null};
