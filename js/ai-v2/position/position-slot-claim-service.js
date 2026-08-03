@@ -68,12 +68,12 @@ export class PositionSlotClaimService{
     return true;
   }
 
-  getForActor(actorId,now=Infinity){
+  getForActor(actorId,now=0){
     this.update(now);
     return this.#clone(this.byActor.get(actorId)??null);
   }
 
-  getForSlot(slotId,now=Infinity){
+  getForSlot(slotId,now=0){
     this.update(now);
     return this.#clone(this.bySlot.get(slotId)??null);
   }
