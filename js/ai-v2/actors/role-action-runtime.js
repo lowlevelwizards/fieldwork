@@ -3,6 +3,7 @@ import { HoldReadyAction } from "../actions/hold-ready-action.js";
 import { IssueWarningAction } from "../actions/issue-warning-action.js";
 import { WithdrawToRouteAction } from "../actions/withdraw-to-route-action.js";
 import { ApproachCasualtyAction } from "../actions/approach-casualty-action.js";
+import { ApproachEvacuationCasualtyAction } from "../actions/approach-evacuation-casualty-action.js";
 import { AssessCasualtyAction } from "../actions/assess-casualty-action.js";
 import { DragCasualtyAction } from "../actions/drag-casualty-action.js";
 import { StabilizeCasualtyAction } from "../actions/stabilize-casualty-action.js";
@@ -16,7 +17,7 @@ import { ActorActionEvaluator } from "./actor-action-evaluator.js";
 
 const ROLE_ACTION_TYPES=new Set([
   "ObserveSector","HoldReady","IssueWarning","WithdrawToRoute",
-  "ApproachCasualty","AssessCasualty","DragCasualty","StabilizeCasualty",
+  "ApproachCasualty","ApproachEvacuationCasualty","AssessCasualty","DragCasualty","StabilizeCasualty",
   "SelectEvacuationRoute","AdvanceRouteSecurity","EvacuateCasualty","ReassessEvacuationCasualty","TransferCasualty"
 ]);
 
@@ -26,6 +27,7 @@ const ACTION_CONSTRUCTORS={
   IssueWarning:directive=>new IssueWarningAction({actorId:directive.actorId,directive:directive.directive}),
   WithdrawToRoute:directive=>new WithdrawToRouteAction({actorId:directive.actorId,directive:directive.directive}),
   ApproachCasualty:directive=>new ApproachCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
+  ApproachEvacuationCasualty:directive=>new ApproachEvacuationCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
   AssessCasualty:directive=>new AssessCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
   DragCasualty:directive=>new DragCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
   StabilizeCasualty:directive=>new StabilizeCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
@@ -103,7 +105,7 @@ export class RoleActionRuntime{
 
   #cancelWithCleanup(actor,action,{now,context,reason}){
     this.scheduler.cancelAction(actor.id,action,{now,reason});
-    if(["WithdrawToRoute","ApproachCasualty","DragCasualty","AdvanceRouteSecurity","EvacuateCasualty"].includes(action.type))context?.services?.destinationClaims?.release?.(actor.id,{now,reason});
+    if(["WithdrawToRoute","ApproachCasualty","ApproachEvacuationCasualty","DragCasualty","AdvanceRouteSecurity","EvacuateCasualty"].includes(action.type))context?.services?.destinationClaims?.release?.(actor.id,{now,reason});
     if(["DragCasualty","EvacuateCasualty"].includes(action.type)){
       const patientId=action.directive?.casualtyId;const patient=context?.game?.actors?.find(candidate=>candidate.id===patientId);
       context?.services?.casualtyCare?.releasePatient?.(patientId,actor.id);context?.services?.casualtyCare?.releaseDrag?.({patient});

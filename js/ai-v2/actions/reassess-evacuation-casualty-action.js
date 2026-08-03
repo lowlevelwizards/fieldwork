@@ -12,13 +12,18 @@ export class ReassessEvacuationCasualtyAction extends AIV2Action{
   canStart({game,services}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     const casualty=game?.actors?.find(candidate=>candidate.id===this.directive.casualtyId);
-    return Boolean(actor&&casualty&&!actor.medical?.dead&&!actor.medical?.unconscious&&!casualty.medical?.dead&&!services?.casualtyCare?.getController?.(casualty.id));
+    const interactionRange=this.directive.interactionRange??82;
+    const patientDistance=actor&&casualty?Math.hypot(casualty.x-actor.x,casualty.y-actor.y):Infinity;
+    return Boolean(actor&&casualty&&!actor.medical?.dead&&!actor.medical?.unconscious&&!casualty.medical?.dead&&patientDistance<=interactionRange&&!services?.casualtyCare?.getController?.(casualty.id));
   }
 
   canContinue({game,services}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
+    const casualty=game?.actors?.find(candidate=>candidate.id===this.directive.casualtyId);
     const role=services?.teamProcedures?.getActorRole?.(this.actorId);
-    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&role?.procedureId===this.directive.procedureId&&role?.roleId===this.directive.roleId&&role?.phase?.id==="reassess_casualty");
+    const interactionRange=this.directive.interactionRange??82;
+    const patientDistance=actor&&casualty?Math.hypot(casualty.x-actor.x,casualty.y-actor.y):Infinity;
+    return Boolean(actor&&casualty&&!actor.medical?.dead&&!actor.medical?.unconscious&&patientDistance<=interactionRange&&role?.procedureId===this.directive.procedureId&&role?.roleId===this.directive.roleId&&role?.phase?.id==="reassess_casualty");
   }
 
   start(now,context){

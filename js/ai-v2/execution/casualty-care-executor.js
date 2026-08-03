@@ -15,8 +15,10 @@ export class CasualtyCareExecutor{
 
   assess(game,patient){return game?.wounds?.getAssessment?.(patient)??null;}
 
-  dragToward({game,responder,patient,destination,delta,locomotion,speedMultiplier=.44,arrivalRadius=14}={}){
+  dragToward({game,responder,patient,destination,delta,locomotion,speedMultiplier=.44,arrivalRadius=14,maximumAttachmentDistance=96}={}){
     if(!responder||!patient||!destination||!locomotion)return{failed:true,reason:"missing_drag_context",arrived:false};
+    const attachmentDistance=Math.hypot(patient.x-responder.x,patient.y-responder.y);
+    if(attachmentDistance>maximumAttachmentDistance)return{failed:true,reason:"patient_out_of_reach",arrived:false,distance:Math.hypot(destination.x-responder.x,destination.y-responder.y),attachmentDistance};
     const movement=locomotion.moveToward(responder,destination,delta,{game,speedMultiplier,arrivalRadius,task:`Recovering ${patient.name}`,pose:"walk"});
     const speed=Math.hypot(responder.vx??0,responder.vy??0);
     const angle=speed>2?Math.atan2(responder.vy,responder.vx):(responder.lookAngle??Math.atan2(destination.y-responder.y,destination.x-responder.x));

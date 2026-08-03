@@ -73,6 +73,49 @@ test("adaptive evacuation selects a route, loses one carrier capability, reassig
   assert.equal(finalResponse,null,"resolved safe return should eventually release the active team response");
 });
 
+test("a replacement carrier walks to the released casualty before taking control",()=>{
+  const game=new ContinuousGameState({scenario:"sandbox",aiRuntime:"v2",sandboxFixture:"casualty_recovery"});
+  game.operations.start();
+  const team=communeTeam(game);
+  const casualty=game.actors.find(actor=>actor.teamId===team.id&&actor.medical?.condition==="critical");
+  const interactionRange=team.aiV2Mission.evacuationPlan.interactionRange??82;
+  let nextCarrier=null;
+  let releasePosition=null;
+  let sawApproach=false;
+  let secondTransportStarted=false;
+
+  for(let step=0;step<1600;step+=1){
+    game.update(.05,{x:0,y:0});
+    const reassignments=entriesOf(game,"team_procedure_roles_reassigned");
+    if(!nextCarrier&&reassignments.length){
+      nextCarrier=game.actors.find(actor=>actor.id===reassignments[0].data.nextCarrier);
+      releasePosition={x:casualty.x,y:casualty.y};
+      assert.ok(nextCarrier&&releasePosition);
+    }
+    if(!nextCarrier)continue;
+
+    if(entriesOf(game,"action_started","ApproachEvacuationCasualty").some(entry=>entry.actorId===nextCarrier.id))sawApproach=true;
+    const transports=evacuationStarts(game);
+    const displacement=Math.hypot(casualty.x-releasePosition.x,casualty.y-releasePosition.y);
+    if(transports.length<2){
+      assert.ok(displacement<.5,`released casualty moved ${displacement.toFixed(2)} before replacement carrier acquired them`);
+      const distanceToPatient=Math.hypot(casualty.x-nextCarrier.x,casualty.y-nextCarrier.y);
+      if(distanceToPatient>interactionRange)assert.equal(game.aiV2.casualtyCare.getController(casualty.id),null,"remote carrier must not claim the casualty");
+      continue;
+    }
+
+    secondTransportStarted=true;
+    const distanceAtAcquisition=Math.hypot(casualty.x-nextCarrier.x,casualty.y-nextCarrier.y);
+    assert.equal(transports[1].actorId,nextCarrier.id);
+    assert.ok(distanceAtAcquisition<=interactionRange+1,`replacement carrier acquired casualty from ${distanceAtAcquisition.toFixed(2)} units away`);
+    assert.equal(game.aiV2.casualtyCare.getController(casualty.id),nextCarrier.id);
+    break;
+  }
+
+  assert.equal(sawApproach,true,"replacement carrier should use a physical approach action");
+  assert.equal(secondTransportStarted,true,"replacement carrier should eventually begin the next transport leg");
+});
+
 test("the same evacuation procedure adapts to different carrier capabilities and a different viable route",()=>{
   const game=runPreparedEvacuation(game=>{
     const team=communeTeam(game);
@@ -101,6 +144,7 @@ test("the same evacuation procedure adapts to different carrier capabilities and
   assert.equal(firstCarrier.role,"Scout","capability scoring, not a fixed actor name, should select the initial carrier");
   assert.equal(secondCarrier.role,"Field Medic","the remaining capable operator should take over after the first carrier exhausts transport stamina");
   assert.notEqual(firstCarrier.id,secondCarrier.id);
+  assert.ok(entriesOf(game,"action_started","ApproachEvacuationCasualty").some(entry=>entry.actorId===firstCarrier.id||entry.actorId===secondCarrier.id),"a carrier who is not already beside the patient should physically approach before transport");
 
   assertSafeReturn(game,{expectedRouteId:"east_open_route"});
 });
