@@ -102,10 +102,10 @@ export class DirectionalCoverService{
     const reserve=roleId==="mobile_reserve";
     const anchor=roleId==="security_anchor";
     return(
-      slot.utility.protection*(reserve?.48:.40)+
-      slot.utility.firing*(anchor?.24:reserve?.08:.18)+
-      slot.utility.observation*(anchor?.16:reserve?.08:.14)+
-      cohesionScore*(reserve?.20:.10)+
+      slot.utility.protection*(reserve ? .48 : .40)+
+      slot.utility.firing*(anchor ? .24 : reserve ? .08 : .18)+
+      slot.utility.observation*(anchor ? .16 : reserve ? .08 : .14)+
+      cohesionScore*(reserve ? .20 : .10)+
       travelScore*.10
     );
   }
