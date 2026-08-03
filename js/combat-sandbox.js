@@ -2,12 +2,21 @@ import { projectOutsideObstacles } from "./actor-motion.js";
 import {
   BEHAVIOR_LAB_ACTOR_CATALOG,
   SANDBOX_FIXTURE_IDS,
-  SANDBOX_FIXTURES,
-  getSandboxFixture
+  SANDBOX_FIXTURES as BASE_SANDBOX_FIXTURES,
+  getSandboxFixture as getBaseSandboxFixture
 } from "../data/behavior-lab-fixtures.js";
+import { applyBehaviorLab2POverlay } from "../data/behavior-lab-2.0p.js";
 import { sandboxMap } from "../data/behavior-lab-map.js";
 
-export { SANDBOX_FIXTURE_IDS, SANDBOX_FIXTURES, getSandboxFixture, sandboxMap };
+export { SANDBOX_FIXTURE_IDS, sandboxMap };
+
+export const SANDBOX_FIXTURES=Object.freeze(Object.fromEntries(
+  Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyBehaviorLab2POverlay(fixture)])
+));
+
+export function getSandboxFixture(id){
+  return SANDBOX_FIXTURES[id]??applyBehaviorLab2POverlay(getBaseSandboxFixture(id));
+}
 
 const {
   factionNames:FACTION_NAMES,
@@ -82,6 +91,7 @@ export class CombatSandboxDirector{
   this.operations=[];
   this.teams=[];
   this.initialized=false;
+  this.stimulusEmitted=false;
   this.fixture=getSandboxFixture(fixtureId);
  }
  getOperation(){return null;}
@@ -155,11 +165,44 @@ export class CombatSandboxDirector{
   actor.currentTask="Critical casualty awaiting recovery";
   actor.currentAction="Incapacitated";
  }
+ #emitHostileStimulus(){
+  const stimulus=this.fixture.hostileStimulus;
+  if(!stimulus||this.stimulusEmitted||this.game.aiRuntimeMode!=="v2"||this.elapsed<(stimulus.delay??0))return;
+  const source=this.game.actors.find(actor=>actor.factionId===stimulus.sourceFactionId&&actor.role===stimulus.sourceRole);
+  const target=this.game.actors.find(actor=>actor.factionId===stimulus.targetFactionId&&actor.role===stimulus.targetRole);
+  if(!source||!target)return;
+  this.stimulusEmitted=true;
+  const impactOffset=stimulus.impactOffset??{x:34,y:12};
+  const sourcePoint={x:source.x,y:source.y};
+  const impactPoint={x:target.x+(impactOffset.x??0),y:target.y+(impactOffset.y??0)};
+  this.game.aiV2ThreatEvents??=[];
+  this.game.aiV2ThreatEvents.push({
+   id:stimulus.id,
+   kind:stimulus.kind??"near_miss",
+   targetActorId:target.id,
+   sourcePoint,
+   impactPoint,
+   confidence:stimulus.confidence??92,
+   immediateDuration:stimulus.immediateDuration??3.2,
+   emittedAt:this.elapsed
+  });
+  source.magazineSize??=20;
+  source.ammoInMagazine??=source.magazineSize;
+  source.ammoInMagazine=Math.max(0,source.ammoInMagazine-1);
+  source.currentAction="Fired one controlled hostile round";
+  target.currentAction="Round passed close";
+  const angle=Math.atan2(impactPoint.y-sourcePoint.y,impactPoint.x-sourcePoint.x);
+  this.game.combat?.effects?.push?.({type:"muzzle",x:sourcePoint.x,y:sourcePoint.y,angle,life:.085,maxLife:.085,source:"behavior_lab"});
+  this.game.combat?.effects?.push?.({type:"tracer",x1:sourcePoint.x,y1:sourcePoint.y,x2:impactPoint.x,y2:impactPoint.y,life:.16,maxLife:.16,source:"behavior_lab"});
+  this.game.combat?.decals?.push?.({type:"impact",x:impactPoint.x,y:impactPoint.y,angle,life:28,maxLife:28});
+  this.game.pushMessage("A controlled round cracks through the open lane.",2.4);
+ }
  update(delta){
   this.start();
   this.elapsed+=delta;
-  // Intentional fixture rule: the director never invents patrol movement,
-  // reinforcements, or random destinations. Legacy or V2 systems must make
-  // every subsequent behavioral decision explicitly.
+  this.#emitHostileStimulus();
+  // The fixture director authors only the controlled physical stimulus.
+  // Every reaction, report, response, role, movement, and return shot belongs
+  // to AI V2's causal runtime.
  }
 }
