@@ -1,0 +1,108 @@
+name: Apply 2.0P release metadata
+
+on:
+  push:
+    branches:
+      - agent/2.0p-protective-breakaway
+    paths:
+      - .github/workflows/apply-2.0p-metadata.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out work branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/2.0p-protective-breakaway
+      - name: Apply release metadata
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main = Path("js/main.js")
+          source = main.read_text()
+          source = source.replace('const BUILD_ID="2.0O";', 'const BUILD_ID="2.0P";')
+          source = source.replace(
+              '?"Adaptive causal AI: a stabilized casualty becomes an evacuation obligation, current route affordances are compared, capability loss causes responsibility reassignment, and the team completes safe return."',
+              '?"Adaptive causal AI: operators can react to personal hostile evidence, teams can coordinate a bounded protective breakaway, and stabilized casualties still continue through adaptive evacuation and safe return."'
+          )
+          source = source.replace(
+              '''    objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
+                ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
+                  ?`${fixture.question} The complete V2 encounter proceeds from observation and warning through staged silent withdrawal, observed departure, de-escalation, and outcome memory without combat.`
+                  :fixture.id===SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY
+                    ?`${fixture.question} The V2 team now continues from recovery and stabilization through adaptive route selection, staged casualty transport, a capability-driven carrier handoff, transfer, and safe return.`
+                    :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
+                :`${fixture.question} Legacy 1.2H is running inside this controlled fixture for comparison.`;''',
+              '''    objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
+                ?fixture.id===SANDBOX_FIXTURE_IDS.OPEN_CONTACT
+                  ?`${fixture.question} A physical near-miss creates personal threat evidence, immediate operator initiative, an urgent report, bounded protective fire, staged movement, and a contact-broken outcome.`
+                  :fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
+                    ?`${fixture.question} The complete V2 encounter proceeds from observation and warning through staged silent withdrawal, observed departure, de-escalation, and outcome memory without combat.`
+                    :fixture.id===SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY
+                      ?`${fixture.question} The V2 team continues from recovery and stabilization through adaptive route selection, physical carrier handoff, staged casualty transport, transfer, and safe return.`
+                      :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
+                :`${fixture.question} Legacy 1.2H is running inside this controlled fixture for comparison.`;'''
+          )
+          source = source.replace(
+              '''function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.scenarioMode==="sandbox"){const fixture=game.sandboxFixture;strong.textContent=fixture.label;copy.textContent=game.aiRuntimeMode==="v2"
+            ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
+              ?`${fixture.question} Procedure roles now produce stable actor actions while positions remain unchanged.`
+              :`${fixture.question} This fixture has no authored V2 behavior yet.`
+            :`${fixture.question} Legacy behavior is running without random patrols or reinforcements.`;return;}''',
+              '''function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.scenarioMode==="sandbox"){const fixture=game.sandboxFixture;strong.textContent=fixture.label;copy.textContent=game.aiRuntimeMode==="v2"
+            ?fixture.id===SANDBOX_FIXTURE_IDS.OPEN_CONTACT
+              ?`${fixture.question} Personal threat evidence now drives immediate initiative, urgent reporting, bounded protective fire, and staged movement to safety.`
+              :fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
+                ?`${fixture.question} Observation, warning, silent withdrawal, and de-escalation are active.`
+                :fixture.id===SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY
+                  ?`${fixture.question} Recovery, stabilization, physical carrier handoff, adaptive evacuation, and safe return are active.`
+                  :`${fixture.question} This fixture has no authored V2 behavior yet.`
+            :`${fixture.question} Legacy behavior is running without random patrols or reinforcements.`;return;}'''
+          )
+          main.write_text(source)
+
+          index = Path("index.html")
+          html = index.read_text()
+          html = html.replace("2.0O", "2.0P")
+          html = html.replace("Adaptive Evacuation & Safe Return", "Actor Initiative & Protective Breakaway")
+          html = html.replace("20o-adaptive-evacuation-20260802", "20p-protective-breakaway-20260803")
+          index.write_text(html)
+
+          changelog = Path("CHANGELOG.md")
+          existing = changelog.read_text()
+          heading = "# Fieldwork 2.0P"
+          if not existing.startswith(heading):
+              section = '''# Fieldwork 2.0P
+
+## Actor Initiative & Protective Breakaway
+
+- Activated the Open Contact Behavior Lab fixture in AI V2.
+- Added personal threat knowledge grounded in a physical hostile event without revealing exact shooter identity.
+- Added action priority, interruptibility, and explicit scheduler preemption.
+- Added `ReactToIncomingFire` for immediate operator initiative before team deliberation completes.
+- Reused local voice reporting to promote only the approximate threat information personally perceived.
+- Added **Break Contact Under Fire** and **Protective Breakaway**.
+- Added Lead Mover, Protected Mover, and Covering Operator responsibilities.
+- Added deterministic finite `ProtectiveFire` execution with ammunition consumption and friendly-line rejection.
+- Reused staged withdrawal movement and destination claims for the complete break-contact sequence.
+- Added `contact_broken_under_fire` outcome memory.
+- Added GitHub Actions execution of syntax, import, cycle, and regression checks.
+- Preserved Legacy 1.2H, observation/de-escalation, casualty recovery, physical carrier handoff, adaptive evacuation, and safe return.
+- Kept target optimization, cover selection, pursuit, assault, flanking, morale, and unrestricted firefights out of scope.
+
+'''
+              changelog.write_text(section + existing)
+          PY
+      - name: Commit release metadata
+        run: |
+          git config user.name "fieldwork-ai"
+          git config user.email "lowlevelwizards@gmail.com"
+          git add js/main.js index.html CHANGELOG.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Finalize 2.0P release metadata"
+          git push origin HEAD:agent/2.0p-protective-breakaway
