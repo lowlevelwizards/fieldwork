@@ -224,7 +224,7 @@ export const SANDBOX_FIXTURES={
   shortLabel:"Casualty recovery",
   zoneId:"casualty_recovery",
   question:"How does a team preserve a critical person while pressure threatens the mission?",
-  purpose:"Isolate casualty recognition, responder assignment, security, dragging, treatment, and withdrawal.",
+  purpose:"Isolate casualty recognition, stabilization, adaptive evacuation, capability loss, role reassignment, and safe return.",
   operatorSpawn:{x:3800,y:1760},
   teams:[
    {
@@ -232,15 +232,15 @@ export const SANDBOX_FIXTURES={
     actors:[{x:3550,y:430,role:"Security"},{x:3750,y:405,role:"Rifleman"},{x:3950,y:440,role:"Engineer"}]
    },
    {
-    factionId:"commune",mission:"Recover the casualty and preserve the team",task:"Secure access, move the patient, stabilize, and withdraw",facing:"up",
+    factionId:"commune",mission:"Maintain observation of the southern lane and return together",task:"Preserve awareness, recover the exposed teammate, and adapt the mission so everyone can get back",facing:"up",
     aiV2Mission:{
      id:"commune_casualty_recovery",
      problemKind:"friendly_casualty",
-     title:"Recover the casualty",
-     objective:"Recognize the injured teammate, preserve security, move them to protected ground, and stop immediate deterioration.",
+     title:"Preserve the team and return together",
+     objective:"Maintain useful awareness while recognizing that a critical teammate creates a higher-priority obligation to recover, stabilize, and evacuate them.",
      immediateTask:"Recover and stabilize the exposed casualty without abandoning the team's awareness.",
-     successCondition:"The casualty reaches the recovery point and uncontrolled bleeding is stopped.",
-     abortCondition:"The casualty dies, the recovery point becomes unavailable, or the aid provider becomes incapable.",
+     successCondition:"The casualty is stabilized, evacuated alive, and transferred for continued care while the surviving team returns together.",
+     abortCondition:"The casualty dies or no capable team member and no viable extraction affordance remain.",
      concernArea:{type:"circle",label:"casualty recovery bay",x:3740,y:1035,radius:520,falloff:180},
      problemSensitivity:1,
      staleAfter:24,
@@ -258,6 +258,44 @@ export const SANDBOX_FIXTURES={
       arrivalRadius:13,
       claimSpacing:62,
       stabilizationDuration:3.4
+     },
+     evacuationPlan:{
+      id:"south_edge_safe_return",
+      label:"protected southern extraction",
+      routeOptions:[
+       {
+        id:"west_brush_route",
+        label:"west brush route",
+        protection:.88,
+        cohesion:.9,
+        waypoints:[
+         {id:"west_intermediate",label:"covered intermediate position",kind:"intermediate",x:3610,y:1335,staminaCost:.58},
+         {id:"west_extraction",label:"southern extraction edge",kind:"extraction",x:3375,y:1420,staminaCost:.34}
+        ]
+       },
+       {
+        id:"east_open_route",
+        label:"east open route",
+        protection:.42,
+        cohesion:.72,
+        waypoints:[
+         {id:"east_intermediate",label:"eastern intermediate position",kind:"intermediate",x:3950,y:1335,staminaCost:.48},
+         {id:"east_extraction",label:"eastern extraction edge",kind:"extraction",x:4230,y:1420,staminaCost:.38}
+        ]
+       }
+      ],
+      rearSecuritySector:{label:"Northern evacuation approach",x:3760,y:600,maximumRange:980,fieldOfViewDegrees:92},
+      interactionRange:82,
+      reportRange:560,
+      routeSecuritySpeedMultiplier:.8,
+      transportSpeedMultiplier:.42,
+      arrivalRadius:14,
+      claimSpacing:68,
+      routeAssessmentDuration:.8,
+      reassessmentDuration:1.25,
+      transferDuration:1.6,
+      minimumTransportStamina:.2,
+      originalMissionStatus:"observation_suspended_for_casualty_evacuation"
      },
      decisionContext:{
       missionValue:.96,
@@ -278,12 +316,13 @@ export const SANDBOX_FIXTURES={
       exitLabel:"the protected recovery point"
      },
      responsePolicy:{minimumHold:1.2,reassessEvery:.8,switchMargin:.02},
-     responseBias:{recover_casualty:.28}
+     responseBias:{recover_casualty:.28,evacuate_casualty:.32}
     },
     actors:[
-     {x:3540,y:1325,role:"Security",aiV2CasualtyAssignment:{observe:true,maximumRange:640,fieldOfViewDegrees:170,report:{method:"local_voice",range:520,minimumConfidence:52,reason:"Report the exposed teammate so the team can organize recovery"}}},
-     {x:3810,y:1360,role:"Field Medic",aiV2MedicalSupplies:{pressure_dressing:1,bandage:1,iv_fluids:1}},
-     {x:3740,y:965,role:"Rifleman",medicalPreset:"critical"}
+     {x:3540,y:1325,role:"Security",aiV2Capabilities:{routeAssessment:.96,rearSecurity:.95,patientTransport:.58,transportStamina:.82},aiV2CasualtyAssignment:{observe:true,maximumRange:640,fieldOfViewDegrees:170,report:{method:"local_voice",range:520,minimumConfidence:52,reason:"Report the exposed teammate so the team can organize recovery"}}},
+     {x:3810,y:1360,role:"Field Medic",aiV2Capabilities:{medicalCare:1,patientTransport:.92,transportStamina:.68,rearSecurity:.45},aiV2MedicalSupplies:{pressure_dressing:1,bandage:1,iv_fluids:1}},
+     {x:3740,y:965,role:"Rifleman",medicalPreset:"critical",aiV2Capabilities:{patientTransport:0,transportStamina:0}},
+     {x:4020,y:1360,role:"Scout",aiV2Capabilities:{routeAssessment:.72,rearSecurity:.8,patientTransport:.82,transportStamina:1}}
     ]
    }
   ]

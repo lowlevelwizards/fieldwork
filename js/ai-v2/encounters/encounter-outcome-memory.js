@@ -19,6 +19,36 @@ export class EncounterOutcomeMemory{
     for(const procedure of teamProcedures?.summary?.()??[]){
       const key=`${procedure.teamId}:${procedure.startedAt}`;
       if(this.completedProcedures.has(key))continue;
+      if(procedure.procedureId==="casualty_evacuation"&&procedure.phase?.id==="safe_return"){
+        const prior=this.getLatest(procedure.teamId);
+        const casualtyId=prior?.kind==="casualty_stabilized"?prior.subjectId:null;
+        const casualty=(game?.actors??[]).find(actor=>actor.id===casualtyId)??(game?.actors??[]).find(actor=>actor.teamId===procedure.teamId&&actor.aiV2Evacuated)??null;
+        if(!casualty?.aiV2Evacuated)continue;
+        this.completedProcedures.add(key);
+        const evacuation=procedure.evacuation??{};
+        const outcome=this.#remember({
+          teamId:procedure.teamId,
+          counterpartTeamId:null,
+          kind:"casualty_evacuated_alive",
+          label:"Safe return",
+          summary:`${casualty.name} was stabilized in the field, transported through ${evacuation.routeLabel??"a viable extraction route"}, and transferred alive for continued care.`,
+          facts:["friendly casualty recovered","immediate bleeding controlled","observation task suspended","evacuation route selected from current affordances","carrier responsibility reassigned after capability loss","casualty transferred alive","team returned together"],
+          evidence:[procedure.procedureId,casualty.id,evacuation.routeId].filter(Boolean),
+          subjectId:casualty.id,
+          immediateHazardResolved:true,
+          missionResolved:true,
+          followUp:"continued_care_required",
+          subjectCondition:"stable_critical",
+          mobility:"unavailable_for_field_duty",
+          routeId:evacuation.routeId??null,
+          routeLabel:evacuation.routeLabel??null,
+          carrierHandoffs:evacuation.carrierHandoffs??0,
+          originalMissionStatus:"suspended_for_casualty_evacuation",
+          now
+        });
+        casualty.aiV2RecoveryMemory={...outcome,facts:[...outcome.facts],evidence:[...outcome.evidence]};
+        continue;
+      }
       if(procedure.procedureId==="casualty_recovery"&&procedure.phase?.id==="recovery_complete"){
         const casualtyRole=procedure.roles.find(role=>role.roleId==="aid_provider");
         const teamActors=(game?.actors??[]).filter(actor=>actor.teamId===procedure.teamId);
@@ -97,6 +127,10 @@ export class EncounterOutcomeMemory{
     followUp=null,
     subjectCondition=null,
     mobility=null,
+    routeId=null,
+    routeLabel=null,
+    carrierHandoffs=0,
+    originalMissionStatus=null,
     now
   }){
     const outcome={
@@ -116,6 +150,10 @@ export class EncounterOutcomeMemory{
       followUp,
       subjectCondition,
       mobility,
+      routeId,
+      routeLabel,
+      carrierHandoffs,
+      originalMissionStatus,
       status:missionResolved?"resolved":immediateHazardResolved?"ongoing_obligation":"active",
       resolved:Boolean(missionResolved)
     };

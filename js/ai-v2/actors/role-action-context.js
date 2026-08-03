@@ -61,7 +61,7 @@ function withdrawalMovement({mission,role,actor,zone}){
   };
 }
 
-export function buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,currentObserveAction=null}={}){
+export function buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,evacuationRoutes,currentObserveAction=null}={}){
   const teamActors=(game?.actors??[]).filter(candidate=>candidate.teamId===actor?.teamId&&!candidate.medical?.dead);
   const teamCenter=centroid(teamActors);
   const contactPosition=bestContactPosition({teamKnowledge,teamEncounters,teamId:actor?.teamId,mission,teamCenter});
@@ -74,6 +74,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
   let warning=null;
   let movement=null;
   let recovery=null;
+  let evacuation=null;
   let label=role?.label??"Assigned responsibility";
 
   if(need==="observe_contact"){
@@ -141,6 +142,49 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
   }else if(need==="observe_recovery_approach"){
     const authored=mission?.recoveryPlan?.securitySector;
     if(authored)sector={...authored};
+  }else if(["transport_casualty","secure_evacuation_route","rear_security_evacuation"].includes(need)){
+    const hypothesis=teamEncounters?.getBestTeamHypothesis?.(actor?.teamId)??null;
+    const casualtyId=hypothesis?.subjectKind==="friendly_casualty"?hypothesis.subjectId:null;
+    const casualty=game?.actors?.find(candidate=>candidate.id===casualtyId)??null;
+    const plan=mission?.evacuationPlan;
+    const selected=evacuationRoutes?.getSelected?.(actor?.teamId)??null;
+    const state=procedure?.evacuation??null;
+    const waypoints=(state?.waypoints?.length?state.waypoints:selected?.waypoints)??[];
+    const legIndex=Math.max(0,state?.currentLegIndex??0);
+    const waypoint=waypoints[legIndex]??waypoints.at(-1)??null;
+    const finalLeg=Boolean(waypoint&&legIndex===waypoints.length-1);
+    if(casualty&&plan){
+      evacuation={
+        casualtyId:casualty.id,
+        casualtyName:casualty.name,
+        routeId:state?.routeId??selected?.id??null,
+        routeLabel:state?.routeLabel??selected?.label??plan.label,
+        candidateCount:state?.candidateCount??selected?.candidateCount??plan.routeOptions?.length??0,
+        waypoints:waypoints.map(item=>({...item})),
+        legIndex,
+        waypoint:waypoint?{...waypoint}:null,
+        finalLeg,
+        destination:waypoint?{x:waypoint.x,y:waypoint.y}:null,
+        initialDistance:waypoint?Math.hypot(waypoint.x-actor.x,waypoint.y-actor.y):0,
+        interactionRange:plan.interactionRange??82,
+        reportRange:plan.reportRange??560,
+        routeAssessmentDuration:plan.routeAssessmentDuration??.8,
+        reassessmentDuration:plan.reassessmentDuration??1.25,
+        transferDuration:plan.transferDuration??1.6,
+        minimumTransportStamina:plan.minimumTransportStamina??.2,
+        staminaCost:waypoint?.staminaCost??.35,
+        routePolicy:{speedMultiplier:plan.routeSecuritySpeedMultiplier??.78,arrivalRadius:plan.arrivalRadius??14,claimSpacing:plan.claimSpacing??68},
+        transportPolicy:{speedMultiplier:plan.transportSpeedMultiplier??.42,arrivalRadius:plan.arrivalRadius??14,claimSpacing:plan.claimSpacing??68},
+        currentTransportStamina:Number(actor.aiV2Capabilities?.transportStamina??0),
+        carrierHandoffs:state?.carrierHandoffs??0
+      };
+      focus=waypoint?{x:waypoint.x,y:waypoint.y}:{x:casualty.x,y:casualty.y};
+      label=waypoint?.label??plan.label??"Evacuation route";
+      if(need==="rear_security_evacuation"){
+        const authored=plan.rearSecuritySector;
+        sector=authored?{...authored}:{label:"Rear evacuation approach",x:teamCenter.x,y:teamCenter.y-420,maximumRange:900,fieldOfViewDegrees:88};
+      }
+    }
   }else if(need==="recover_casualty"){
     const hypothesis=teamEncounters?.getBestTeamHypothesis?.(actor?.teamId)??null;
     const casualtyId=hypothesis?.subjectKind==="friendly_casualty"?hypothesis.subjectId:null;
@@ -189,6 +233,7 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
     warning,
     movement,
     recovery,
+    evacuation,
     label,
     permissions:{...(procedure?.permissions??{})}
   };

@@ -59,7 +59,7 @@ export class TeamResponseState{
       const due=!existing||evidenceChanged||now-existing.lastEvaluatedAt>=reassessEvery;
       if(!due)continue;
 
-      const evaluation=evaluateTeamResponses({mission,encounter});
+      const evaluation=evaluateTeamResponses({mission,encounter,outcome});
       if(!evaluation?.selected){
         if(existing)this.#invalidate(existing,now,"no_eligible_response");
         continue;

@@ -6,12 +6,18 @@ import { ApproachCasualtyAction } from "../actions/approach-casualty-action.js";
 import { AssessCasualtyAction } from "../actions/assess-casualty-action.js";
 import { DragCasualtyAction } from "../actions/drag-casualty-action.js";
 import { StabilizeCasualtyAction } from "../actions/stabilize-casualty-action.js";
+import { SelectEvacuationRouteAction } from "../actions/select-evacuation-route-action.js";
+import { AdvanceRouteSecurityAction } from "../actions/advance-route-security-action.js";
+import { EvacuateCasualtyAction } from "../actions/evacuate-casualty-action.js";
+import { ReassessEvacuationCasualtyAction } from "../actions/reassess-evacuation-casualty-action.js";
+import { TransferCasualtyAction } from "../actions/transfer-casualty-action.js";
 import { buildRoleActionContext } from "./role-action-context.js";
 import { ActorActionEvaluator } from "./actor-action-evaluator.js";
 
 const ROLE_ACTION_TYPES=new Set([
   "ObserveSector","HoldReady","IssueWarning","WithdrawToRoute",
-  "ApproachCasualty","AssessCasualty","DragCasualty","StabilizeCasualty"
+  "ApproachCasualty","AssessCasualty","DragCasualty","StabilizeCasualty",
+  "SelectEvacuationRoute","AdvanceRouteSecurity","EvacuateCasualty","ReassessEvacuationCasualty","TransferCasualty"
 ]);
 
 const ACTION_CONSTRUCTORS={
@@ -22,7 +28,12 @@ const ACTION_CONSTRUCTORS={
   ApproachCasualty:directive=>new ApproachCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
   AssessCasualty:directive=>new AssessCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
   DragCasualty:directive=>new DragCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
-  StabilizeCasualty:directive=>new StabilizeCasualtyAction({actorId:directive.actorId,directive:directive.directive})
+  StabilizeCasualty:directive=>new StabilizeCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
+  SelectEvacuationRoute:directive=>new SelectEvacuationRouteAction({actorId:directive.actorId,directive:directive.directive}),
+  AdvanceRouteSecurity:directive=>new AdvanceRouteSecurityAction({actorId:directive.actorId,directive:directive.directive}),
+  EvacuateCasualty:directive=>new EvacuateCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
+  ReassessEvacuationCasualty:directive=>new ReassessEvacuationCasualtyAction({actorId:directive.actorId,directive:directive.directive}),
+  TransferCasualty:directive=>new TransferCasualtyAction({actorId:directive.actorId,directive:directive.directive})
 };
 
 function authoredDirective(actor){
@@ -50,7 +61,7 @@ export class RoleActionRuntime{
       for(const role of procedure.roles??[]){
         if(!role.actorId)continue;
         const actor=game?.actors?.find(candidate=>candidate.id===role.actorId);if(!actor)continue;
-        const roleContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,currentObserveAction:this.scheduler.getAction(actor.id,"ObserveSector")});
+        const roleContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,evacuationRoutes:context?.services?.evacuationRoutes,currentObserveAction:this.scheduler.getAction(actor.id,"ObserveSector")});
         const candidates=this.evaluator.evaluate(roleContext).sort((a,b)=>b.score-a.score);
         const selected=candidates[0]??null;if(!selected)continue;
         desiredByActor.set(actor.id,{actor,role,procedure,mission,candidates,selected});
@@ -92,12 +103,12 @@ export class RoleActionRuntime{
 
   #cancelWithCleanup(actor,action,{now,context,reason}){
     this.scheduler.cancelAction(actor.id,action,{now,reason});
-    if(["WithdrawToRoute","ApproachCasualty","DragCasualty"].includes(action.type))context?.services?.destinationClaims?.release?.(actor.id,{now,reason});
-    if(action.type==="DragCasualty"){
+    if(["WithdrawToRoute","ApproachCasualty","DragCasualty","AdvanceRouteSecurity","EvacuateCasualty"].includes(action.type))context?.services?.destinationClaims?.release?.(actor.id,{now,reason});
+    if(["DragCasualty","EvacuateCasualty"].includes(action.type)){
       const patientId=action.directive?.casualtyId;const patient=context?.game?.actors?.find(candidate=>candidate.id===patientId);
       context?.services?.casualtyCare?.releasePatient?.(patientId,actor.id);context?.services?.casualtyCare?.releaseDrag?.({patient});
     }
-    if(action.type==="StabilizeCasualty")context?.services?.casualtyCare?.releasePatient?.(action.directive?.casualtyId,actor.id);
+    if(["StabilizeCasualty","ReassessEvacuationCasualty","TransferCasualty"].includes(action.type))context?.services?.casualtyCare?.releasePatient?.(action.directive?.casualtyId,actor.id);
   }
 
   #releaseActor(actor,{now,context}){

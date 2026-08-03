@@ -8,7 +8,7 @@ import { validateItemLocations } from "./item-locations.js";
 import { renderItemThumbnail } from "./presentation/item-renderer.js";
 import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js";
 
-const BUILD_ID="2.0N";
+const BUILD_ID="2.0O";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Consolidated causal AI: the completed warning/withdrawal and casualty-recovery chains are regression-tested, while a stabilized critical casualty remains an evacuation obligation."
+    ?"Adaptive causal AI: a stabilized casualty becomes an evacuation obligation, current route affordances are compared, capability loss causes responsibility reassignment, and the team completes safe return."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();
@@ -73,7 +73,7 @@ function startGame(scenario="operations"){
       ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
         ?`${fixture.question} The complete V2 encounter proceeds from observation and warning through staged silent withdrawal, observed departure, de-escalation, and outcome memory without combat.`
         :fixture.id===SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY
-          ?`${fixture.question} The complete V2 recovery proceeds from witnessed casualty and report through assessment, drag, stabilization, and an explicit evacuation obligation.`
+          ?`${fixture.question} The V2 team now continues from recovery and stabilization through adaptive route selection, staged casualty transport, a capability-driven carrier handoff, transfer, and safe return.`
           :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
       :`${fixture.question} Legacy 1.2H is running inside this controlled fixture for comparison.`;
     $("#operations-button")?.setAttribute("hidden","");

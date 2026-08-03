@@ -22,6 +22,7 @@ import { TeamMissionStore } from "../missions/team-mission.js";
 import { TeamProcedureState } from "../procedures/team-procedure-state.js";
 import { DestinationClaimService } from "../position/destination-claim-service.js";
 import { PositionQueryService } from "../position/position-query-service.js";
+import { EvacuationRouteService } from "../position/evacuation-route-service.js";
 import { TeamResponseState } from "../responses/team-response-state.js";
 import { evaluateCasualtyObservation } from "../senses/casualty-observation.js";
 import { captureWorldSnapshot } from "./world-snapshot.js";
@@ -65,6 +66,7 @@ export class AIV2Runtime{
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
     this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
+    this.evacuationRoutes=new EvacuationRouteService({decisionLog:this.decisionLog});
     this.destinationClaims=new DestinationClaimService({decisionLog:this.decisionLog});
     this.rolePositions=new RolePositionRuntime({scheduler:this.scheduler,positionQueries:this.positionQueries,destinationClaims:this.destinationClaims,decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
@@ -74,7 +76,7 @@ export class AIV2Runtime{
     this.visibleByObserver=new Map();
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"consolidated_regression_harness",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"adaptive_evacuation_safe_return",scenario:game.scenarioMode}});
   }
 
   update(delta){
@@ -238,6 +240,7 @@ export class AIV2Runtime{
         roleActions:this.roleActions,
         rolePositions:this.rolePositions,
         positionQueries:this.positionQueries,
+        evacuationRoutes:this.evacuationRoutes,
         destinationClaims:this.destinationClaims,
         locomotion:this.locomotion,
         visibleByObserver:this.visibleByObserver

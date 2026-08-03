@@ -68,6 +68,7 @@ function actorFromSpec(faction,teamId,index,spec,fixture){
    report:spec.aiV2CasualtyAssignment.report?{...spec.aiV2CasualtyAssignment.report}:null
   }:null,
   aiV2MedicalSupplies:spec.aiV2MedicalSupplies?{...spec.aiV2MedicalSupplies}:null,
+  aiV2Capabilities:spec.aiV2Capabilities?{...spec.aiV2Capabilities}:null,
   alertState:"unaware"
  };
 }
@@ -132,6 +133,11 @@ export class CombatSandboxDirector{
       ...teamSpec.aiV2Mission.recoveryPlan,
       recoveryPoint:teamSpec.aiV2Mission.recoveryPlan.recoveryPoint?{...teamSpec.aiV2Mission.recoveryPlan.recoveryPoint}:null,
       securitySector:teamSpec.aiV2Mission.recoveryPlan.securitySector?{...teamSpec.aiV2Mission.recoveryPlan.securitySector}:null
+     }:null,
+     evacuationPlan:teamSpec.aiV2Mission.evacuationPlan?{
+      ...teamSpec.aiV2Mission.evacuationPlan,
+      routeOptions:(teamSpec.aiV2Mission.evacuationPlan.routeOptions??[]).map(route=>({...route,waypoints:(route.waypoints??[]).map(waypoint=>({...waypoint}))})),
+      rearSecuritySector:teamSpec.aiV2Mission.evacuationPlan.rearSecuritySector?{...teamSpec.aiV2Mission.evacuationPlan.rearSecuritySector}:null
      }:null,
      decisionContext:teamSpec.aiV2Mission.decisionContext?{...teamSpec.aiV2Mission.decisionContext}:null,
      responsePolicy:teamSpec.aiV2Mission.responsePolicy?{...teamSpec.aiV2Mission.responsePolicy}:null,

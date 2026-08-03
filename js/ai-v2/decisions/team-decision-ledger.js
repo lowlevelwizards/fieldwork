@@ -52,13 +52,15 @@ function copyContext(context={}){
   };
 }
 
-export function buildTeamDecisionLedger({mission,encounter}={}){
+export function buildTeamDecisionLedger({mission,encounter,outcome=null}={}){
   if(!mission||!encounter)return null;
   const context=copyContext(mission.decisionContext);
   const informationCertainty=clamp((encounter.reportConfidence??0)/100*.82);
   if(encounter.subjectKind==="friendly_casualty"){
     const casualty=encounter.casualty??{};
     const urgency=casualty.condition==="unconscious"||casualty.condition==="critical"||casualty.immediateDanger?1:casualty.condition==="serious"?.72:.38;
+    const evacuationRequired=outcome?.followUp==="evacuation_required"&&outcome?.subjectId===encounter.subjectId;
+    const casualtyStabilized=Boolean(evacuationRequired||((casualty.assessed&&Number(casualty.bleeding??0)<=.05)));
     return{
       teamId:mission.teamId,
       missionId:mission.id,
@@ -88,6 +90,11 @@ export function buildTeamDecisionLedger({mission,encounter}={}){
       casualtyBleeding:clamp((casualty.bleeding??0)/2.8),
       casualtyMobility:casualty.mobility==="requires_assisted_movement"||casualty.mobility==="unable_to_self_move"?0:1,
       recoveryPlanAvailable:mission.recoveryPlan?.recoveryPoint?1:0,
+      evacuationPlanAvailable:(mission.evacuationPlan?.routeOptions?.length??0)>0?1:0,
+      evacuationRequired:evacuationRequired?1:0,
+      casualtyStabilized:casualtyStabilized?1:0,
+      safeReturnValue:clamp((context.teamPreservation+context.careOrientation+context.mobilityOrientation)/3),
+      originalMissionSuspended:evacuationRequired?1:0,
       medicalCapability:1,
       hostileEvidence:0,
       unknownIntent:0,
@@ -96,7 +103,7 @@ export function buildTeamDecisionLedger({mission,encounter}={}){
       boundaryLabel:"not applicable",boundaryPolicy:null,boundaryWarningType:null,
       reversibleCommunicationValue:1,warningHeard:0,warningIssued:0,departureEvidence:0,withdrawalPlanAvailable:0,
       positionLabel:context.positionLabel,
-      exitLabel:mission.recoveryPlan?.label??context.exitLabel,
+      exitLabel:evacuationRequired?(mission.evacuationPlan?.label??context.exitLabel):(mission.recoveryPlan?.label??context.exitLabel),
       evidenceLabel:`${Math.round(encounter.reportConfidence??0)}% friendly casualty report`,
       responseBias:{...(mission.responseBias??{})}
     };

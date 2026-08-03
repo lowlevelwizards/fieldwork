@@ -6,14 +6,23 @@ const COMMON_REASSESSMENT_TRIGGERS=Object.freeze([
   "hostile_action_observed"
 ]);
 
-function role({id,label,responsibility,selectionReason,fulfillment,preference=()=>0}){
-  return Object.freeze({id,label,responsibility,selectionReason,fulfillment:Object.freeze({...fulfillment}),preference});
+function role({id,label,responsibility,selectionReason,fulfillment,preference=()=>0,eligible=()=>true}){
+  return Object.freeze({id,label,responsibility,selectionReason,fulfillment:Object.freeze({...fulfillment}),preference,eligible});
 }
 
 function phase(id,label,reason){return Object.freeze({id,label,reason});}
 
 function transition(event,{from,to,reason,complete=false,guard=null,apply=null}){
   return Object.freeze({event,from,to,reason,complete,guard,apply});
+}
+
+function capability(actor,key,fallback=0){
+  const value=Number(actor?.aiV2Capabilities?.[key]);
+  return Number.isFinite(value)?value:fallback;
+}
+
+function transportEligible(actor){
+  return capability(actor,"patientTransport",0)>0&&capability(actor,"transportStamina",0)>=.2;
 }
 
 const PROCEDURES=Object.freeze({
@@ -58,6 +67,118 @@ const PROCEDURES=Object.freeze({
         selectionReason:"Prefer the capable security-oriented operator who first witnessed and reported the casualty.",
         fulfillment:{need:"observe_recovery_approach"},
         preference:actor=>String(actor.role??"").toLowerCase().includes("security")?110:actor.aiV2CasualtyAssignment?.observe?90:0
+      })
+    ])
+  }),
+  evacuate_casualty:Object.freeze({
+    id:"casualty_evacuation",
+    label:"Adaptive Casualty Evacuation",
+    responseId:"evacuate_casualty",
+    description:"Select a viable safe-return route, secure each leg, transport the stabilized casualty, reassign responsibilities when capability changes, and complete transfer alive.",
+    establishDuration:.55,
+    phases:Object.freeze([
+      phase("establish_responsibilities","Establish Responsibilities","Evacuation requires a capable carrier, a route-security operator, and a separate rear-security responsibility."),
+      phase("select_route","Select Route","Route Security compares current extraction affordances rather than following one fixed actor path."),
+      phase("secure_route_leg","Secure Route Leg","Route Security advances to the next selected waypoint and establishes that the current movement leg is usable."),
+      phase("transport_leg","Transport Casualty","The current capable carrier controls the casualty and moves them to the secured waypoint."),
+      phase("reassess_casualty","Reassess at Waypoint","The assigned carrier confirms that the casualty remains stable and that the next movement leg can continue."),
+      phase("transfer_casualty","Transfer Casualty","The casualty has reached extraction and must be transferred for continued care."),
+      phase("safe_return","Safe Return","The casualty was evacuated alive and the local mission has ended in a safe-return outcome."),
+      phase("procedure_reassess","Reassess Procedure","A route, capability, or patient-state failure requires the team to reconsider the evacuation plan.")
+    ]),
+    activePhaseId:"select_route",
+    transitions:Object.freeze([
+      transition("evacuation_route_selected",{
+        from:"select_route",
+        to:"secure_route_leg",
+        reason:"Route Security selected the strongest currently viable extraction affordance.",
+        apply:(record,{data,now})=>{
+          record.evacuation={
+            routeId:data.routeId,
+            routeLabel:data.routeLabel,
+            candidateCount:data.candidateCount??0,
+            waypoints:(data.waypoints??[]).map(waypoint=>({...waypoint})),
+            currentLegIndex:0,
+            securedLegIndex:-1,
+            completedLegIndex:-1,
+            reassessmentCount:0,
+            carrierHandoffs:0,
+            carrierHistory:[],
+            selectedAt:now
+          };
+        }
+      }),
+      transition("route_leg_secured",{
+        from:"secure_route_leg",
+        to:"transport_leg",
+        reason:"The next route waypoint is occupied and the carrier can advance the casualty.",
+        apply:(record,{data})=>{
+          if(record.evacuation)record.evacuation.securedLegIndex=data.legIndex??record.evacuation.currentLegIndex;
+        }
+      }),
+      transition("casualty_transport_leg_completed",{
+        from:"transport_leg",
+        to:(record,{data})=>data.finalLeg?"transfer_casualty":"reassess_casualty",
+        reason:"The casualty reached the secured waypoint and the team can reassess before continuing or transfer at extraction.",
+        apply:(record,{data})=>{
+          if(!record.evacuation)return;
+          record.evacuation.completedLegIndex=data.legIndex??record.evacuation.currentLegIndex;
+          record.evacuation.lastCarrierId=data.actorId??null;
+          if(data.actorId&&!record.evacuation.carrierHistory.includes(data.actorId))record.evacuation.carrierHistory.push(data.actorId);
+        }
+      }),
+      transition("evacuation_reassessment_complete",{
+        from:"reassess_casualty",
+        to:"secure_route_leg",
+        reason:"The casualty remains stable, responsibilities are valid, and the team can secure the next route leg.",
+        apply:(record,{data})=>{
+          if(!record.evacuation)return;
+          record.evacuation.currentLegIndex=data.nextLegIndex??record.evacuation.completedLegIndex+1;
+          record.evacuation.reassessmentCount=(record.evacuation.reassessmentCount??0)+1;
+        }
+      }),
+      transition("casualty_transferred",{
+        from:"transfer_casualty",
+        to:"safe_return",
+        reason:"The casualty reached extraction alive and was transferred for continued care.",
+        complete:true,
+        apply:(record,{data,now})=>{
+          if(record.evacuation){record.evacuation.transferredAt=now;record.evacuation.transferActorId=data.actorId??null;}
+        }
+      }),
+      transition("casualty_evacuation_failed",{
+        from:"*",
+        to:"procedure_reassess",
+        reason:"The current route, carrier, or patient condition cannot satisfy the evacuation responsibility and requires team reassessment."
+      })
+    ]),
+    permissions:Object.freeze({observe:true,report:true,relocate:true,warn:false,care:true,drag:true,transfer:true,fire:false}),
+    reassessmentTriggers:Object.freeze(["evacuation_route_selected","route_leg_secured","casualty_transport_leg_completed","evacuation_reassessment_complete","casualty_transferred","casualty_evacuation_failed","team_member_incapable","mission_changed","hostile_action_observed"]),
+    roles:Object.freeze([
+      role({
+        id:"carrier",
+        label:"Carrier",
+        responsibility:"Maintain exclusive control of the casualty, move them only along a secured route leg, stop if the patient destabilizes, and release safely on interruption.",
+        selectionReason:"Prefer the capable operator with the strongest patient-transport capability and sufficient current transport stamina.",
+        fulfillment:{need:"transport_casualty"},
+        eligible:transportEligible,
+        preference:actor=>capability(actor,"patientTransport",0)*100+capability(actor,"transportStamina",0)*24+(String(actor.role??"").toLowerCase().includes("medic")?28:0)
+      }),
+      role({
+        id:"route_security",
+        label:"Route Security",
+        responsibility:"Compare available extraction affordances, advance to the next waypoint, and establish that each route leg is usable before casualty movement.",
+        selectionReason:"Prefer a security-oriented operator with strong route-assessment capability who is not controlling the casualty.",
+        fulfillment:{need:"secure_evacuation_route"},
+        preference:actor=>capability(actor,"routeAssessment",0)*100+(String(actor.role??"").toLowerCase().includes("security")?25:0)
+      }),
+      role({
+        id:"rear_security",
+        label:"Rear Security",
+        responsibility:"Preserve awareness behind the evacuation group and remain available when the carrier or route plan changes.",
+        selectionReason:"Assign the strongest remaining rear-security operator after carrier and route security are covered.",
+        fulfillment:{need:"rear_security_evacuation"},
+        preference:actor=>capability(actor,"rearSecurity",0)*100+(String(actor.role??"").toLowerCase().includes("scout")?12:0)
       })
     ])
   }),

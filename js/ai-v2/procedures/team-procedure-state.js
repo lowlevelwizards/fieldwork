@@ -20,7 +20,12 @@ function cloneProcedure(record){
     permissions:{...record.permissions},
     reassessmentTriggers:[...record.reassessmentTriggers],
     events:(record.events??[]).map(event=>({...event,data:event.data?{...event.data}:null})),
-    warning:record.warning?{...record.warning,recipientIds:[...(record.warning.recipientIds??[])]}:null
+    warning:record.warning?{...record.warning,recipientIds:[...(record.warning.recipientIds??[])]}:null,
+    evacuation:record.evacuation?{
+      ...record.evacuation,
+      waypoints:(record.evacuation.waypoints??[]).map(waypoint=>({...waypoint})),
+      carrierHistory:[...(record.evacuation.carrierHistory??[])]
+    }:null
   };
 }
 
@@ -37,7 +42,7 @@ function assignRoles(definition,teamActors){
   const assigned=new Set();
   const roles=[];
   for(const roleSpec of definition.roles){
-    const candidates=rankActors(available.filter(actor=>!assigned.has(actor.id)),roleSpec);
+    const candidates=rankActors(available.filter(actor=>!assigned.has(actor.id)&&roleSpec.eligible?.(actor,{teamActors})!==false),roleSpec);
     const actor=candidates[0]??null;
     if(actor)assigned.add(actor.id);
     roles.push({
@@ -54,13 +59,15 @@ function assignRoles(definition,teamActors){
   return roles;
 }
 
-function assignmentsValid(record,actorsById){
+function assignmentsValid(record,actorsById,definition){
   const assignedIds=new Set();
   for(const role of record.roles){
     if(!role.actorId)continue;
     if(assignedIds.has(role.actorId))return false;
     assignedIds.add(role.actorId);
-    if(!capable(actorsById.get(role.actorId)))return false;
+    const actor=actorsById.get(role.actorId);
+    const roleSpec=definition?.roles?.find(candidate=>candidate.id===role.roleId)??null;
+    if(!capable(actor)||roleSpec?.eligible?.(actor)===false)return false;
   }
   return true;
 }
@@ -91,18 +98,29 @@ export class TeamProcedureState{
         continue;
       }
 
-      if(!assignmentsValid(existing,actorsById)){
+      if(!assignmentsValid(existing,actorsById,definition)){
         const previousRoles=existing.roles.map(cloneRole);
+        const previousCarrier=previousRoles.find(role=>role.roleId==="carrier")?.actorId??null;
         existing.roles=assignRoles(definition,teamActors);
+        const nextCarrier=existing.roles.find(role=>role.roleId==="carrier")?.actorId??null;
+        if(existing.evacuation&&previousCarrier&&nextCarrier&&previousCarrier!==nextCarrier){
+          existing.evacuation.carrierHandoffs=(existing.evacuation.carrierHandoffs??0)+1;
+          existing.evacuation.lastHandoff={from:previousCarrier,to:nextCarrier,at:now};
+        }
+        existing.resumePhaseId=existing.phase.id==="establish_responsibilities"
+          ?(existing.resumePhaseId??definition.activePhaseId)
+          :existing.phase.id;
         existing.phase=this.#phase(definition,"establish_responsibilities",now,"A procedural responsibility became invalid and was deliberately reassigned.");
         existing.lastUpdatedAt=now;
-        this.#record("team_procedure_roles_reassigned",existing,now,{previousRoles,roles:existing.roles.map(cloneRole)});
+        this.#record("team_procedure_roles_reassigned",existing,now,{previousRoles,roles:existing.roles.map(cloneRole),resumePhaseId:existing.resumePhaseId,previousCarrier,nextCarrier});
         continue;
       }
 
       if(existing.phase.id==="establish_responsibilities"&&now-existing.phase.enteredAt>=definition.establishDuration){
-        const activePhase=getProcedurePhase(definition,definition.activePhaseId);
-        existing.phase=this.#phase(definition,activePhase?.id??definition.activePhaseId,now,activePhase?.reason??"Responsibilities are established.");
+        const nextPhaseId=existing.resumePhaseId??definition.activePhaseId;
+        const activePhase=getProcedurePhase(definition,nextPhaseId);
+        existing.phase=this.#phase(definition,activePhase?.id??nextPhaseId,now,activePhase?.reason??"Responsibilities are established.");
+        existing.resumePhaseId=null;
         existing.lastUpdatedAt=now;
         this.#record("team_procedure_phase_changed",existing,now,{to:existing.phase.id,reason:existing.phase.reason});
       }else{
@@ -133,7 +151,8 @@ export class TeamProcedureState{
     }
 
     transition.apply?.(record,{event,data,now});
-    record.phase=this.#phase(definition,transition.to,now,transition.reason);
+    const nextPhaseId=typeof transition.to==="function"?transition.to(record,{event,data,now}):transition.to;
+    record.phase=this.#phase(definition,nextPhaseId,now,transition.reason);
     if(transition.reason)record.phase.reason=transition.reason;
     if(transition.complete)record.completedAt=now;
     record.lastUpdatedAt=now;
@@ -180,7 +199,9 @@ export class TeamProcedureState{
       permissions:{...definition.permissions},
       reassessmentTriggers:[...definition.reassessmentTriggers],
       events:[],
-      warning:null
+      warning:null,
+      evacuation:null,
+      resumePhaseId:null
     };
     this.byTeam.set(response.teamId,record);
     this.#record("team_procedure_started",record,now,{roles:roles.map(cloneRole),responseScore:response.selected.score});

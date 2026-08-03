@@ -29,7 +29,8 @@ function option({id,label,summary,base=0,terms,reason,eligible=null}){
 }
 
 const relevantEncounter=({encounter})=>encounter?.subjectKind!=="friendly_casualty"&&(encounter?.state==="relevant"||encounter?.state==="potentially_incompatible");
-const friendlyCasualtyEligible=({ledger,encounter})=>encounter?.subjectKind==="friendly_casualty"&&ledger.recoveryPlanAvailable>0&&ledger.casualtyUrgency>0;
+const friendlyCasualtyEligible=({ledger,encounter})=>encounter?.subjectKind==="friendly_casualty"&&ledger.recoveryPlanAvailable>0&&ledger.casualtyUrgency>0&&ledger.evacuationRequired<=0;
+const casualtyEvacuationEligible=({ledger,encounter})=>encounter?.subjectKind==="friendly_casualty"&&ledger.evacuationRequired>0&&ledger.casualtyStabilized>0&&ledger.evacuationPlanAvailable>0;
 const boundaryWarningEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.boundaryTrigger>0;
 const silentWithdrawalEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.warningHeard>0&&ledger.withdrawalPlanAvailable>0;
 const monitorDepartureEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.warningIssued>0&&ledger.departureEvidence>0;
@@ -52,6 +53,25 @@ export const TEAM_RESPONSE_OPTIONS=Object.freeze([
       term("resource_cost","treatment consumes a finite medical supply",ledger.resourceConservation,-.03)
     ],
     reason:ledger=>`A known teammate is in immediate danger, and ${ledger.exitLabel} provides a viable place to move and stabilize them while preserving security.`
+  }),
+  option({
+    id:"evacuate_casualty",
+    label:"Evacuate Casualty",
+    summary:"Suspend the local task, select a viable safe-return route, transport the stabilized casualty, adapt responsibilities when capability changes, and reach extraction.",
+    base:.22,
+    eligible:casualtyEvacuationEligible,
+    terms:ledger=>[
+      term("evacuation_required","stabilization left an explicit evacuation obligation",ledger.evacuationRequired,.30),
+      term("stabilized","immediate bleeding is controlled enough to move",ledger.casualtyStabilized,.14),
+      term("route_options","the world offers viable extraction affordances",ledger.evacuationPlanAvailable,.14),
+      term("preservation","safe return preserves the casualty and team",ledger.teamPreservation,.18),
+      term("care_orientation","the mission values completing the rescue",ledger.careOrientation,.14),
+      term("safe_return","reaching extraction completes the useful outcome",ledger.safeReturnValue,.12),
+      term("mobility","the team can reorganize around transport",ledger.mobilityOrientation,.08),
+      term("mission_suspension","the prior observation task is deliberately suspended",ledger.originalMissionSuspended,.05),
+      term("resource_cost","transport consumes operator stamina and time",ledger.resourceConservation,-.04)
+    ],
+    reason:ledger=>`The casualty is stable enough to move but remains non-ambulatory; ${ledger.exitLabel} makes safe return the team's highest-value unresolved obligation.`
   }),
   option({
     id:"continue_observation",
