@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getSandboxFixture } from "../data/behavior-lab-fixtures.js";
+import { getSandboxFixture } from "../js/combat-sandbox.js";
 import { simulateFixture } from "./helpers/simulate-fixture.mjs";
 
-const FIXTURES=["open_contact","observation","cover_position","casualty_recovery"];
+const FIXTURES=["open_contact","observation","cover_position","casualty_recovery","objective_initiative"];
 
 test("all current Behavior Lab fixtures initialize the isolated V2 runtime",()=>{
   for(const fixture of FIXTURES){
