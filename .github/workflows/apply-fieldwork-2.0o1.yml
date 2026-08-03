@@ -1,0 +1,42 @@
+name: Apply Fieldwork 2.0O.1
+
+on:
+  push:
+    branches:
+      - agent/fieldwork-2.0o1-physical-carrier-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Materialize patch script
+        run: |
+          base64 -d .fieldwork-2.0o1/apply.py.gz.b64 | gzip -d > /tmp/apply-fieldwork-2.0o1.py
+      - name: Apply physical handoff fix
+        run: python /tmp/apply-fieldwork-2.0o1.py
+      - name: Verify formatting and syntax
+        run: |
+          git diff --check
+          find js tests -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+      - name: Run full regression suite
+        run: npm test
+      - name: Commit verified patch
+        run: |
+          rm -rf .fieldwork-2.0o1
+          rm -f .github/workflows/apply-fieldwork-2.0o1.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Fieldwork 2.0O.1 physical carrier handoff"
+          git push
