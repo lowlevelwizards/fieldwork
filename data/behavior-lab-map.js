@@ -1,5 +1,6 @@
 // Authored geometry for the intentional Behavior Lab.
 export const sandboxMap={
+ worldBounds:{width:5500,height:2000},
  sandboxLayout:{
   name:"Fieldwork Behavior Lab",
   subtitle:"One question at a time",
