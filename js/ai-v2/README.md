@@ -1,10 +1,10 @@
 # Fieldwork AI V2
 
-AI V2 is a parallel causal runtime. It does not import the legacy tactical decision authorities.
+AI V2 is a parallel causal runtime. It does not import or advance the legacy tactical decision authorities.
 
-## Current milestone: 2.0M
+## Current milestone: 2.0N
 
-Two Behavior Lab fixtures now complete distinct causal chains.
+Two Behavior Lab fixtures complete distinct causal chains using the same foundations.
 
 ### Observation & Concealment
 
@@ -20,7 +20,7 @@ mission
 → warning
 → silent withdrawal
 → de-escalation
-→ outcome memory
+→ resolved outcome memory
 ```
 
 ### Casualty Recovery
@@ -36,37 +36,36 @@ friendly casualty perceived
 → assessment
 → assisted movement
 → stabilization
-→ outcome memory
+→ ongoing evacuation obligation
 ```
 
-The second chain is the important architectural test: the same mission, knowledge, response, procedure, role, scheduler, movement, communication, and memory foundations now produce coordinated care rather than another contact-management behavior.
+The second chain demonstrates that the same mission, knowledge, response, procedure, role, scheduler, movement, communication, and memory foundations can coordinate care rather than only contact management.
 
-## Current modules
+## Module boundaries
 
-- `runtime/` — update boundary, read-only snapshots, and system composition.
-- `actions/` — persistent lifecycle, channels, observation, reporting, movement, warning, withdrawal, and casualty-care actions.
-- `actors/` — procedure-role context, local action evaluation, and stable action reconciliation.
+- `runtime/` — explicit causal update order and system composition.
+- `actions/` — persistent lifecycle and channel ownership.
+- `actors/` — procedure-role context, action evaluation, and stable reconciliation.
 - `communication/` — local reports and directed voice delivery.
 - `execution/` — narrow attention, locomotion, and casualty-care mechanics.
-- `senses/` — visual contact evidence, observable activity, and friendly-casualty observation.
-- `knowledge/` — private contact/casualty memory, team reports, intent hypotheses, and heard communications.
+- `senses/` — visual contact evidence, activity evidence, and casualty observation.
+- `knowledge/` — personal and shared contact/casualty knowledge plus heard communication.
 - `missions/` — objectives, concern areas, boundaries, withdrawal plans, and recovery plans.
-- `encounters/` — mission-relative external-contact and friendly-casualty hypotheses plus outcome memory.
-- `decisions/` — descriptive team decision ledger, including urgency and medical capability.
-- `responses/` — option evaluation and persistent team response state.
-- `procedures/` — response mapping, phases, temporary responsibilities, events, and reassignment.
+- `encounters/` — mission-relative hypotheses and outcome memory.
+- `decisions/` — descriptive team decision ledger.
+- `responses/` — persistent team response selection.
+- `procedures/` — data-defined phases, transitions, permissions, and temporary roles.
 - `position/` — spatial queries and temporary destination claims.
-- `diagnostics/` — decision history, action provenance, position ownership, and exclusive patient-control invariants.
+- `diagnostics/` — decision history, invariants, and presentation projections.
 
-## Ownership rules reinforced in 2.0M
+## 2.0N consolidation rules
 
-- A casualty becomes a team problem through perception and communication, not global state access.
-- Assessment describes condition and treatment need before treatment begins.
-- The response evaluator selects recovery but does not move or treat actors.
-- The procedure owns phases and responsibilities, not physical execution.
-- The actor action runtime proposes the phase-appropriate care action.
-- The scheduler owns action lifecycle and channel conflicts.
-- The locomotion executor remains the movement writer for the responder.
-- The casualty-care executor alone controls dragged-patient position and exclusive patient claims.
-- The existing wound system performs treatment mechanics.
-- Stabilization stops immediate deterioration without restoring full capability.
+- Procedure definitions own event transitions; `TeamProcedureState` applies them generically.
+- `AIV2Runtime` remains the visible composition root and does not own UI projection details.
+- Fixture content is authored data, separate from the fixture director that instantiates it.
+- A completed immediate action is not automatically a completed mission.
+- `casualty_stabilized` means immediate bleeding controlled, stable critical, non-ambulatory, and evacuation required.
+- Regression tests preserve the completed chains before new behavior is added.
+- No event bus, generic planner, dependency-injection framework, or third-party state machine is introduced.
+
+Run all checks with `npm test`.

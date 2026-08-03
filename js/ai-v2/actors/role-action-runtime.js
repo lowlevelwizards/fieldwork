@@ -104,8 +104,9 @@ export class RoleActionRuntime{
     for(const action of [...this.scheduler.getActions(actor.id)]){
       if(!ROLE_ACTION_TYPES.has(action.type)||!roleAction(action))continue;
       if(action.type==="ObserveSector"){
-        const resolvedOutcome=context?.services?.encounterOutcomes?.getLatest?.(actor.teamId)??null;
-        const authored=resolvedOutcome?.resolved?null:authoredDirective(actor);
+        const outcome=context?.services?.encounterOutcomes?.getLatest?.(actor.teamId)??null;
+        const missionResolved=outcome?.missionResolved??outcome?.resolved??false;
+        const authored=missionResolved?null:authoredDirective(actor);
         if(authored){action.adoptDirective(authored,{now,context});this.#record("role_action_released_to_authored_task",actor,{type:"ObserveSector",reason:"The procedural role ended, but the authored observation task remains valid."},now,{actionId:action.id,preservedAction:true});continue;}
       }
       this.#cancelWithCleanup(actor,action,{now,context,reason:"procedural_responsibility_ended"});

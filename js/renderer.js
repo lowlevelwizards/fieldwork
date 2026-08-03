@@ -501,7 +501,9 @@ export class Renderer{
     const mission=game.aiV2?.teamMissions?.get?.(teamEntry.teamId);
     let point=null,title="ENCOUNTER ENDED",detail="WITHDREW WITHOUT VIOLENCE";
     if(outcome.kind==="casualty_stabilized"){
-     point=mission?.recoveryPlan?.recoveryPoint;title="RECOVERY COMPLETE";detail="IMMEDIATE BLEEDING CONTROLLED";
+     point=mission?.recoveryPlan?.recoveryPoint;
+     title="STABILIZED · CRITICAL";
+     detail=outcome.followUp==="evacuation_required"?"EVACUATION REQUIRED":"IMMEDIATE BLEEDING CONTROLLED";
     }else point=mission?.withdrawalPlan?.exitPoint;
     if(!point)continue;
     ctx.fillStyle="rgba(18,27,22,.91)";ctx.beginPath();ctx.roundRect(point.x-70,point.y-68,140,34,11);ctx.fill();

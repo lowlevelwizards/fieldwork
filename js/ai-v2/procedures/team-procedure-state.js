@@ -1,4 +1,8 @@
-import { getProcedureDefinitionForResponse, getProcedurePhase } from "./procedure-definitions.js";
+import {
+  getProcedureDefinitionForResponse,
+  getProcedurePhase,
+  getProcedureTransition
+} from "./procedure-definitions.js";
 
 function capable(actor){
   const medical=actor?.medical;
@@ -115,88 +119,30 @@ export class TeamProcedureState{
   notifyEvent({teamId,event,now=0,data={}}={}){
     const record=this.byTeam.get(teamId);
     if(!record||!event)return false;
+
     const entry={event,time:now,data:{...data}};
     record.events=record.events??[];
     record.events.push(entry);
     if(record.events.length>20)record.events.splice(0,record.events.length-20);
 
-    if(record.procedureId==="casualty_recovery"){
-      const definition=getProcedureDefinitionForResponse(record.responseId);
-      const nextByEvent={
-        casualty_reached:"assess_condition",
-        casualty_assessed:"move_to_recovery",
-        casualty_moved_to_recovery:"stabilize",
-        casualty_stabilized:"recovery_complete"
-      };
-      if(event==="casualty_recovery_failed"){
-        record.phase=this.#phase(definition,"reassess",now,"The casualty recovery action failed and the team must reconsider its assignments, route, or available supplies.");
-        record.lastUpdatedAt=now;
-        this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,...data});
-        return true;
-      }
-      const expectedPhaseByEvent={casualty_reached:"reach_casualty",casualty_assessed:"assess_condition",casualty_moved_to_recovery:"move_to_recovery",casualty_stabilized:"stabilize"};
-      const nextPhase=nextByEvent[event];
-      if(nextPhase&&record.phase.id===expectedPhaseByEvent[event]){
-        record.phase=this.#phase(definition,nextPhase,now,`The recovery advanced after ${event.replaceAll("_"," ")}.`);
-        if(nextPhase==="recovery_complete")record.completedAt=now;
-        record.lastUpdatedAt=now;
-        this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,...data});
-        return true;
-      }
-    }
-    if(record.procedureId==="challenge_unknown_contact"&&event==="warning_delivered"&&record.phase.id==="issue_warning"){
-      const definition=getProcedureDefinitionForResponse(record.responseId);
-      record.warning={
-        status:"delivered",
-        deliveredAt:now,
-        message:data.message??null,
-        warningId:data.warningId??null,
-        subjectId:data.subjectId??null,
-        recipientIds:[...(data.recipientIds??[])]
-      };
-      record.phase=this.#phase(definition,"await_response",now,"The warning was delivered and the team is waiting for an observable response.");
-      record.lastUpdatedAt=now;
-      this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event});
+    const definition=getProcedureDefinitionForResponse(record.responseId);
+    const transition=getProcedureTransition(definition,event,record.phase.id,data);
+    if(!transition){
+      this.#record("team_procedure_event_recorded",record,now,{event,data:{...data}});
       return true;
     }
-    if(record.procedureId==="challenge_unknown_contact"&&event==="warning_failed"){
-      const definition=getProcedureDefinitionForResponse(record.responseId);
-      record.warning={status:"failed",failedAt:now,reason:data.reason??"warning_failed",recipientIds:[]};
-      record.phase=this.#phase(definition,"reassess",now,"The warning could not be delivered, so the team must reassess the encounter.");
-      record.lastUpdatedAt=now;
-      this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event});
-      return true;
-    }
-    if(record.procedureId==="break_contact_quietly"&&event==="withdrawal_stage_completed"){
-      const definition=getProcedureDefinitionForResponse(record.responseId);
-      const expectedRoleByPhase={lead_withdrawal:"withdrawal_lead",protected_movement:"protected_mover",rear_disengage:"rear_watch"};
-      const nextPhaseByPhase={lead_withdrawal:"protected_movement",protected_movement:"rear_disengage",rear_disengage:"withdrawal_complete"};
-      const expectedRole=expectedRoleByPhase[record.phase.id];
-      if(expectedRole&&data.roleId===expectedRole){
-        const nextPhase=nextPhaseByPhase[record.phase.id];
-        record.phase=this.#phase(definition,nextPhase,now,"The staged withdrawal advanced after the assigned mover reached the route.");
-        if(nextPhase==="withdrawal_complete")record.completedAt=now;
-        record.lastUpdatedAt=now;
-        this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,actorId:data.actorId??null,roleId:data.roleId});
-        return true;
-      }
-    }
-    if(record.procedureId==="break_contact_quietly"&&event==="withdrawal_move_failed"){
-      const definition=getProcedureDefinitionForResponse(record.responseId);
-      record.phase=this.#phase(definition,"reassess",now,"The authorized withdrawal movement failed, so the team must reconsider the route.");
-      record.lastUpdatedAt=now;
-      this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,actorId:data.actorId??null,roleId:data.roleId??null,failureReason:data.reason??"withdrawal_move_failed"});
-      return true;
-    }
-    if(record.procedureId==="monitor_departure"&&event==="departure_confirmed"){
-      const definition=getProcedureDefinitionForResponse(record.responseId);
-      record.phase=this.#phase(definition,"boundary_restored",now,"The warned group departed without violence; no pursuit or renewed warning is required.");
-      record.completedAt=now;
-      record.lastUpdatedAt=now;
-      this.#record("team_procedure_phase_changed",record,now,{to:record.phase.id,reason:record.phase.reason,event,outcomeId:data.outcomeId??null});
-      return true;
-    }
-    this.#record("team_procedure_event_recorded",record,now,{event,data:{...data}});
+
+    transition.apply?.(record,{event,data,now});
+    record.phase=this.#phase(definition,transition.to,now,transition.reason);
+    if(transition.reason)record.phase.reason=transition.reason;
+    if(transition.complete)record.completedAt=now;
+    record.lastUpdatedAt=now;
+    this.#record("team_procedure_phase_changed",record,now,{
+      to:record.phase.id,
+      reason:record.phase.reason,
+      event,
+      ...data
+    });
     return true;
   }
 

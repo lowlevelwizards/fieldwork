@@ -32,7 +32,8 @@ export class TeamResponseState{
       const encounter=teamEncounters?.getBestTeamHypothesis?.(mission.teamId)??null;
       const existing=this.byTeam.get(mission.teamId)??null;
       const outcome=encounterOutcomes?.getLatest?.(mission.teamId)??null;
-      if(outcome?.resolved){
+      const missionResolved=outcome?.missionResolved??outcome?.resolved??false;
+      if(missionResolved){
         const terminalHold=Math.max(0,4-Math.max(0,now-(outcome.createdAt??now)));
         if(existing&&terminalHold>0){
           existing.lastEvaluatedAt=now;

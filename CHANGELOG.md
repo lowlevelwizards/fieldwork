@@ -1,3 +1,19 @@
+# Fieldwork 2.0N
+
+## AI V2 Consolidation & Regression Harness
+
+- Added a dependency-free Node regression suite covering the complete observation/warning/withdrawal chain and casualty-recovery chain.
+- Added deterministic checks for fixture isolation, Legacy initialization, action order, treatment consumption, outcome semantics, syntax, import resolution, and module cycles.
+- Moved procedure event transitions into `procedure-definitions.js`; `TeamProcedureState` now applies transitions generically.
+- Extracted actor diagnostics and debug summaries from `AIV2Runtime` into `ai-debug-projection.js`.
+- Reduced `ai-runtime.js` from 458 lines to roughly 250 while preserving its explicit causal update order.
+- Split authored Behavior Lab fixture content into `data/behavior-lab-fixtures.js` and map geometry into `data/behavior-lab-map.js`.
+- Corrected casualty outcome semantics: immediate deterioration is resolved, but the mission remains open with `evacuation_required`, `stable_critical`, and `non_ambulatory` state.
+- Updated casualty presentation to show **STABILIZED · CRITICAL** and **EVACUATION REQUIRED**.
+- Removed 19 verified unreachable duplicate JavaScript files left by earlier layouts.
+- Added `npm run cleanup` for deleting those retired duplicates after applying a changed-files patch.
+- Preserved both completed V2 fixture outcomes and the separate Legacy 1.2H runtime without adding new combat behavior.
+
 # Fieldwork 2.0M
 
 ## Casualty Recovery & Stabilization

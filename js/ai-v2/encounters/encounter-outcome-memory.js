@@ -35,6 +35,11 @@ export class EncounterOutcomeMemory{
           facts:["friendly casualty reported","casualty assessed","casualty moved to protected ground","uncontrolled bleeding stopped","casualty remains impaired"],
           evidence:[procedure.procedureId,casualty.id],
           subjectId:casualty.id,
+          immediateHazardResolved:true,
+          missionResolved:false,
+          followUp:"evacuation_required",
+          subjectCondition:"stable_critical",
+          mobility:"non_ambulatory",
           now
         });
         casualty.aiV2RecoveryMemory={...outcome,facts:[...outcome.facts],evidence:[...outcome.evidence]};
@@ -56,6 +61,9 @@ export class EncounterOutcomeMemory{
         summary:"A directed stop-and-identify warning indicated likely detection. The team withdrew without replying or revealing its identity.",
         facts:["warning heard","no reply sent","team withdrew","no hostile act observed"],
         evidence:[incoming.id,procedure.procedureId],
+        immediateHazardResolved:true,
+        missionResolved:true,
+        followUp:null,
         now
       });
       const sourceOutcome=this.#remember({
@@ -66,21 +74,50 @@ export class EncounterOutcomeMemory{
         summary:"The reported armed group moved away from the monitored approach after the warning. No reply or hostile act was observed.",
         facts:["warning issued","departure observed","no reply heard","no hostile act observed"],
         evidence:[incoming.id,sourceEncounter.reportId],
+        immediateHazardResolved:true,
+        missionResolved:true,
+        followUp:null,
         now
       });
       teamProcedures?.notifyEvent?.({teamId:sourceTeamId,event:"departure_confirmed",now,data:{outcomeId:sourceOutcome?.id??null}});
     }
   }
 
-  #remember({teamId,counterpartTeamId,kind,label,summary,facts,evidence,subjectId=null,now}){
+  #remember({
+    teamId,
+    counterpartTeamId,
+    kind,
+    label,
+    summary,
+    facts,
+    evidence,
+    subjectId=null,
+    immediateHazardResolved=false,
+    missionResolved=false,
+    followUp=null,
+    subjectCondition=null,
+    mobility=null,
+    now
+  }){
     const outcome={
       id:`v2_outcome_${nextOutcomeSequence++}`,
-      teamId,counterpartTeamId,kind,label,summary,
-      facts:[...facts],evidence:[...evidence],
+      teamId,
+      counterpartTeamId,
+      kind,
+      label,
+      summary,
+      facts:[...facts],
+      evidence:[...evidence],
       subjectId,
       createdAt:now,
       violent:false,
-      resolved:true
+      immediateHazardResolved:Boolean(immediateHazardResolved),
+      missionResolved:Boolean(missionResolved),
+      followUp,
+      subjectCondition,
+      mobility,
+      status:missionResolved?"resolved":immediateHazardResolved?"ongoing_obligation":"active",
+      resolved:Boolean(missionResolved)
     };
     if(!this.byTeam.has(teamId))this.byTeam.set(teamId,[]);
     this.byTeam.get(teamId).unshift(outcome);

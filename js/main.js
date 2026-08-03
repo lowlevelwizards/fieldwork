@@ -8,7 +8,7 @@ import { validateItemLocations } from "./item-locations.js";
 import { renderItemThumbnail } from "./presentation/item-renderer.js";
 import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js";
 
-const BUILD_ID="2.0M";
+const BUILD_ID="2.0N";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Casualty recovery and stabilization: a witnessed teammate is reported, the team assigns aid and security, moves them to protected ground, and controls immediate bleeding without combat."
+    ?"Consolidated causal AI: the completed warning/withdrawal and casualty-recovery chains are regression-tested, while a stabilized critical casualty remains an evacuation obligation."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();
@@ -71,8 +71,10 @@ function startGame(scenario="operations"){
     objective.querySelector("strong").textContent=fixture.label;
     objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
       ?fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
-        ?`${fixture.question} The complete V2 encounter now proceeds from observation and warning through staged silent withdrawal, observed departure, de-escalation, and outcome memory without combat.`
-        :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
+        ?`${fixture.question} The complete V2 encounter proceeds from observation and warning through staged silent withdrawal, observed departure, de-escalation, and outcome memory without combat.`
+        :fixture.id===SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY
+          ?`${fixture.question} The complete V2 recovery proceeds from witnessed casualty and report through assessment, drag, stabilization, and an explicit evacuation obligation.`
+          :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
       :`${fixture.question} Legacy 1.2H is running inside this controlled fixture for comparison.`;
     $("#operations-button")?.setAttribute("hidden","");
   }

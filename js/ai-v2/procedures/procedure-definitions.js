@@ -12,6 +12,10 @@ function role({id,label,responsibility,selectionReason,fulfillment,preference=()
 
 function phase(id,label,reason){return Object.freeze({id,label,reason});}
 
+function transition(event,{from,to,reason,complete=false,guard=null,apply=null}){
+  return Object.freeze({event,from,to,reason,complete,guard,apply});
+}
+
 const PROCEDURES=Object.freeze({
   recover_casualty:Object.freeze({
     id:"casualty_recovery",
@@ -29,6 +33,13 @@ const PROCEDURES=Object.freeze({
       phase("reassess","Reassess","A failed movement, unavailable supply, or incapable responder requires the team to reconsider the recovery.")
     ]),
     activePhaseId:"reach_casualty",
+    transitions:Object.freeze([
+      transition("casualty_reached",{from:"reach_casualty",to:"assess_condition",reason:"The aid provider reached the casualty and can begin a close assessment."}),
+      transition("casualty_assessed",{from:"assess_condition",to:"move_to_recovery",reason:"The casualty assessment established that assisted movement to protected ground is required."}),
+      transition("casualty_moved_to_recovery",{from:"move_to_recovery",to:"stabilize",reason:"The casualty reached the recovery point and immediate stabilization can begin."}),
+      transition("casualty_stabilized",{from:"stabilize",to:"recovery_complete",reason:"Immediate bleeding is controlled; the casualty remains impaired and requires evacuation.",complete:true}),
+      transition("casualty_recovery_failed",{from:"*",to:"reassess",reason:"The casualty recovery action failed and the team must reconsider its assignments, route, or available supplies."})
+    ]),
     permissions:Object.freeze({observe:true,report:true,relocate:true,warn:false,care:true,drag:true,fire:false}),
     reassessmentTriggers:Object.freeze(["casualty_reached","casualty_assessed","casualty_moved_to_recovery","casualty_stabilized","casualty_recovery_failed","team_member_incapable","mission_changed","hostile_action_observed"]),
     roles:Object.freeze([
@@ -105,6 +116,31 @@ const PROCEDURES=Object.freeze({
       phase("reassess","Reassess","A failed warning, stale evidence, or a meaningful response requires the team to reconsider its approach.")
     ]),
     activePhaseId:"issue_warning",
+    transitions:Object.freeze([
+      transition("warning_delivered",{
+        from:"issue_warning",
+        to:"await_response",
+        reason:"The warning was delivered and the team is waiting for an observable response.",
+        apply:(record,{data,now})=>{
+          record.warning={
+            status:"delivered",
+            deliveredAt:now,
+            message:data.message??null,
+            warningId:data.warningId??null,
+            subjectId:data.subjectId??null,
+            recipientIds:[...(data.recipientIds??[])]
+          };
+        }
+      }),
+      transition("warning_failed",{
+        from:"*",
+        to:"reassess",
+        reason:"The warning could not be delivered, so the team must reassess the encounter.",
+        apply:(record,{data,now})=>{
+          record.warning={status:"failed",failedAt:now,reason:data.reason??"warning_failed",recipientIds:[]};
+        }
+      })
+    ]),
     permissions:Object.freeze({observe:true,report:true,relocate:true,warn:true,fire:false}),
     reassessmentTriggers:Object.freeze([
       "warning_delivered",
@@ -155,6 +191,9 @@ const PROCEDURES=Object.freeze({
       phase("reassess","Reassess","A reversal, renewed approach, or hostile act would require a new response.")
     ]),
     activePhaseId:"observe_departure",
+    transitions:Object.freeze([
+      transition("departure_confirmed",{from:"observe_departure",to:"boundary_restored",reason:"The warned group departed without violence; no pursuit or renewed warning is required.",complete:true})
+    ]),
     permissions:Object.freeze({observe:true,report:true,relocate:false,warn:false,fire:false}),
     reassessmentTriggers:Object.freeze([
       "departure_reversed",
@@ -206,6 +245,12 @@ const PROCEDURES=Object.freeze({
       phase("reassess","Reassess","A blocked route, incapable mover, or hostile action requires the team to reconsider the withdrawal.")
     ]),
     activePhaseId:"lead_withdrawal",
+    transitions:Object.freeze([
+      transition("withdrawal_stage_completed",{from:"lead_withdrawal",to:"protected_movement",reason:"The withdrawal lead reached the route; the protected mover can follow.",guard:data=>data.roleId==="withdrawal_lead"}),
+      transition("withdrawal_stage_completed",{from:"protected_movement",to:"rear_disengage",reason:"The protected mover reached the route; the rear watch can disengage.",guard:data=>data.roleId==="protected_mover"}),
+      transition("withdrawal_stage_completed",{from:"rear_disengage",to:"withdrawal_complete",reason:"The rear watch reached the route and the staged withdrawal is complete.",complete:true,guard:data=>data.roleId==="rear_watch"}),
+      transition("withdrawal_move_failed",{from:"*",to:"reassess",reason:"The authorized withdrawal movement failed, so the team must reconsider the route."})
+    ]),
     permissions:Object.freeze({observe:true,report:true,relocate:true,warn:false,fire:false}),
     reassessmentTriggers:Object.freeze([
       "withdrawal_stage_completed",
@@ -304,4 +349,11 @@ const PROCEDURES=Object.freeze({
 
 export function getProcedureDefinitionForResponse(responseId){return PROCEDURES[responseId]??null;}
 export function getProcedurePhase(definition,phaseId){return definition?.phases?.find(item=>item.id===phaseId)??null;}
+export function getProcedureTransition(definition,event,phaseId,data={}){
+  return definition?.transitions?.find(item=>
+    item.event===event&&
+    (item.from==="*"||item.from===phaseId)&&
+    (!item.guard||item.guard(data))
+  )??null;
+}
 export const TEAM_PROCEDURE_DEFINITIONS=PROCEDURES;
