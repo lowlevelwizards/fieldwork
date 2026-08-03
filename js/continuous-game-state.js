@@ -23,7 +23,7 @@ export class ContinuousGameState extends GameState {
     super();
     this.scenarioMode=scenario;
     this.aiRuntimeMode=aiRuntime===AI_RUNTIME_MODES.V2?AI_RUNTIME_MODES.V2:AI_RUNTIME_MODES.LEGACY;
-    this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 — Consolidated Causal Runtime":"Legacy 1.2H";
+    this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 — Adaptive Causal Runtime":"Legacy 1.2H";
     if(scenario==="sandbox"){
       const fixture=getSandboxFixture(sandboxFixture);
       this.map=sandboxMap;

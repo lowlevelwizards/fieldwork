@@ -1,8 +1,8 @@
 import { buildTeamDecisionLedger } from "../decisions/team-decision-ledger.js";
 import { TEAM_RESPONSE_OPTIONS } from "./response-options.js";
 
-export function evaluateTeamResponses({mission,encounter}={}){
-  const ledger=buildTeamDecisionLedger({mission,encounter});
+export function evaluateTeamResponses({mission,encounter,outcome=null}={}){
+  const ledger=buildTeamDecisionLedger({mission,encounter,outcome});
   if(!ledger)return null;
   const candidates=TEAM_RESPONSE_OPTIONS
     .map(option=>option.evaluate({ledger,mission,encounter}))

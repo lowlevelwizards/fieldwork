@@ -1,3 +1,21 @@
+# Fieldwork 2.0O
+
+## Adaptive Evacuation & Safe Return
+
+- Continued the stabilized-casualty obligation into a complete safe-return outcome.
+- Added **Evacuate Casualty** to the team response evaluator.
+- Added **Adaptive Casualty Evacuation** with Carrier, Route Security, and Rear Security responsibilities.
+- Added runtime route-affordance evaluation across multiple candidate extraction routes.
+- Added `SelectEvacuationRoute`, `AdvanceRouteSecurity`, `EvacuateCasualty`, `ReassessEvacuationCasualty`, and `TransferCasualty` actions.
+- Added capability-based role eligibility and preference scoring without actor-name or fixture-ID dependencies.
+- Added transport stamina as a changing local capability rather than a fixed scripted handoff.
+- Added safe patient, destination, drag, and locomotion release before reassignment.
+- Added procedure-phase resumption after a responsibility becomes invalid and roles are deliberately reassigned.
+- Added selected-route, active-leg, carrier-handoff, transfer, and safe-return presentation.
+- Added `casualty_evacuated_alive` outcome memory with continued-care and field-unavailability consequences.
+- Added deterministic regression variants proving the same procedure selects different routes and carrier order under different world/capability inputs.
+- Preserved the complete warning/withdrawal/de-escalation chain, initial casualty-recovery chain, inert V2 fixtures, separate Legacy runtime, and zero combat behavior.
+
 # Fieldwork 2.0N
 
 ## AI V2 Consolidation & Regression Harness

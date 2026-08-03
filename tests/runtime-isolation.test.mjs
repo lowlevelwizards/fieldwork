@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { getSandboxFixture } from "../data/behavior-lab-fixtures.js";
 import { simulateFixture } from "./helpers/simulate-fixture.mjs";
 
 const FIXTURES=["open_contact","observation","cover_position","casualty_recovery"];
@@ -19,6 +20,7 @@ test("legacy fixtures initialize without activating AI V2",()=>{
   for(const fixture of FIXTURES){
     const game=simulateFixture(fixture,{seconds:.25,aiRuntime:"legacy"});
     assert.equal(game.aiV2,null,fixture);
-    assert.equal(game.actors.length,6,fixture);
+    const expectedActors=getSandboxFixture(fixture).teams.reduce((sum,team)=>sum+team.actors.length,0);
+    assert.equal(game.actors.length,expectedActors,fixture);
   }
 });

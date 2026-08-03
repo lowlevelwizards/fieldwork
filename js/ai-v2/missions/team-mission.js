@@ -84,6 +84,50 @@ function normalizeRecoveryPlan(plan){
   };
 }
 
+function normalizeEvacuationPlan(plan){
+  const routeOptions=(plan?.routeOptions??[])
+    .map((route,index)=>({
+      id:route?.id??`evacuation_route_${index+1}`,
+      label:route?.label??`evacuation route ${index+1}`,
+      protection:clamp(route?.protection??.5,0,1),
+      cohesion:clamp(route?.cohesion??.7,0,1),
+      available:route?.available!==false,
+      waypoints:(route?.waypoints??[]).map((waypoint,waypointIndex)=>({
+        id:waypoint?.id??`route_${index+1}_waypoint_${waypointIndex+1}`,
+        label:waypoint?.label??`route waypoint ${waypointIndex+1}`,
+        kind:waypoint?.kind??(waypointIndex===(route?.waypoints?.length??1)-1?"extraction":"intermediate"),
+        x:finite(waypoint?.x,0),
+        y:finite(waypoint?.y,0),
+        staminaCost:clamp(waypoint?.staminaCost??.35,0,1)
+      }))
+    }))
+    .filter(route=>route.waypoints.length>0);
+  if(!routeOptions.length)return null;
+  return{
+    id:plan.id??"casualty_evacuation_plan",
+    label:plan.label??"safe return route",
+    routeOptions,
+    rearSecuritySector:plan.rearSecuritySector?{
+      label:plan.rearSecuritySector.label??"rear evacuation approach",
+      x:finite(plan.rearSecuritySector.x,0),
+      y:finite(plan.rearSecuritySector.y,0),
+      maximumRange:Math.max(120,finite(plan.rearSecuritySector.maximumRange,900)),
+      fieldOfViewDegrees:clamp(plan.rearSecuritySector.fieldOfViewDegrees??88,20,180)
+    }:null,
+    interactionRange:Math.max(48,finite(plan.interactionRange,82)),
+    reportRange:Math.max(120,finite(plan.reportRange,560)),
+    routeSecuritySpeedMultiplier:clamp(plan.routeSecuritySpeedMultiplier??.78,.2,1.2),
+    transportSpeedMultiplier:clamp(plan.transportSpeedMultiplier??.42,.16,.8),
+    arrivalRadius:Math.max(5,finite(plan.arrivalRadius,14)),
+    claimSpacing:Math.max(24,finite(plan.claimSpacing,68)),
+    routeAssessmentDuration:Math.max(.25,finite(plan.routeAssessmentDuration,.8)),
+    reassessmentDuration:Math.max(.45,finite(plan.reassessmentDuration,1.25)),
+    transferDuration:Math.max(.5,finite(plan.transferDuration,1.6)),
+    minimumTransportStamina:clamp(plan.minimumTransportStamina??.2,0,1),
+    originalMissionStatus:plan.originalMissionStatus??"suspended_for_casualty_evacuation"
+  };
+}
+
 function normalizeDecisionContext(context={}){
   const bounded=(key,fallback)=>clamp(context[key]??fallback,0,1);
   return{
@@ -145,6 +189,7 @@ function normalizeMission(team){
     boundary:normalizeBoundary(authored.boundary),
     withdrawalPlan:normalizeWithdrawalPlan(authored.withdrawalPlan),
     recoveryPlan:normalizeRecoveryPlan(authored.recoveryPlan),
+    evacuationPlan:normalizeEvacuationPlan(authored.evacuationPlan),
     decisionContext:normalizeDecisionContext(authored.decisionContext),
     responsePolicy:normalizeResponsePolicy(authored.responsePolicy),
     responseBias:normalizeResponseBias(authored.responseBias)
@@ -180,6 +225,11 @@ export class TeamMissionStore{
       boundary:mission.boundary?{...mission.boundary,area:mission.boundary.area?{...mission.boundary.area}:null,allowedActivities:[...mission.boundary.allowedActivities]}:null,
       withdrawalPlan:mission.withdrawalPlan?{...mission.withdrawalPlan,exitPoint:{...mission.withdrawalPlan.exitPoint},roleOffsets:Object.fromEntries(Object.entries(mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))}:null,
       recoveryPlan:mission.recoveryPlan?{...mission.recoveryPlan,recoveryPoint:{...mission.recoveryPlan.recoveryPoint},securitySector:mission.recoveryPlan.securitySector?{...mission.recoveryPlan.securitySector}:null}:null,
+      evacuationPlan:mission.evacuationPlan?{
+        ...mission.evacuationPlan,
+        routeOptions:mission.evacuationPlan.routeOptions.map(route=>({...route,waypoints:route.waypoints.map(waypoint=>({...waypoint}))})),
+        rearSecuritySector:mission.evacuationPlan.rearSecuritySector?{...mission.evacuationPlan.rearSecuritySector}:null
+      }:null,
       decisionContext:{...mission.decisionContext},
       responsePolicy:{...mission.responsePolicy},
       responseBias:{...mission.responseBias}

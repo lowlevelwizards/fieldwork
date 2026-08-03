@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { entriesOf, simulateFixture } from "./helpers/simulate-fixture.mjs";
 
 test("casualty fixture assesses before movement, stabilizes once, and preserves an evacuation obligation",()=>{
-  const game=simulateFixture("casualty_recovery",{seconds:17});
+  const game=simulateFixture("casualty_recovery",{seconds:16});
   const commune=game.actors.filter(actor=>actor.factionId==="commune");
   const medic=commune.find(actor=>actor.role==="Field Medic");
   const security=commune.find(actor=>actor.role==="Security");

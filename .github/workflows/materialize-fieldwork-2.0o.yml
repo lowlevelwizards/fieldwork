@@ -1,0 +1,39 @@
+name: Materialize Fieldwork 2.0O
+
+on:
+  push:
+    branches:
+      - agent/fieldwork-2.0o-safe-retry-20260803
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fieldwork-2.0o-safe-retry-20260803
+      - name: Materialize exact ZIP files
+        shell: bash
+        run: |
+          set -euo pipefail
+          gzip -dc .fieldwork-staging/main.js.gz > js/main.js
+          cat .fieldwork-staging/renderer.part1.b64 \
+              .fieldwork-staging/renderer.part2.b64 \
+              .fieldwork-staging/renderer.part3.b64 \
+              .fieldwork-staging/renderer.part4.b64 \
+            | tr -d '\n\r ' \
+            | base64 --decode \
+            | gzip -dc > js/renderer.js
+          test "$(git hash-object js/main.js)" = "9c6712a3e9e02565251016d46cd08dfbf1682114"
+          test "$(git hash-object js/renderer.js)" = "d69f86640efcc8000165f595564abd7fcc99455a"
+          rm -rf .fieldwork-staging
+          rm -f .github/workflows/materialize-fieldwork-2.0o.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Materialize Fieldwork 2.0O build"
+          git push origin HEAD:agent/fieldwork-2.0o-safe-retry-20260803

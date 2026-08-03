@@ -43,7 +43,7 @@ export class InvariantMonitor{
       if(claimActors.has(claim.actorId))violations.push({code:"duplicate_destination_claim",actorId:claim.actorId});
       claimActors.add(claim.actorId);
       if(!ids.has(claim.actorId))violations.push({code:"unknown_destination_claim_actor",actorId:claim.actorId});
-      if(scheduler&&!scheduler.hasAction(claim.actorId,"RepositionForResponsibility")&&!scheduler.hasAction(claim.actorId,"WithdrawToRoute")&&!scheduler.hasAction(claim.actorId,"ApproachCasualty")&&!scheduler.hasAction(claim.actorId,"DragCasualty")){
+      if(scheduler&&!scheduler.hasAction(claim.actorId,"RepositionForResponsibility")&&!scheduler.hasAction(claim.actorId,"WithdrawToRoute")&&!scheduler.hasAction(claim.actorId,"ApproachCasualty")&&!scheduler.hasAction(claim.actorId,"DragCasualty")&&!scheduler.hasAction(claim.actorId,"AdvanceRouteSecurity")&&!scheduler.hasAction(claim.actorId,"EvacuateCasualty")){
         violations.push({code:"destination_claim_without_movement_action",actorId:claim.actorId});
       }
     }
@@ -53,7 +53,7 @@ export class InvariantMonitor{
       if(claimedPatients.has(claim.patientId))violations.push({code:"duplicate_patient_claim",patientId:claim.patientId});
       claimedPatients.add(claim.patientId);
       if(!ids.has(claim.patientId)||!ids.has(claim.actorId))violations.push({code:"unknown_patient_claim_actor",patientId:claim.patientId,actorId:claim.actorId});
-      if(scheduler&&!scheduler.hasAction(claim.actorId,"DragCasualty")&&!scheduler.hasAction(claim.actorId,"StabilizeCasualty"))violations.push({code:"patient_claim_without_care_action",patientId:claim.patientId,actorId:claim.actorId});
+      if(scheduler&&!scheduler.hasAction(claim.actorId,"DragCasualty")&&!scheduler.hasAction(claim.actorId,"StabilizeCasualty")&&!scheduler.hasAction(claim.actorId,"EvacuateCasualty")&&!scheduler.hasAction(claim.actorId,"ReassessEvacuationCasualty")&&!scheduler.hasAction(claim.actorId,"TransferCasualty"))violations.push({code:"patient_claim_without_care_action",patientId:claim.patientId,actorId:claim.actorId});
     }
 
     for(const procedure of procedures){

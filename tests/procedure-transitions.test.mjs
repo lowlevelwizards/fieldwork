@@ -16,8 +16,16 @@ test("procedure definitions own event transitions",async()=>{
   assert.equal(getProcedureTransition(withdrawal,"withdrawal_stage_completed","lead_withdrawal",{roleId:"withdrawal_lead"})?.to,"protected_movement");
   assert.equal(getProcedureTransition(withdrawal,"withdrawal_stage_completed","lead_withdrawal",{roleId:"rear_watch"}),null);
 
+
+  const evacuation=getProcedureDefinitionForResponse("evacuate_casualty");
+  assert.equal(getProcedureTransition(evacuation,"evacuation_route_selected","select_route")?.to,"secure_route_leg");
+  const intermediate=getProcedureTransition(evacuation,"casualty_transport_leg_completed","transport_leg",{finalLeg:false});
+  assert.equal(typeof intermediate?.to,"function");
+  assert.equal(intermediate.to({evacuation:{}},{data:{finalLeg:false}}),"reassess_casualty");
+  assert.equal(intermediate.to({evacuation:{}},{data:{finalLeg:true}}),"transfer_casualty");
+
   const stateSource=await readFile(new URL("../js/ai-v2/procedures/team-procedure-state.js",import.meta.url),"utf8");
-  for(const procedureId of ["casualty_recovery","challenge_unknown_contact","break_contact_quietly","monitor_departure"]){
+  for(const procedureId of ["casualty_recovery","casualty_evacuation","challenge_unknown_contact","break_contact_quietly","monitor_departure"]){
     assert.equal(stateSource.includes(`record.procedureId===\"${procedureId}\"`),false,`${procedureId} should not be hardcoded in TeamProcedureState`);
   }
 });

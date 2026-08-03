@@ -7,12 +7,13 @@ export function getAIV2DebugSummary(runtime){
     const repositioning=scheduler.byType.RepositionForResponsibility??0;
     const withdrawing=scheduler.byType.WithdrawToRoute??0;
     const recovery=(scheduler.byType.ApproachCasualty??0)+(scheduler.byType.AssessCasualty??0)+(scheduler.byType.DragCasualty??0)+(scheduler.byType.StabilizeCasualty??0);
+    const evacuation=(scheduler.byType.SelectEvacuationRoute??0)+(scheduler.byType.AdvanceRouteSecurity??0)+(scheduler.byType.EvacuateCasualty??0)+(scheduler.byType.ReassessEvacuationCasualty??0)+(scheduler.byType.TransferCasualty??0);
     const visible=runtime.personalKnowledge.summary().reduce((sum,entry)=>sum+entry.contacts.filter(contact=>contact.currentlyVisible).length,0);
     const reporting=(scheduler.byType.ReportContact??0)+(scheduler.byType.ReportContactUpdate??0)+(scheduler.byType.ReportCasualty??0);
     const issuingWarnings=scheduler.byType.IssueWarning??0;
     const activityUpdates=runtime.teamKnowledge.activityReportCount();
     const activeEncounterCount=runtime.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${recovery} recovering casualty · ${reporting} reporting · ${issuingWarnings} warning · ${runtime.heardCommunications.count()} heard warning(s) · ${runtime.casualtyKnowledge.count()} casualty record(s) · ${runtime.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${runtime.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${runtime.teamResponses.count()} response(s) · ${runtime.teamProcedures.count()} procedure(s) · ${runtime.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${runtime.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${recovery} recovering casualty · ${evacuation} evacuating · ${reporting} reporting · ${issuingWarnings} warning · ${runtime.heardCommunications.count()} heard warning(s) · ${runtime.casualtyKnowledge.count()} casualty record(s) · ${runtime.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${runtime.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${runtime.teamResponses.count()} response(s) · ${runtime.teamProcedures.count()} procedure(s) · ${runtime.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${runtime.invariants.current.length} invariant issue(s)`;
   }
 
 export function getAIV2DebugDetails(runtime){
@@ -96,6 +97,7 @@ export function updateAIV2ActorDiagnostics(runtime){
       const warningAction=actions.find(action=>action.type==="IssueWarning")??null;
       const casualtyReportAction=actions.find(action=>action.type==="ReportCasualty")??null;
       const recoveryAction=actions.find(action=>["ApproachCasualty","AssessCasualty","DragCasualty","StabilizeCasualty"].includes(action.type))??null;
+      const evacuationAction=actions.find(action=>["SelectEvacuationRoute","AdvanceRouteSecurity","EvacuateCasualty","ReassessEvacuationCasualty","TransferCasualty"].includes(action.type))??null;
       const assignment=actor.aiV2Assignment??null;
       const contact=runtime.personalKnowledge.getBestContact(actor.id);
       const received=runtime.teamKnowledge.getBestReceivedContact(actor.id);
@@ -142,6 +144,20 @@ export function updateAIV2ActorDiagnostics(runtime){
           routeLabel:withdrawalAction.directive.routeLabel,roleId:withdrawalAction.directive.roleId,roleLabel:withdrawalAction.directive.roleLabel,
           stageId:withdrawalAction.directive.phaseId
         }:actor.aiV2Withdrawal?{...actor.aiV2Withdrawal,destination:actor.aiV2Withdrawal.destination?{...actor.aiV2Withdrawal.destination}:null}:null,
+        evacuation:evacuationAction?{
+          actionType:evacuationAction.type,
+          status:actor.aiV2Evacuation?.status??"active",
+          phase:actor.aiV2Evacuation?.phase??teamProcedure?.phase?.id??null,
+          progress:evacuationAction.progress??actor.aiV2Evacuation?.progress??0,
+          casualtyId:evacuationAction.directive?.casualtyId??actor.aiV2Evacuation?.casualtyId??null,
+          routeId:evacuationAction.directive?.routeId??actor.aiV2Evacuation?.routeId??teamProcedure?.evacuation?.routeId??null,
+          routeLabel:evacuationAction.directive?.routeLabel??actor.aiV2Evacuation?.routeLabel??teamProcedure?.evacuation?.routeLabel??null,
+          legIndex:evacuationAction.directive?.legIndex??actor.aiV2Evacuation?.legIndex??teamProcedure?.evacuation?.currentLegIndex??null,
+          waypointLabel:evacuationAction.directive?.waypointLabel??actor.aiV2Evacuation?.waypointLabel??null,
+          destination:evacuationAction.directive?.destination?{...evacuationAction.directive.destination}:actor.aiV2Evacuation?.destination?{...actor.aiV2Evacuation.destination}:null,
+          transportStamina:actor.aiV2Capabilities?.transportStamina??null,
+          carrierHandoffs:teamProcedure?.evacuation?.carrierHandoffs??0
+        }:actor.aiV2Evacuation?{...actor.aiV2Evacuation,destination:actor.aiV2Evacuation.destination?{...actor.aiV2Evacuation.destination}:null}:null,
         recovery:recoveryAction?{
           actionType:recoveryAction.type,
           status:actor.aiV2Recovery?.status??"active",
@@ -212,10 +228,11 @@ export function updateAIV2ActorDiagnostics(runtime){
         }:null,
         teamProcedure:teamProcedure?{
           id:teamProcedure.procedureId,label:teamProcedure.label,phase:{...teamProcedure.phase},permissions:{...teamProcedure.permissions},
-          reassessmentTriggers:[...teamProcedure.reassessmentTriggers],roles:teamProcedure.roles.map(role=>({...role,fulfillment:role.fulfillment?{...role.fulfillment}:null}))
+          reassessmentTriggers:[...teamProcedure.reassessmentTriggers],roles:teamProcedure.roles.map(role=>({...role,fulfillment:role.fulfillment?{...role.fulfillment}:null})),
+          evacuation:teamProcedure.evacuation?{...teamProcedure.evacuation,waypoints:(teamProcedure.evacuation.waypoints??[]).map(waypoint=>({...waypoint})),carrierHistory:[...(teamProcedure.evacuation.carrierHistory??[])]}:null
         }:null,
         encounterOutcome:encounterOutcome?{...encounterOutcome,facts:[...encounterOutcome.facts],evidence:[...encounterOutcome.evidence]}:null,
-        runtimeStage:"consolidated_regression_harness"
+        runtimeStage:"adaptive_evacuation_safe_return"
       };
     }
   }

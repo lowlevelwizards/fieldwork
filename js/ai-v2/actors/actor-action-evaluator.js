@@ -1,6 +1,6 @@
 export class ActorActionEvaluator{
   evaluate(context){
-    const {actor,role,procedure,mission,sector,focus,warning,movement,recovery,label}=context??{};
+    const {actor,role,procedure,mission,sector,focus,warning,movement,recovery,evacuation,label}=context??{};
     if(!role||!procedure)return[];
     const provenance={
       owner:"role_action_runtime",
@@ -26,6 +26,40 @@ export class ActorActionEvaluator{
       phaseLabel:procedure.phase?.label??null,
       provenance
     };
+
+    if(role.fulfillment?.need==="transport_casualty"){
+      if(!evacuation?.casualtyId)return[];
+      if(procedure.phase?.id==="transport_leg"&&evacuation.destination&&procedure.permissions?.drag&&procedure.permissions?.relocate){
+        return[{type:"EvacuateCasualty",score:1,reason:`${role.label} must satisfy the current transport condition by moving the casualty along the secured route leg.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,casualtyId:evacuation.casualtyId,routeId:evacuation.routeId,routeLabel:evacuation.routeLabel,legIndex:evacuation.legIndex,waypointId:evacuation.waypoint?.id,waypointLabel:evacuation.waypoint?.label,destination:{...evacuation.destination},initialDistance:evacuation.initialDistance,staminaCost:evacuation.staminaCost,minimumTransportStamina:evacuation.minimumTransportStamina,finalLeg:evacuation.finalLeg,policy:{...evacuation.transportPolicy}}}];
+      }
+      if(procedure.phase?.id==="reassess_casualty"&&procedure.permissions?.care){
+        return[{type:"ReassessEvacuationCasualty",score:1,reason:`${role.label} must confirm that the casualty remains stable before another movement leg begins.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,casualtyId:evacuation.casualtyId,legIndex:evacuation.legIndex,reportRange:evacuation.reportRange,duration:evacuation.reassessmentDuration}}];
+      }
+      if(procedure.phase?.id==="transfer_casualty"&&procedure.permissions?.transfer){
+        return[{type:"TransferCasualty",score:1,reason:`${role.label} must complete the handoff that turns field stabilization into safe return.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,casualtyId:evacuation.casualtyId,routeId:evacuation.routeId,routeLabel:evacuation.routeLabel,duration:evacuation.transferDuration}}];
+      }
+      if(focus){
+        return[{type:"HoldReady",score:.9,reason:`${role.label} remains with the casualty while Route Security establishes the next movement condition.`,directive:{...common,reason:`${role.label}: preserve patient access and await a secured route leg`,label,focus:{...focus}}}];
+      }
+      return[];
+    }
+
+    if(role.fulfillment?.need==="secure_evacuation_route"){
+      if(procedure.phase?.id==="select_route"){
+        return[{type:"SelectEvacuationRoute",score:1,reason:`${role.label} must compare current world affordances before the team commits to an extraction route.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,duration:evacuation?.routeAssessmentDuration??.8}}];
+      }
+      if(procedure.phase?.id==="secure_route_leg"&&evacuation?.destination&&procedure.permissions?.relocate){
+        return[{type:"AdvanceRouteSecurity",score:1,reason:`${role.label} must occupy and validate the next route waypoint before the casualty moves.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,routeId:evacuation.routeId,routeLabel:evacuation.routeLabel,legIndex:evacuation.legIndex,waypointId:evacuation.waypoint?.id,waypointLabel:evacuation.waypoint?.label,destination:{...evacuation.destination},initialDistance:evacuation.initialDistance,policy:{...evacuation.routePolicy}}}];
+      }
+      if(focus){
+        return[{type:"HoldReady",score:.94,reason:`${role.label} holds the currently secured waypoint while the carrier moves or reassesses the casualty.`,directive:{...common,reason:`${role.label}: hold the secured route point`,label,focus:{...focus}}}];
+      }
+      return[];
+    }
+
+    if(role.fulfillment?.need==="rear_security_evacuation"&&sector&&procedure.permissions?.observe){
+      return[{type:"ObserveSector",score:.99,reason:`${role.label} preserves independent rear awareness while route and carrier responsibilities change.`,directive:{...common,reason:`${role.label}: ${role.responsibility}`,sector:{...sector}}}];
+    }
 
     if(role.fulfillment?.need==="recover_casualty"){
       if(!recovery?.casualtyId)return[];
