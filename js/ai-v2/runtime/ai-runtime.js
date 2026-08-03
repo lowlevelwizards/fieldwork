@@ -23,6 +23,9 @@ import { HeardCommunicationStore } from "../knowledge/heard-communication.js";
 import { CasualtyKnowledgeStore } from "../knowledge/casualty-knowledge.js";
 import { ThreatKnowledgeStore } from "../knowledge/threat-knowledge.js";
 import { TeamMissionStore } from "../missions/team-mission.js";
+import { TeamAgendaState } from "../missions/team-agenda-state.js";
+import { ObjectiveStateStore } from "../objectives/objective-state-store.js";
+import { ObjectiveApproachService } from "../objectives/objective-approach-service.js";
 import { TeamProcedureState } from "../procedures/team-procedure-state.js";
 import { DestinationClaimService } from "../position/destination-claim-service.js";
 import { PositionQueryService } from "../position/position-query-service.js";
@@ -58,7 +61,7 @@ export class AIV2Runtime{
     this.elapsed=0;
     this.snapshotAccumulator=0;
     this.snapshotInterval=.25;
-    this.decisionLog=new DecisionLog({limit:1200});
+    this.decisionLog=new DecisionLog({limit:1400});
     this.invariants=new InvariantMonitor({decisionLog:this.decisionLog});
     this.scheduler=new ActionScheduler({decisionLog:this.decisionLog});
     this.personalKnowledge=new PersonalKnowledgeStore({decisionLog:this.decisionLog});
@@ -70,7 +73,10 @@ export class AIV2Runtime{
     this.teamEncounters=new TeamEncounterMemory({decisionLog:this.decisionLog});
     this.encounterOutcomes=new EncounterOutcomeMemory({decisionLog:this.decisionLog});
     this.teamResponses=new TeamResponseState({decisionLog:this.decisionLog});
+    this.teamAgenda=new TeamAgendaState({decisionLog:this.decisionLog});
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
+    this.objectives=new ObjectiveStateStore({decisionLog:this.decisionLog});
+    this.objectiveApproaches=new ObjectiveApproachService({decisionLog:this.decisionLog});
     this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog});
     this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
@@ -87,14 +93,16 @@ export class AIV2Runtime{
     this.communication=new CommunicationExecutor();
     this.visibleByObserver=new Map();
     this.consumedThreatEvents=new Set();
+    this.objectives.syncFromGame(game);
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"directional_cover_position_commitment",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"objective_affordances_mission_initiative",scenario:game.scenarioMode}});
   }
 
   update(delta){
     this.elapsed+=delta;
     this.visibleByObserver=new Map();
+    this.objectives.syncFromGame(this.game);
     this.teamMissions.syncFromGame(this.game);
     this.#consumeThreatEvents();
     this.#updateCasualtyObservations(delta);
@@ -114,7 +122,8 @@ export class AIV2Runtime{
     this.#ensureCasualtyReports();
     this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,casualtyKnowledge:this.casualtyKnowledge,heardCommunications:this.heardCommunications,now:this.elapsed});
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,now:this.elapsed});
-    this.teamProcedures.update({game:this.game,teamResponses:this.teamResponses,now:this.elapsed});
+    this.teamAgenda.update({missions:this.teamMissions,teamResponses:this.teamResponses,objectives:this.objectives,now:this.elapsed});
+    this.teamProcedures.update({game:this.game,teamResponses:this.teamAgenda,now:this.elapsed});
     this.roleActions.update({
       game:this.game,
       teamProcedures:this.teamProcedures,
@@ -278,7 +287,10 @@ export class AIV2Runtime{
         teamEncounters:this.teamEncounters,
         encounterOutcomes:this.encounterOutcomes,
         teamResponses:this.teamResponses,
+        teamAgenda:this.teamAgenda,
         teamProcedures:this.teamProcedures,
+        objectives:this.objectives,
+        objectiveApproaches:this.objectiveApproaches,
         roleActions:this.roleActions,
         rolePositions:this.rolePositions,
         defensivePositions:this.defensivePositions,

@@ -60,7 +60,7 @@ export class InvariantMonitor{
       if(claimActors.has(claim.actorId))violations.push({code:"duplicate_destination_claim",actorId:claim.actorId});
       claimActors.add(claim.actorId);
       if(!ids.has(claim.actorId))violations.push({code:"unknown_destination_claim_actor",actorId:claim.actorId});
-      if(scheduler&&!scheduler.hasAction(claim.actorId,"RepositionForResponsibility")&&!scheduler.hasAction(claim.actorId,"WithdrawToRoute")&&!scheduler.hasAction(claim.actorId,"ApproachCasualty")&&!scheduler.hasAction(claim.actorId,"DragCasualty")&&!scheduler.hasAction(claim.actorId,"AdvanceRouteSecurity")&&!scheduler.hasAction(claim.actorId,"EvacuateCasualty")){
+      if(scheduler&&!scheduler.hasAction(claim.actorId,"RepositionForResponsibility")&&!scheduler.hasAction(claim.actorId,"WithdrawToRoute")&&!scheduler.hasAction(claim.actorId,"ApproachCasualty")&&!scheduler.hasAction(claim.actorId,"DragCasualty")&&!scheduler.hasAction(claim.actorId,"AdvanceRouteSecurity")&&!scheduler.hasAction(claim.actorId,"EvacuateCasualty")&&!scheduler.hasAction(claim.actorId,"MoveToObjectivePosition")){
         violations.push({code:"destination_claim_without_movement_action",actorId:claim.actorId});
       }
     }

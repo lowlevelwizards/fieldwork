@@ -1,23 +1,27 @@
 import { projectOutsideObstacles } from "./actor-motion.js";
 import {
   BEHAVIOR_LAB_ACTOR_CATALOG,
-  SANDBOX_FIXTURE_IDS,
+  SANDBOX_FIXTURE_IDS as BASE_SANDBOX_FIXTURE_IDS,
   SANDBOX_FIXTURES as BASE_SANDBOX_FIXTURES,
   getSandboxFixture as getBaseSandboxFixture
 } from "../data/behavior-lab-fixtures.js";
 import { applyBehaviorLab2POverlay } from "../data/behavior-lab-2.0p.js";
 import { applyBehaviorLab2QOverlay } from "../data/behavior-lab-2.0q.js";
+import { OBJECTIVE_INITIATIVE_FIXTURE, OBJECTIVE_INITIATIVE_FIXTURE_ID } from "../data/behavior-lab-2.0r.js";
 import { sandboxMap } from "../data/behavior-lab-map.js";
 
-export { SANDBOX_FIXTURE_IDS, sandboxMap };
+export const SANDBOX_FIXTURE_IDS=Object.freeze({...BASE_SANDBOX_FIXTURE_IDS,OBJECTIVE_INITIATIVE:OBJECTIVE_INITIATIVE_FIXTURE_ID});
+export { sandboxMap };
 
 function applyCurrentOverlays(fixture){return applyBehaviorLab2QOverlay(applyBehaviorLab2POverlay(fixture));}
 
-export const SANDBOX_FIXTURES=Object.freeze(Object.fromEntries(
-  Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyCurrentOverlays(fixture)])
-));
+export const SANDBOX_FIXTURES=Object.freeze({
+  ...Object.fromEntries(Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyCurrentOverlays(fixture)])),
+  [OBJECTIVE_INITIATIVE_FIXTURE_ID]:OBJECTIVE_INITIATIVE_FIXTURE
+});
 
 export function getSandboxFixture(id){
+  if(id===OBJECTIVE_INITIATIVE_FIXTURE_ID)return OBJECTIVE_INITIATIVE_FIXTURE;
   return SANDBOX_FIXTURES[id]??applyCurrentOverlays(getBaseSandboxFixture(id));
 }
 
@@ -85,6 +89,32 @@ function actorFromSpec(faction,teamId,index,spec,fixture){
  };
 }
 
+function objectiveFromSpec(spec){
+ return{
+  id:spec.id,
+  type:"prop",
+  propType:"field_relay",
+  objectiveKind:spec.objectiveKind??"restore_relay",
+  name:spec.name??"Field Objective",
+  x:spec.x,
+  y:spec.y,
+  width:spec.width??66,
+  height:spec.height??90,
+  groundY:spec.y+(spec.height??90),
+  interactionRadius:spec.interactionRadius??82,
+  securityRadius:spec.securityRadius??280,
+  collision:spec.collision!==false,
+  priority:44,
+  revealed:true,
+  aiObjective:true,
+  state:spec.state??"offline",
+  progress:spec.progress??0,
+  objectiveRequirements:{...(spec.requirements??{})},
+  completedByTeamId:null,
+  lastChangedAt:0
+ };
+}
+
 export class CombatSandboxDirector{
  constructor(game,{fixtureId=SANDBOX_FIXTURE_IDS.OPEN_CONTACT}={}){
   this.game=game;
@@ -105,6 +135,9 @@ export class CombatSandboxDirector{
   if(this.initialized)return;
   this.initialized=true;
   this.game.sandboxFixture=this.fixture;
+  for(const spec of this.fixture.objectives??[]){
+   if(!this.game.entities.some(entity=>entity.id===spec.id))this.game.entities.push(objectiveFromSpec(spec));
+  }
   for(const [teamIndex,teamSpec] of this.fixture.teams.entries()){
    const teamId=`sandbox_team_${this.fixture.id}_${teamSpec.factionId}_${teamIndex}`;
    const members=[];
@@ -143,6 +176,10 @@ export class CombatSandboxDirector{
       roleOffsets:Object.fromEntries(Object.entries(teamSpec.aiV2Mission.withdrawalPlan.roleOffsets??{}).map(([key,value])=>[key,{...value}]))
      }:null,
      defensivePlan:teamSpec.aiV2Mission.defensivePlan?{...teamSpec.aiV2Mission.defensivePlan}:null,
+     objectivePlan:teamSpec.aiV2Mission.objectivePlan?{
+      ...teamSpec.aiV2Mission.objectivePlan,
+      approachPolicy:teamSpec.aiV2Mission.objectivePlan.approachPolicy?{...teamSpec.aiV2Mission.objectivePlan.approachPolicy}:null
+     }:null,
      recoveryPlan:teamSpec.aiV2Mission.recoveryPlan?{
       ...teamSpec.aiV2Mission.recoveryPlan,
       recoveryPoint:teamSpec.aiV2Mission.recoveryPlan.recoveryPoint?{...teamSpec.aiV2Mission.recoveryPlan.recoveryPoint}:null,
@@ -205,8 +242,8 @@ export class CombatSandboxDirector{
   this.start();
   this.elapsed+=delta;
   this.#emitHostileStimulus();
-  // The fixture director authors only the controlled physical stimulus.
-  // Every reaction, report, response, role, movement, and return shot belongs
-  // to AI V2's causal runtime.
+  // The fixture director authors only world facts: actors, terrain, objectives,
+  // and any explicitly controlled physical stimulus. AI V2 owns all reactions,
+  // mission initiative, role assignment, movement, work, and completion.
  }
 }
