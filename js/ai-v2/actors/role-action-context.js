@@ -154,9 +154,20 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
     const waypoint=waypoints[legIndex]??waypoints.at(-1)??null;
     const finalLeg=Boolean(waypoint&&legIndex===waypoints.length-1);
     if(casualty&&plan){
+      const interactionRange=plan.interactionRange??82;
+      const approachAngle=Math.atan2(actor.y-casualty.y,actor.x-casualty.x);
+      const approachDistance=Math.max(44,interactionRange*.68);
+      const approachDestination=clampToZone({
+        x:casualty.x+Math.cos(approachAngle)*approachDistance,
+        y:casualty.y+Math.sin(approachAngle)*approachDistance
+      },zone,24);
       evacuation={
         casualtyId:casualty.id,
         casualtyName:casualty.name,
+        casualtyPosition:{x:casualty.x,y:casualty.y},
+        distanceToCasualty:Math.hypot(casualty.x-actor.x,casualty.y-actor.y),
+        approachDestination,
+        initialApproachDistance:Math.hypot(approachDestination.x-actor.x,approachDestination.y-actor.y),
         routeId:state?.routeId??selected?.id??null,
         routeLabel:state?.routeLabel??selected?.label??plan.label,
         candidateCount:state?.candidateCount??selected?.candidateCount??plan.routeOptions?.length??0,
@@ -166,7 +177,8 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
         finalLeg,
         destination:waypoint?{x:waypoint.x,y:waypoint.y}:null,
         initialDistance:waypoint?Math.hypot(waypoint.x-actor.x,waypoint.y-actor.y):0,
-        interactionRange:plan.interactionRange??82,
+        interactionRange,
+        approachSpeedMultiplier:plan.approachSpeedMultiplier??.8,
         reportRange:plan.reportRange??560,
         routeAssessmentDuration:plan.routeAssessmentDuration??.8,
         reassessmentDuration:plan.reassessmentDuration??1.25,

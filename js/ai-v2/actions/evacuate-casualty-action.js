@@ -16,7 +16,9 @@ export class EvacuateCasualtyAction extends AIV2Action{
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     const casualty=game?.actors?.find(candidate=>candidate.id===this.directive.casualtyId);
     const stamina=Number(actor?.aiV2Capabilities?.transportStamina??0);
-    return Boolean(actor&&casualty&&!actor.medical?.dead&&!actor.medical?.unconscious&&!casualty.medical?.dead&&this.directive.destination&&stamina>=(this.directive.minimumTransportStamina??.2)&&!services?.casualtyCare?.getController?.(casualty.id));
+    const interactionRange=this.directive.interactionRange??82;
+    const patientDistance=actor&&casualty?Math.hypot(casualty.x-actor.x,casualty.y-actor.y):Infinity;
+    return Boolean(actor&&casualty&&!actor.medical?.dead&&!actor.medical?.unconscious&&!casualty.medical?.dead&&this.directive.destination&&stamina>=(this.directive.minimumTransportStamina??.2)&&patientDistance<=interactionRange&&!services?.casualtyCare?.getController?.(casualty.id));
   }
 
   canContinue({game,services}={}){
@@ -43,7 +45,8 @@ export class EvacuateCasualtyAction extends AIV2Action{
     if(!actor||!casualty)return{status:"failed",reason:"actor_or_casualty_missing"};
     if(!this.patientClaimed||!this.destinationClaimed)return{status:"failed",reason:!this.patientClaimed?"patient_claim_rejected":"evacuation_waypoint_claim_rejected"};
     services.destinationClaims.renew(actor.id,{now,duration:3});
-    const result=services.casualtyCare.dragToward({game,responder:actor,patient:casualty,destination:this.directive.destination,delta,locomotion:services.locomotion,speedMultiplier:this.directive.policy?.speedMultiplier??.42,arrivalRadius:this.directive.policy?.arrivalRadius??14});
+    const interactionRange=this.directive.interactionRange??82;
+    const result=services.casualtyCare.dragToward({game,responder:actor,patient:casualty,destination:this.directive.destination,delta,locomotion:services.locomotion,speedMultiplier:this.directive.policy?.speedMultiplier??.42,arrivalRadius:this.directive.policy?.arrivalRadius??14,maximumAttachmentDistance:interactionRange});
     const distance=result.distance??0;
     this.progress=Math.max(0,Math.min(1,1-distance/this.initialDistance));
     actor.currentAction="Evacuating casualty";

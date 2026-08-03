@@ -1,3 +1,12 @@
+# Fieldwork 2.0O.1
+
+## Physical Carrier Handoff
+
+- Added a dedicated evacuation-casualty approach action before patient custody can transfer.
+- Prevented remote patient claims, drag attachment, and final transfer outside interaction range.
+- Added a physical-layer drag guard that refuses impossible responder-patient distances.
+- Added regression coverage proving the casualty remains stationary while a replacement carrier walks over to acquire them.
+
 # Fieldwork 2.0O
 
 ## Adaptive Evacuation & Safe Return
