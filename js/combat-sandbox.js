@@ -502,7 +502,16 @@ export class CombatSandboxDirector{
   for(const operation of this.livingState?.activeOperations?.()??[]){
    if(operation.status!=="deployed")continue;
    const actors=this.game.actors.filter(actor=>operation.actorIds.includes(actor.id));
+   const faction=this.livingState.getFaction(operation.factionId);
    for(const actor of actors){
+    const memberId=actor.rosterId;
+    const liveMember=this.livingState.factions?.get?.(operation.factionId)?.roster?.find(member=>member.id===memberId);
+    if(liveMember){
+     const dead=Boolean(actor.medical?.dead);
+     const wounded=!dead&&Boolean((actor.medical?.wounds??[]).length||(actor.medical?.condition&&actor.medical.condition!=="healthy"));
+     liveMember.healthStatus=dead?"dead":wounded?"wounded":"healthy";
+     liveMember.status=dead?"dead":"deployed";liveMember.dutyStatus=liveMember.status;
+    }
     if(actor.medical?.dead||actor.medical?.unconscious){
      const dropped=this.livingState.dropCargoForActor({operationId:operation.id,actorId:actor.id,x:actor.x,y:actor.y,now:this.elapsed,reason:actor.medical?.dead?"operator_killed":"operator_incapacitated"});
      if(dropped.length){actor.aiV2Cargo=[];actor.backpackLoadRatio=.3;const objective=objectives.find(item=>item.id===operation.objectiveId);const status=this.livingState.cargoStatus(operation.id);if(objective)this.game.aiV2?.objectives?.setExternalProgress?.({objectiveId:objective.id,progress:status.total?(status.carried+status.returned)/status.total:0,state:status.dropped?"partial":objective.state,now:this.elapsed,reason:"cargo_dropped_after_casualty"});}
@@ -518,6 +527,12 @@ export class CombatSandboxDirector{
      this.game.pushMessage(`${operation.factionLabel} aborts ${operation.objectiveLabel} after losing an operator.`,3.2);
     }
     continue;
+   }
+   const fieldWounded=actors.filter(actor=>!actor.medical?.dead&&((actor.medical?.wounds??[]).length||["wounded","serious","critical","unconscious"].includes(actor.medical?.condition)));
+   if(operation.contested&&fieldWounded.length){
+    const interrupted=this.livingState.interruptOperation(operation.id,{now:this.elapsed,reason:"armed_contest_created_casualty",result:"deferred_after_armed_contact",violent:true,blockingOperationId:operation.primaryOperationId??operation.contestedByOperationId??null});
+    if(interrupted){const team=this.teams.find(candidate=>candidate.id===operation.teamId);if(team)team.operationStatus="interrupted";for(const actor of actors.filter(actor=>!actor.medical?.dead)){actor.currentTask="Returning after armed contact";actor.currentAction="Breaking contact with casualty";}this.game.pushMessage(`${operation.factionLabel} breaks off ${operation.objectiveLabel} after taking a casualty.`,3.2);}
+    if(interrupted)continue;
    }
    const procedure=this.game.aiV2?.teamProcedures?.get?.(operation.teamId);
    if(procedure?.procedureId==="casualty_evacuation"&&procedure.phase?.id==="safe_return")this.livingState.interruptOperation(operation.id,{now:this.elapsed,reason:"casualty_evacuated_from_operation",result:"returned_after_casualty",violent:Boolean(operation.violent)});

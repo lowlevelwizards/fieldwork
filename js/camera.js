@@ -81,13 +81,13 @@ export class Camera {
   }
 
   focusOn(target,{zoom=.72}={}){
-    if(!target)return;this.spectatorMode=true;this.spectatorTarget=target;this.targetZoom=clamp(zoom,.12,1);
+    if(!target)return;this.spectatorMode=true;this.spectatorTarget=target;this.targetZoom=clamp(zoom,.03,3);
   }
 
   panByScreen(dx,dy){this.spectatorTarget=null;this.x-=dx/Math.max(.01,this.zoom);this.y-=dy/Math.max(.01,this.zoom);this.#clamp();}
 
   zoomAt(factor,screenX=this.screenWidth/2,screenY=this.screenHeight/2){
-    const before=this.screenToWorld(screenX,screenY);this.spectatorTarget=null;this.zoom=this.targetZoom=clamp(this.zoom*factor,.08,1);this.#refreshWorldSize();
+    const before=this.screenToWorld(screenX,screenY);this.spectatorTarget=null;this.zoom=this.targetZoom=clamp(this.zoom*factor,this.spectatorMode?.03:.08,this.spectatorMode?3:1);this.#refreshWorldSize();
     this.x=before.x-screenX/this.zoom;this.y=before.y-screenY/this.zoom;this.#clamp();
   }
 
@@ -164,6 +164,7 @@ export class Camera {
   }
 
   #clamp() {
+    if(this.spectatorMode)return;
     const minX=this.worldBounds.x,minY=this.worldBounds.y;
     const maxX=Math.max(minX,minX+this.worldBounds.width-this.width);
     const maxY=Math.max(minY,minY+this.worldBounds.height-this.height);
