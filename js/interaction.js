@@ -1,5 +1,5 @@
-import { findEntity, getAvailableAction } from "./world-entities.js?v=10c-casualty-states-aid-movement-20260731";
-import { transferItem } from "./item-locations.js?v=10c-casualty-states-aid-movement-20260731";
+import { findEntity, getAvailableAction } from "./world-entities.js";
+import { transferItem } from "./item-locations.js";
 
 function distanceToEntity(operator, entity) {
   const cx = entity.x + entity.width / 2;

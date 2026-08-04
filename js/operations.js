@@ -1,5 +1,5 @@
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=10c-casualty-states-aid-movement-20260731";
-import { findEntity } from "./world-entities.js?v=10c-casualty-states-aid-movement-20260731";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js";
+import { findEntity } from "./world-entities.js";
 
 const FACTIONS={northline:"Northline",commune:"Commune",freelancers:"Freelancers"};
 const PLAYER_FACTION="commune";

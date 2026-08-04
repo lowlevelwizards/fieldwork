@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js?v=12f-cover-capacity-fire-lanes-dispersion-20260801";
+import { isAlive, isCombatCapable, canReceiveOrders } from "./actor-state.js";
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 

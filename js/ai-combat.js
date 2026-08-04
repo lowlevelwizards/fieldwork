@@ -1,7 +1,7 @@
-import { getDoctrine } from "./faction-doctrine.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { stopActor, isImmobileCasualty } from "./actor-motion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { getDoctrine } from "./faction-doctrine.js";
+import { createIntent, chooseIntent, INTENT_PRIORITY } from "./actor-intent.js";
+import { isAlive, isConscious, isCombatCapable, isActiveThreat, canBeTargeted, isTreating, canFire, canReload, cancelCombatState } from "./actor-state.js";
+import { stopActor, isImmobileCasualty } from "./actor-motion.js";
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleTo=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);

@@ -1,4 +1,4 @@
-import { isAlive, isCombatCapable } from "./actor-state.js?v=12d-team-context-cover-network-20260801";
+import { isAlive, isCombatCapable } from "./actor-state.js";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 

@@ -1,4 +1,4 @@
-import { findEntity } from "./world-entities.js?v=10c3-bespoke-casualty-poses-rescue-20260731";
+import { findEntity } from "./world-entities.js";
 
 const ADA_SEAT = { x: 1265, y: 1238 };
 

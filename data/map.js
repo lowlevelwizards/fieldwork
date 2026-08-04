@@ -1,7 +1,20 @@
-export const MAP_WIDTH = 4400;
-export const MAP_HEIGHT = 2000;
+export const DEFAULT_MAP_WIDTH = 4400;
+export const DEFAULT_MAP_HEIGHT = 2000;
+
+export let MAP_WIDTH = DEFAULT_MAP_WIDTH;
+export let MAP_HEIGHT = DEFAULT_MAP_HEIGHT;
+
+export function activateMapBounds(map) {
+  const bounds = map?.worldBounds ?? null;
+  const width = Number(bounds?.width);
+  const height = Number(bounds?.height);
+  MAP_WIDTH = Number.isFinite(width) && width > 0 ? width : DEFAULT_MAP_WIDTH;
+  MAP_HEIGHT = Number.isFinite(height) && height > 0 ? height : DEFAULT_MAP_HEIGHT;
+  return { width: MAP_WIDTH, height: MAP_HEIGHT };
+}
 
 export const mapData = {
+  worldBounds: { width: DEFAULT_MAP_WIDTH, height: DEFAULT_MAP_HEIGHT },
   spawn: { x: 300, y: 850 },
   extraction: { x: 185, y: 850, radius: 100 },
   road: [{ x: 0, y: 700 }, { x: 2600, y: 700 }, { x: 2600, y: 1000 }, { x: 0, y: 1000 }],

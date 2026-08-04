@@ -1,4 +1,4 @@
-import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js?v=10a-wound-core-20260731";
+import { MAP_WIDTH, MAP_HEIGHT } from "../data/map.js";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const lerp=(a,b,t)=>a+(b-a)*t;

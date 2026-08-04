@@ -1,4 +1,4 @@
-import { canBePerceived, isActiveThreat, isConscious } from "./actor-state.js?v=11b-tactical-persistence-clarity-20260731";
+import { canBePerceived, isActiveThreat, isConscious } from "./actor-state.js";
 const DEG=Math.PI/180;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);

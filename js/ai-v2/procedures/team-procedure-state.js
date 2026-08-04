@@ -1,0 +1,239 @@
+import {
+  getProcedureDefinitionForResponse,
+  getProcedurePhase,
+  getProcedureTransition
+} from "./procedure-registry.js";
+
+function capable(actor){
+  const medical=actor?.medical;
+  return Boolean(actor?.id&&!medical?.dead&&!medical?.unconscious&&medical?.condition!=="critical");
+}
+
+function cloneRole(role){return role?{...role,fulfillment:role.fulfillment?{...role.fulfillment}:null}:null;}
+function cloneProcedure(record){
+  if(!record)return null;
+  return{
+    ...record,
+    phase:{...record.phase},
+    phases:record.phases.map(item=>({...item})),
+    roles:record.roles.map(cloneRole),
+    permissions:{...record.permissions},
+    reassessmentTriggers:[...record.reassessmentTriggers],
+    events:(record.events??[]).map(event=>({...event,data:event.data?{...event.data}:null})),
+    warning:record.warning?{...record.warning,recipientIds:[...(record.warning.recipientIds??[])]}:null,
+    evacuation:record.evacuation?{
+      ...record.evacuation,
+      waypoints:(record.evacuation.waypoints??[]).map(waypoint=>({...waypoint})),
+      carrierHistory:[...(record.evacuation.carrierHistory??[])]
+    }:null
+  };
+}
+
+function rankActors(actors,roleSpec){
+  return actors.slice().sort((a,b)=>{
+    const scoreDifference=(roleSpec.preference?.(b)??0)-(roleSpec.preference?.(a)??0);
+    if(scoreDifference)return scoreDifference;
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
+function assignRoles(definition,teamActors){
+  const available=teamActors.filter(capable);
+  const assigned=new Set();
+  const roles=[];
+  for(const roleSpec of definition.roles){
+    const candidates=rankActors(available.filter(actor=>!assigned.has(actor.id)&&roleSpec.eligible?.(actor,{teamActors})!==false),roleSpec);
+    const actor=candidates[0]??null;
+    if(actor)assigned.add(actor.id);
+    roles.push({
+      roleId:roleSpec.id,
+      label:roleSpec.label,
+      actorId:actor?.id??null,
+      actorName:actor?.name??null,
+      responsibility:roleSpec.responsibility,
+      selectionReason:roleSpec.selectionReason,
+      fulfillment:roleSpec.fulfillment?{...roleSpec.fulfillment}:null,
+      status:actor?"assigned":"unfilled"
+    });
+  }
+  return roles;
+}
+
+function assignmentsValid(record,actorsById,definition){
+  const assignedIds=new Set();
+  for(const role of record.roles){
+    if(!role.actorId)continue;
+    if(assignedIds.has(role.actorId))return false;
+    assignedIds.add(role.actorId);
+    const actor=actorsById.get(role.actorId);
+    const roleSpec=definition?.roles?.find(candidate=>candidate.id===role.roleId)??null;
+    if(!capable(actor)||roleSpec?.eligible?.(actor)===false)return false;
+  }
+  return true;
+}
+
+export class TeamProcedureState{
+  constructor({decisionLog=null}={}){
+    this.decisionLog=decisionLog;
+    this.byTeam=new Map();
+  }
+
+  update({game,teamResponses,now=0}={}){
+    const responses=teamResponses?.summary?.()??[];
+    const liveTeams=new Set(responses.map(response=>response.teamId));
+    const actorsById=new Map((game?.actors??[]).map(actor=>[actor.id,actor]));
+
+    for(const response of responses){
+      const definition=getProcedureDefinitionForResponse(response.selected?.id);
+      const existing=this.byTeam.get(response.teamId)??null;
+      if(!definition){
+        if(existing)this.#invalidate(existing,now,"selected_response_has_no_procedure");
+        continue;
+      }
+
+      const teamActors=(game?.actors??[]).filter(actor=>actor.teamId===response.teamId);
+      const changed=!existing||existing.responseId!==response.selected.id||existing.procedureId!==definition.id;
+      if(changed){
+        this.#start({response,definition,teamActors,now});
+        continue;
+      }
+
+      if(!assignmentsValid(existing,actorsById,definition)){
+        const previousRoles=existing.roles.map(cloneRole);
+        const previousCarrier=previousRoles.find(role=>role.roleId==="carrier")?.actorId??null;
+        existing.roles=assignRoles(definition,teamActors);
+        const nextCarrier=existing.roles.find(role=>role.roleId==="carrier")?.actorId??null;
+        if(existing.evacuation&&previousCarrier&&nextCarrier&&previousCarrier!==nextCarrier){
+          existing.evacuation.carrierHandoffs=(existing.evacuation.carrierHandoffs??0)+1;
+          existing.evacuation.lastHandoff={from:previousCarrier,to:nextCarrier,at:now};
+        }
+        existing.resumePhaseId=existing.phase.id==="establish_responsibilities"
+          ?(existing.resumePhaseId??definition.activePhaseId)
+          :existing.phase.id;
+        existing.phase=this.#phase(definition,"establish_responsibilities",now,"A procedural responsibility became invalid and was deliberately reassigned.");
+        existing.lastUpdatedAt=now;
+        this.#record("team_procedure_roles_reassigned",existing,now,{previousRoles,roles:existing.roles.map(cloneRole),resumePhaseId:existing.resumePhaseId,previousCarrier,nextCarrier});
+        continue;
+      }
+
+      if(existing.phase.id==="establish_responsibilities"&&now-existing.phase.enteredAt>=definition.establishDuration){
+        const nextPhaseId=existing.resumePhaseId??definition.activePhaseId;
+        const activePhase=getProcedurePhase(definition,nextPhaseId);
+        existing.phase=this.#phase(definition,activePhase?.id??nextPhaseId,now,activePhase?.reason??"Responsibilities are established.");
+        existing.resumePhaseId=null;
+        existing.lastUpdatedAt=now;
+        this.#record("team_procedure_phase_changed",existing,now,{to:existing.phase.id,reason:existing.phase.reason});
+      }else{
+        existing.lastUpdatedAt=now;
+      }
+    }
+
+    for(const [teamId,record] of [...this.byTeam]){
+      if(liveTeams.has(teamId))continue;
+      this.#invalidate(record,now,"team_response_no_longer_selected");
+    }
+  }
+
+  notifyEvent({teamId,event,now=0,data={}}={}){
+    const record=this.byTeam.get(teamId);
+    if(!record||!event)return false;
+
+    const entry={event,time:now,data:{...data}};
+    record.events=record.events??[];
+    record.events.push(entry);
+    if(record.events.length>20)record.events.splice(0,record.events.length-20);
+
+    const definition=getProcedureDefinitionForResponse(record.responseId);
+    const transition=getProcedureTransition(definition,event,record.phase.id,data);
+    if(!transition){
+      this.#record("team_procedure_event_recorded",record,now,{event,data:{...data}});
+      return true;
+    }
+
+    transition.apply?.(record,{event,data,now});
+    const nextPhaseId=typeof transition.to==="function"?transition.to(record,{event,data,now}):transition.to;
+    record.phase=this.#phase(definition,nextPhaseId,now,transition.reason);
+    if(transition.reason)record.phase.reason=transition.reason;
+    if(transition.complete)record.completedAt=now;
+    record.lastUpdatedAt=now;
+    this.#record("team_procedure_phase_changed",record,now,{
+      to:record.phase.id,
+      reason:record.phase.reason,
+      event,
+      ...data
+    });
+    return true;
+  }
+
+  get(teamId){return cloneProcedure(this.byTeam.get(teamId)??null);}
+
+  getActorRole(actorId){
+    for(const record of this.byTeam.values()){
+      const role=record.roles.find(item=>item.actorId===actorId);
+      if(role)return{...cloneRole(role),teamId:record.teamId,procedureId:record.procedureId,procedureLabel:record.label,phase:{...record.phase},permissions:{...record.permissions}};
+    }
+    return null;
+  }
+
+  count(){return this.byTeam.size;}
+
+  summary(){return [...this.byTeam.values()].map(cloneProcedure);}
+
+  #start({response,definition,teamActors,now}){
+    const roles=assignRoles(definition,teamActors);
+    const record={
+      teamId:response.teamId,
+      missionId:response.missionId,
+      responseId:response.selected.id,
+      responseLabel:response.selected.label,
+      procedureId:definition.id,
+      label:definition.label,
+      description:definition.description,
+      status:"active",
+      startedAt:now,
+      lastUpdatedAt:now,
+      selectionReason:`${response.selected.label} requires ${definition.label} to divide the team's responsibilities without directly controlling actors.`,
+      phase:this.#phase(definition,"establish_responsibilities",now,"The team response has been translated into explicit temporary responsibilities."),
+      phases:definition.phases.map(item=>({...item})),
+      roles,
+      permissions:{...definition.permissions},
+      reassessmentTriggers:[...definition.reassessmentTriggers],
+      events:[],
+      warning:null,
+      evacuation:null,
+      resumePhaseId:null
+    };
+    this.byTeam.set(response.teamId,record);
+    this.#record("team_procedure_started",record,now,{roles:roles.map(cloneRole),responseScore:response.selected.score});
+  }
+
+  #phase(definition,phaseId,now,fallbackReason){
+    const phase=getProcedurePhase(definition,phaseId);
+    return{
+      id:phase?.id??phaseId,
+      label:phase?.label??String(phaseId).replaceAll("_"," "),
+      reason:phase?.reason??fallbackReason,
+      enteredAt:now
+    };
+  }
+
+  #invalidate(record,now,reason){
+    this.byTeam.delete(record.teamId);
+    this.#record("team_procedure_invalidated",record,now,{reason});
+  }
+
+  #record(type,record,now,data={}){
+    this.decisionLog?.record?.({
+      type,
+      time:now,
+      teamId:record.teamId,
+      data:{
+        missionId:record.missionId,
+        responseId:record.responseId,
+        procedureId:record.procedureId,
+        phaseId:record.phase?.id??null,
+        ...data
+      }
+    });
+  }
+}

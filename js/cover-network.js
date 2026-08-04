@@ -1,6 +1,6 @@
-import { projectOutsideObstacles } from "./actor-motion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { getDoctrine } from "./faction-doctrine.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { isAlive } from "./actor-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { projectOutsideObstacles } from "./actor-motion.js";
+import { getDoctrine } from "./faction-doctrine.js";
+import { isAlive } from "./actor-state.js";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);

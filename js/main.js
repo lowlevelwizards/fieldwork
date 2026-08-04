@@ -1,14 +1,15 @@
-import { Camera } from "./camera.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { ContinuousGameState } from "./continuous-game-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { InputController, CombatInputController } from "./input.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { Renderer } from "./renderer.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { getItemDefinition } from "../data/items.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { findEntity } from "./world-entities.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { validateItemLocations } from "./item-locations.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { renderItemThumbnail } from "./presentation/item-renderer.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { Camera } from "./camera.js";
+import { ContinuousGameState } from "./continuous-game-state.js";
+import { InputController, CombatInputController } from "./input.js";
+import { Renderer } from "./renderer.js";
+import { getItemDefinition } from "../data/items.js";
+import { findEntity } from "./world-entities.js";
+import { validateItemLocations } from "./item-locations.js";
+import { renderItemThumbnail } from "./presentation/item-renderer.js";
+import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js";
 
-const BUILD_ID="1.2H";
-const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay");
+const BUILD_ID="2.0P";
+const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
 $("#title-build-id").textContent=BUILD_ID;
@@ -16,7 +17,36 @@ $("#debug-build").textContent=declaredBuild===BUILD_ID?BUILD_ID:`HTML ${declared
 if(declaredBuild!==BUILD_ID){console.error("Fieldwork build mismatch",{html:declaredBuild,javascript:BUILD_ID});setTimeout(()=>alert(`Fieldwork cache mismatch detected.\nHTML: ${declaredBuild}\nJavaScript: ${BUILD_ID}\nReload the page once.`),50);}
 console.info(`Fieldwork ${BUILD_ID} loaded`,{href:location.href,time:new Date().toISOString()});
 
-const camera=new Camera();let game=new ContinuousGameState({scenario:"operations"});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
+const AI_RUNTIME_STORAGE_KEY="fieldwork.aiRuntime";
+const requestedRuntime=new URLSearchParams(location.search).get("ai");
+function readStoredAIRuntime(){try{return localStorage.getItem(AI_RUNTIME_STORAGE_KEY);}catch{return null;}}
+function writeStoredAIRuntime(value){try{localStorage.setItem(AI_RUNTIME_STORAGE_KEY,value);}catch{}}
+const storedRuntime=readStoredAIRuntime();
+const initialRuntime=requestedRuntime==="v2"||requestedRuntime==="legacy"?requestedRuntime:storedRuntime==="v2"?"v2":"legacy";
+aiRuntimeSelect.value=initialRuntime;
+function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
+function updateAIRuntimeDescription(){
+  aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
+    ?"Adaptive causal AI: operators react to personal hostile evidence, teams coordinate a bounded protective breakaway, and casualty care still continues through adaptive evacuation and safe return."
+    :"Preserved 1.2H research prototype with the existing combat and medical AI.";
+}
+updateAIRuntimeDescription();
+
+const SANDBOX_FIXTURE_STORAGE_KEY="fieldwork.sandboxFixture";
+const requestedFixture=new URLSearchParams(location.search).get("fixture");
+function readStoredSandboxFixture(){try{return localStorage.getItem(SANDBOX_FIXTURE_STORAGE_KEY);}catch{return null;}}
+function writeStoredSandboxFixture(value){try{localStorage.setItem(SANDBOX_FIXTURE_STORAGE_KEY,value);}catch{}}
+const storedFixture=readStoredSandboxFixture();
+const initialFixture=SANDBOX_FIXTURES[requestedFixture]?requestedFixture:SANDBOX_FIXTURES[storedFixture]?storedFixture:SANDBOX_FIXTURE_IDS.OPEN_CONTACT;
+sandboxFixtureSelect.value=initialFixture;
+function selectedSandboxFixture(){return getSandboxFixture(sandboxFixtureSelect.value).id;}
+function updateSandboxFixtureDescription(){
+  const fixture=getSandboxFixture(selectedSandboxFixture());
+  sandboxFixtureDescription.textContent=`${fixture.question} ${fixture.purpose}`;
+}
+updateSandboxFixtureDescription();
+
+const camera=new Camera();let game=new ContinuousGameState({scenario:"operations",aiRuntime:selectedAIRuntime(),sandboxFixture:selectedSandboxFixture()});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
 const sandboxButton=$("#sandbox-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
 let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
 function resizeAndCenter(reason="viewport"){
@@ -26,7 +56,9 @@ function resizeAndCenter(reason="viewport"){
 }
 function startGame(scenario="operations"){
   if(started)return;
-  game=new ContinuousGameState({scenario});
+  const aiRuntime=selectedAIRuntime();
+  writeStoredAIRuntime(aiRuntime);
+  game=new ContinuousGameState({scenario,aiRuntime,sandboxFixture:selectedSandboxFixture()});
   titleScreen.classList.remove("screen--active");
   gameScreen.classList.add("screen--active");
   started=true;
@@ -34,9 +66,18 @@ function startGame(scenario="operations"){
   lastTime=performance.now();
   const objective=$("#objective-card");
   if(scenario==="sandbox"){
-    objective.querySelector(".objective-kicker").textContent="COMBAT SANDBOX";
-    objective.querySelector("strong").textContent="Three-way tactical test";
-    objective.querySelector("span:last-child").textContent="Northline enters from the north, Freelancers from the south, and Commune from the west. Reinforcements replace lost teams.";
+    const fixture=game.sandboxFixture;
+    objective.querySelector(".objective-kicker").textContent=`BEHAVIOR LAB ${fixture.index}`;
+    objective.querySelector("strong").textContent=fixture.label;
+    objective.querySelector("span:last-child").textContent=game.aiRuntimeMode==="v2"
+      ?fixture.id===SANDBOX_FIXTURE_IDS.OPEN_CONTACT
+        ?`${fixture.question} A physical near-miss creates personal threat evidence, immediate operator initiative, an urgent report, bounded protective fire, staged movement, and a contact-broken outcome.`
+        :fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
+          ?`${fixture.question} The complete V2 encounter proceeds from observation and warning through staged silent withdrawal, observed departure, de-escalation, and outcome memory without combat.`
+          :fixture.id===SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY
+            ?`${fixture.question} The V2 team continues from recovery and stabilization through adaptive route selection, physical carrier handoff, staged casualty transport, transfer, and safe return.`
+            :`${fixture.question} This fixture remains staged until its next V2 action is explicitly introduced.`
+      :`${fixture.question} Legacy 1.2H is running inside this controlled fixture for comparison.`;
     $("#operations-button")?.setAttribute("hidden","");
   }
   objectiveTimer=setTimeout(()=>objective.classList.add("objective-card--collapsed"),5200);
@@ -105,7 +146,15 @@ function openWorldText(request){if(!request)return;worldTextOpen=true;game.opera
 function closeInspect(){inspectOverlay.hidden=true;worldTextOpen=false;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function openDialogue(request){if(!request)return;dialogueOpen=true;game.operator.lockedByInteraction=true;$("#dialogue-role").textContent=request.actor.role;$("#dialogue-name").textContent=request.actor.name;$("#dialogue-text").textContent=request.text;$("#dialogue-overlay").hidden=false;game.dialogueRequest=null;}function closeDialogue(){dialogueOpen=false;$("#dialogue-overlay").hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function openReport(report){if(!report)return;$("#report-title").textContent=report.title;const lines=$("#report-lines");lines.replaceChildren(...report.lines.map(text=>{const p=document.createElement("p");p.textContent=text;return p;}));reportOverlay.hidden=false;game.operator.lockedByInteraction=true;game.excursion.reportRequest=null;}function closeReport(){reportOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
-function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.incident.state!=="resolved"){if(game.incident.bandageUsed&&game.incident.waterUsed){strong.textContent="Ada is stabilized";copy.textContent="Assist her to shelter and restore the field radio.";}return;}if(selected&&selected.status!=="completed"){strong.textContent=selected.title;copy.textContent=`Current task: ${selected.tasks.find(t=>["in_progress","blocked"].includes(t.status))?.label??"Respond to conditions"}.`;}else if(game.excursion.state==="available"){strong.textContent="Follow the north trail";copy.textContent="Leave the pull-off on foot and follow the marked trail east toward the culvert.";}else if(game.excursion.state==="outbound"){strong.textContent="Continue to the north culvert";copy.textContent="Stay on the trail. Other field teams are already working ahead.";}else if(game.excursion.state==="at_destination"){strong.textContent="Work is overlapping at the culvert";copy.textContent="Hold rope and rig the debris, mark the hazard, or assist another team.";}else if(game.excursion.state==="returning"){strong.textContent="Return to the pull-off";copy.textContent="Bring recovered cargo into the RETURN marker.";}else{strong.textContent="Safe return";copy.textContent="The field report records what every team accomplished.";}}
+function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.scenarioMode==="sandbox"){const fixture=game.sandboxFixture;strong.textContent=fixture.label;copy.textContent=game.aiRuntimeMode==="v2"
+  ?fixture.id===SANDBOX_FIXTURE_IDS.OPEN_CONTACT
+    ?`${fixture.question} Personal threat evidence now drives immediate initiative, urgent reporting, bounded protective fire, and staged movement to safety.`
+    :fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
+      ?`${fixture.question} Observation, warning, silent withdrawal, and de-escalation are active.`
+      :fixture.id===SANDBOX_FIXTURE_IDS.CASUALTY_RECOVERY
+        ?`${fixture.question} Recovery, stabilization, physical carrier handoff, adaptive evacuation, and safe return are active.`
+        :`${fixture.question} This fixture has no authored V2 behavior yet.`
+  :`${fixture.question} Legacy behavior is running without random patrols or reinforcements.`;return;}if(game.incident.state!=="resolved"){if(game.incident.bandageUsed&&game.incident.waterUsed){strong.textContent="Ada is stabilized";copy.textContent="Assist her to shelter and restore the field radio.";}return;}if(selected&&selected.status!=="completed"){strong.textContent=selected.title;copy.textContent=`Current task: ${selected.tasks.find(t=>["in_progress","blocked"].includes(t.status))?.label??"Respond to conditions"}.`;}else if(game.excursion.state==="available"){strong.textContent="Follow the north trail";copy.textContent="Leave the pull-off on foot and follow the marked trail east toward the culvert.";}else if(game.excursion.state==="outbound"){strong.textContent="Continue to the north culvert";copy.textContent="Stay on the trail. Other field teams are already working ahead.";}else if(game.excursion.state==="at_destination"){strong.textContent="Work is overlapping at the culvert";copy.textContent="Hold rope and rig the debris, mark the hazard, or assist another team.";}else if(game.excursion.state==="returning"){strong.textContent="Return to the pull-off";copy.textContent="Bring recovered cargo into the RETURN marker.";}else{strong.textContent="Safe return";copy.textContent="The field report records what every team accomplished.";}}
 function updateCompass(){
  const chip=$("#compass-chip"),heading=$("#compass-heading");
  if(!chip||!heading)return;
@@ -129,7 +178,35 @@ const reversals=combatActors.reduce((sum,actor)=>sum+(actor.intentReversals??0),
 const stalled=combatActors.filter(actor=>actor.combatStalled).length;
 const withdrawing=combatActors.filter(actor=>actor.combatPosture==="withdraw"||actor.combatPosture==="regroup").length;
 const assessments=[...new Set(combatActors.map(actor=>actor.fightAssessmentState).filter(Boolean))].join("/")||"quiet";
-$("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
+$("#debug-ai-runtime").textContent=game.aiRuntimeLabel??game.aiRuntimeMode;
+$("#debug-fixture").textContent=game.scenarioMode==="sandbox"?`${game.sandboxFixture?.index??"—"} ${game.sandboxFixture?.shortLabel??game.sandboxFixture?.label??"—"}`:"—";
+if(game.aiRuntimeMode==="v2"){
+ const summary=game.aiV2?.getDebugSummary?.()??"V2 unavailable";
+ const details=game.aiV2?.getDebugDetails?.()??{};
+ $("#debug-ai").textContent=summary;
+ $("#debug-v2-assignment").textContent=details.assignment??"—";
+ $("#debug-v2-personal").textContent=details.personalKnowledge??"none";
+ $("#debug-v2-activity").textContent=details.activity??"none";
+ $("#debug-v2-communication").textContent=details.communication??"none";
+ $("#debug-v2-team").textContent=details.teamKnowledge??"none";
+ $("#debug-v2-encounter").textContent=details.encounter??"none";
+ $("#debug-v2-response").textContent=details.response??"none";
+ $("#debug-v2-procedure").textContent=details.procedure??"none";
+ $("#debug-v2-position").textContent=details.position??"none";
+ $("#debug-v2-outcome").textContent=details.outcome??"none";
+}else{
+ $("#debug-ai").textContent=`${game.aiCombat?.activeShooters??0} active · ${suppressors} suppressor(s) · ${withdrawing} regrouping · ${stalled} stalled · ${reversals} reversal(s) · ${assessments}`;
+ $("#debug-v2-assignment").textContent="—";
+ $("#debug-v2-personal").textContent="—";
+ $("#debug-v2-activity").textContent="—";
+ $("#debug-v2-communication").textContent="—";
+ $("#debug-v2-team").textContent="—";
+ $("#debug-v2-encounter").textContent="—";
+ $("#debug-v2-response").textContent="—";
+ $("#debug-v2-procedure").textContent="—";
+ $("#debug-v2-position").textContent="—";
+ $("#debug-v2-outcome").textContent="—";
+}
 const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
 function updateCombatUI(){
  const combat=game.combat;
@@ -200,6 +277,14 @@ document.addEventListener("dblclick",event=>event.preventDefault(),{passive:fals
 document.addEventListener("gesturestart",event=>event.preventDefault(),{passive:false});
 document.addEventListener("gesturechange",event=>event.preventDefault(),{passive:false});
 document.addEventListener("gestureend",event=>event.preventDefault(),{passive:false});
+aiRuntimeSelect.addEventListener("change",()=>{
+  writeStoredAIRuntime(selectedAIRuntime());
+  updateAIRuntimeDescription();
+});
+sandboxFixtureSelect.addEventListener("change",()=>{
+  writeStoredSandboxFixture(selectedSandboxFixture());
+  updateSandboxFixtureDescription();
+});
 beginButton.addEventListener("click",()=>startGame("operations"));sandboxButton.addEventListener("click",()=>startGame("sandbox"));
 $("#backpack-button").addEventListener("click",event=>{event.preventDefault();event.stopPropagation();inventoryOpen?closeInventory():openInventory();});
 $("#inventory-close").addEventListener("click",closeInventory);

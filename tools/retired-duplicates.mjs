@@ -1,0 +1,21 @@
+export const RETIRED_DUPLICATE_PATHS=Object.freeze([
+  "actor-intent.js",
+  "actor-state.js",
+  "ai-combat.js",
+  "combat-sandbox.js",
+  "continuous-game-state.js",
+  "data/ai-combat.js",
+  "data/combat-sandbox.js",
+  "data/combat.js",
+  "data/input.js",
+  "data/main.js",
+  "data/medical-system.js",
+  "data/renderer.js",
+  "data/world-entities.js",
+  "data/wound-system.js",
+  "faction-doctrine.js",
+  "faction-encounters.js",
+  "main.js",
+  "medical-system.js",
+  "tactical-front.js"
+]);

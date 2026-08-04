@@ -1,37 +1,63 @@
-import { GameState } from "./game.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { ContinuousExcursionController } from "./continuous-excursion.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { FactionEncounterSystem } from "./faction-encounters.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { PerceptionSystem } from "./perception.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CombatSystem } from "./combat.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { AICombatSystem } from "./ai-combat.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { WoundSystem } from "./wound-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { MedicalSystem } from "./medical-system.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CombatSandboxDirector, sandboxMap } from "./combat-sandbox.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { TacticalFrontSystem } from "./tactical-front.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { TeamResponseSystem } from "./team-response.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CoverStateSystem } from "./cover-state.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { ActorIntentSystem } from "./actor-intent.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CoverNetworkSystem } from "./cover-network.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { TeamCombatContextSystem } from "./team-combat-context.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { FireTeamControllerSystem } from "./fire-team-controller.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { FightAssessmentSystem } from "./fight-assessment.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
-import { CombatPostureSystem } from "./combat-posture.js?v=12h-reactive-fire-momentum-medical-recovery-20260801";
+import { GameState } from "./game.js";
+import { ContinuousExcursionController } from "./continuous-excursion.js";
+import { FactionEncounterSystem } from "./faction-encounters.js";
+import { PerceptionSystem } from "./perception.js";
+import { CombatSystem } from "./combat.js";
+import { AICombatSystem } from "./ai-combat.js";
+import { WoundSystem } from "./wound-system.js";
+import { MedicalSystem } from "./medical-system.js";
+import { CombatSandboxDirector, sandboxMap, getSandboxFixture, SANDBOX_FIXTURE_IDS } from "./combat-sandbox.js";
+import { TacticalFrontSystem } from "./tactical-front.js";
+import { TeamResponseSystem } from "./team-response.js";
+import { CoverStateSystem } from "./cover-state.js";
+import { ActorIntentSystem } from "./actor-intent.js";
+import { CoverNetworkSystem } from "./cover-network.js";
+import { TeamCombatContextSystem } from "./team-combat-context.js";
+import { FireTeamControllerSystem } from "./fire-team-controller.js";
+import { FightAssessmentSystem } from "./fight-assessment.js";
+import { CombatPostureSystem } from "./combat-posture.js";
+import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js";
 
 export class ContinuousGameState extends GameState {
-  constructor({scenario="operations"}={}) {
+  constructor({scenario="operations",aiRuntime=AI_RUNTIME_MODES.LEGACY,sandboxFixture=SANDBOX_FIXTURE_IDS.OPEN_CONTACT}={}) {
     super();
     this.scenarioMode=scenario;
+    this.aiRuntimeMode=aiRuntime===AI_RUNTIME_MODES.V2?AI_RUNTIME_MODES.V2:AI_RUNTIME_MODES.LEGACY;
+    this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 — Adaptive Causal Runtime":"Legacy 1.2H";
     if(scenario==="sandbox"){
+      const fixture=getSandboxFixture(sandboxFixture);
       this.map=sandboxMap;
-      this.entities=this.entities.filter(entity=>entity.type==="item"&&["bandage","pressure_dressing","tourniquet"].includes(entity.definitionId));
+      this.sandboxFixtureId=fixture.id;
+      this.sandboxFixture=fixture;
+      const sandboxSupplies=this.entities
+        .filter(entity=>entity.type==="item"&&entity.definitionId==="bandage")
+        .slice(0,2)
+        .map((entity,index)=>({
+          ...entity,
+          id:`behavior_lab_bandage_${index+1}`,
+          x:4140+index*36,
+          y:1705,
+          groundY:1725,
+          locationType:"world",
+          locationOwnerId:null,
+          visibility:"visible",
+          revealed:true,
+          state:"world"
+        }));
+      this.entities=sandboxSupplies;
       this.actors=[];
-      this.operator.x=sandboxMap.spawn.x;this.operator.y=sandboxMap.spawn.y;
+      this.wildlife=[];
+      this.operator.x=fixture.operatorSpawn.x;this.operator.y=fixture.operatorSpawn.y;
       this.clockMinutes=13*60+20;this.weather="Clear";
       this.incident.state="resolved";this.incident.bandageUsed=true;this.incident.workerSheltered=true;this.incident.waterUsed=true;this.incident.radioRestored=true;
-      this.operations=new CombatSandboxDirector(this);
-      this.objectiveText="Combat Sandbox · Observe, engage, treat casualties, and test faction behavior";
+      this.operations=new CombatSandboxDirector(this,{fixtureId:fixture.id});
+      this.objectiveText=`Behavior Lab ${fixture.index} · ${fixture.label}`;
     }
     this.excursion = new ContinuousExcursionController(this);
+    if(scenario==="sandbox"){
+      this.excursion.state="completed";
+      this.excursion.trailEntered=true;
+    }
     this.operator.lookAngle = 0;
     this.operator.targetLookAngle = 0;
     this.combat = new CombatSystem(this);
@@ -56,6 +82,7 @@ export class ContinuousGameState extends GameState {
     this.combatPostures = new CombatPostureSystem(this);
     this.teamResponses = new TeamResponseSystem(this);
     this.encounters = new FactionEncounterSystem(this);
+    this.aiV2 = this.aiRuntimeMode===AI_RUNTIME_MODES.V2?new AIV2Runtime(this):null;
     const phases = [
       { name: "New Moon", illumination: 0.0 },
       { name: "Crescent Moon", illumination: 0.25 },
@@ -171,7 +198,7 @@ export class ContinuousGameState extends GameState {
           :0;
 
     try {
-      this.actorIntents.beginFrame();
+      if(this.aiRuntimeMode===AI_RUNTIME_MODES.LEGACY)this.actorIntents.beginFrame();
       super.update(delta, normalizedMove);
 
       const a=this.operator.lookAngle;
@@ -204,19 +231,29 @@ export class ContinuousGameState extends GameState {
         this.combat.toggleAim(false);
       }
       this.combat.update(delta, move);
-      this.perception.update(delta);
-      this.encounters.update(delta);
-      this.teamCombatContexts.update(delta);
-      this.coverNetwork.update(delta);
-      this.coverStates.update(delta);
-      this.fireTeams.update(delta);
-      this.combatPostures.update(delta);
-      this.teamResponses.update(delta);
-      // Medical commitment is evaluated before combat so an accepted
-      // treatment action cannot be followed by a same-frame combat move.
-      this.medical.update(delta);
-      this.aiCombat.update(delta);
-      this.actorIntents.resolveAll(delta);
+      if(this.aiRuntimeMode===AI_RUNTIME_MODES.LEGACY){
+        this.perception.update(delta);
+        this.encounters.update(delta);
+        this.teamCombatContexts.update(delta);
+        this.coverNetwork.update(delta);
+        this.coverStates.update(delta);
+        this.fireTeams.update(delta);
+        this.combatPostures.update(delta);
+        this.teamResponses.update(delta);
+        // Medical commitment is evaluated before combat so an accepted
+        // treatment action cannot be followed by a same-frame combat move.
+        this.medical.update(delta);
+        this.aiCombat.update(delta);
+        this.actorIntents.resolveAll(delta);
+      }else{
+        // AI V2 advances observation, communication, mission interpretation, warning, staged withdrawal,
+        // role-driven actions, and procedure-authorized responsibility repositioning. Player-facing drag and
+        // treatment mechanics remain available, while
+        // legacy NPC tactical authorities are deliberately not advanced.
+        this.medical.updateDrag(delta);
+        this.medical.updatePlayer(delta);
+        this.aiV2.update(delta);
+      }
     } finally {
       this.operator.moveSpeed=originalSpeed;
     }

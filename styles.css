@@ -533,3 +533,69 @@ h1 {
 .title-actions{display:grid;gap:12px;margin-top:18px}
 .secondary-button{min-height:52px;border:1px solid rgba(229,154,71,.58);border-radius:18px;background:rgba(27,38,31,.9);color:#f0efe4;font:750 16px system-ui;letter-spacing:.04em}
 .secondary-button:active{transform:scale(.985);background:rgba(229,154,71,.18)}
+
+/* 2.0A — causal architecture runtime selector */
+.runtime-picker{
+  display:grid;
+  gap:7px;
+  margin-top:16px;
+  padding:13px 14px;
+  border:1px solid rgba(177,190,174,.22);
+  border-radius:16px;
+  background:rgba(18,27,22,.62);
+  text-align:left;
+}
+.runtime-picker>span{
+  color:#d8ddcf;
+  font:750 .72rem/1 system-ui;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.runtime-picker select{
+  width:100%;
+  min-height:42px;
+  border:1px solid rgba(229,154,71,.42);
+  border-radius:12px;
+  padding:0 12px;
+  background:#1b261f;
+  color:#f0efe4;
+  font:700 .92rem system-ui;
+}
+.runtime-picker small{
+  color:#9da89b;
+  font:500 .76rem/1.35 system-ui;
+}
+
+/* 2.0B — intentional behavior lab fixture picker */
+.title-card{
+  max-height:calc(100dvh - 24px);
+  overflow-y:auto;
+  scrollbar-width:thin;
+}
+.sandbox-picker{margin-top:10px}
+.sandbox-picker select{border-color:rgba(177,190,174,.34)}
+@media (max-height:760px){
+  .title-card{padding:22px 22px}
+  .title-card .intro{margin-bottom:16px;line-height:1.4}
+  .title-actions{margin-top:12px;gap:9px}
+  .runtime-picker{margin-top:10px;padding:10px 12px}
+  .runtime-picker small{font-size:.7rem}
+  .version{margin-top:12px}
+}
+
+/* 2.0C — observation diagnostics need room for causal explanations. */
+.debug-panel{
+  width:min(330px,calc(100vw - 24px));
+  max-height:calc(100dvh - 90px - var(--safe-top));
+  overflow:auto;
+}
+.debug-panel strong{
+  max-width:210px;
+  text-align:right;
+  overflow-wrap:anywhere;
+  line-height:1.25;
+}
+@media (max-width:620px){
+  .debug-panel{width:min(300px,calc(100vw - 18px));right:9px}
+  .debug-panel strong{max-width:180px}
+}
