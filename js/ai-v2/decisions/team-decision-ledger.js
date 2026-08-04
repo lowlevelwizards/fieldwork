@@ -111,7 +111,7 @@ export function buildTeamDecisionLedger({mission,encounter,outcome=null}={}){
     };
   }
   const encounterRelevance=clamp(encounter.relevanceScore??0);
-  const hostileEvidence=encounter.intent==="hostile"?1:0;
+  const hostileEvidence=encounter.intent==="hostile"||encounter.relationship==="hostile"||encounter.contactResolution?.kind==="engage"?1:0;
   const unknownIntent=encounter.intent==="unknown"||encounter.intent==="no_clear_intent"?1:0;
   const boundary=boundaryAssessment(mission.boundary,encounter,informationCertainty);
   const activityEvidence=encounter.reportKind==="activity_update"?1:0;
