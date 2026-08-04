@@ -172,7 +172,7 @@ export class AIV2Runtime{
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.teamAgenda.update({missions:this.teamMissions,teamResponses:this.teamResponses,objectives:this.objectives,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamAgenda,now:this.elapsed});
-    this.contactResolution.update({game:this.game,teamResponses:this.teamResponses,teamEncounters:this.teamEncounters,now:this.elapsed});
+    this.contactResolution.update({game:this.game,teamResponses:this.teamResponses,teamEncounters:this.teamEncounters,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.operationalTravel.update({game:this.game,teamAgenda:this.teamAgenda,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.roleActions.update({
       game:this.game,
