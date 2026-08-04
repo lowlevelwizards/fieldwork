@@ -1,0 +1,51 @@
+name: Apply Fieldwork 2.5
+
+on:
+  push:
+    branches:
+      - AI-2.0-staging-contact-resolution
+    paths:
+      - .github/workflows/apply-fieldwork-2.5.yml
+      - .delivery/fieldwork-2.5-changed-files.zip.b64
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out delivery branch
+        uses: actions/checkout@v4
+        with:
+          ref: AI-2.0-staging-contact-resolution
+          path: delivery
+
+      - name: Check out live AI branch
+        uses: actions/checkout@v4
+        with:
+          ref: AI-2.0
+          path: live
+          fetch-depth: 0
+
+      - name: Overlay Fieldwork 2.5 changed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode delivery/.delivery/fieldwork-2.5-changed-files.zip.b64 > /tmp/fieldwork-2.5.zip
+          unzip -o /tmp/fieldwork-2.5.zip -d live
+
+      - name: Commit and push Fieldwork 2.5
+        shell: bash
+        working-directory: live
+        run: |
+          set -euo pipefail
+          git config user.name "Fieldwork Delivery"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to apply."
+            exit 0
+          fi
+          git commit -m "Fieldwork 2.5 — Faction Contact Resolution & Hostile Contention"
+          git push origin HEAD:AI-2.0
