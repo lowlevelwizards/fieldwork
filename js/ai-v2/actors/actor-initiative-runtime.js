@@ -1,5 +1,6 @@
 import { ReactToIncomingFireAction } from "../actions/react-to-incoming-fire-action.js";
 import { ReportContactAction } from "../actions/report-contact-action.js";
+import { SelfAidAction } from "../actions/self-aid-action.js";
 import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 
 export class ActorInitiativeRuntime{
@@ -15,8 +16,26 @@ export class ActorInitiativeRuntime{
     const active=new Map();
     for(const actor of game?.actors??[]){
       if(actor.medical?.dead||actor.medical?.unconscious)continue;
+      const assessment=game?.wounds?.getAssessment?.(actor)??null;
+      const treatmentNeed=game?.wounds?.getTreatmentNeed?.(actor)??null;
+      const bleeding=Number(assessment?.bleeding??actor.medical?.bleedingRate??0);
+      const selfAidUrgent=Boolean(treatmentNeed&&bleeding>.05&&Number(actor.aiV2MedicalSupplies?.[treatmentNeed.type]??0)>0);
+      if(selfAidUrgent&&!this.scheduler.hasAction(actor.id,"SelfAid")){
+        const action=new SelfAidAction({actorId:actor.id,duration:bleeding>1.2?2.1:2.8});
+        const onGranted=result=>this.#record("actor_initiative_started",actor,now,{actionType:action.type,reason:"uncontrolled_personal_bleeding",bleeding,treatmentType:treatmentNeed.type});
+        if(this.arbiter)this.arbiter.submit({
+          actorId:actor.id,action,score:1,urgency:Math.min(1,.72+bleeding*.18),
+          authorityTier:ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL,
+          authorityLabel:"Immediate survival",reason:"A conscious operator with treatable uncontrolled bleeding must stop ordinary mission travel and perform self aid.",
+          source:"actor_initiative",operationId:actor.operationId??null,missionId:actor.squadMission??null,onGranted
+        });
+        else{const result=this.scheduler.start(action,{now,context});if(result.ok)onGranted(result);}
+      }
       const threat=this.threatKnowledge?.getBestThreat?.(actor.id)??null;
-      if(!threat)continue;
+      if(!threat){
+        if(selfAidUrgent)active.set(actor.id,{actorId:actor.id,subjectId:null,confidence:0,immediate:true,reacted:false,reactionActionId:null,reportActionId:null,selfAidActionId:this.scheduler.getAction(actor.id,"SelfAid")?.id??null});
+        continue;
+      }
       const record={
         actorId:actor.id,
         subjectId:threat.subjectId,
@@ -24,7 +43,8 @@ export class ActorInitiativeRuntime{
         immediate:now<=threat.immediateUntil,
         reacted:Boolean(threat.reacted),
         reactionActionId:null,
-        reportActionId:null
+        reportActionId:null,
+        selfAidActionId:this.scheduler.getAction(actor.id,"SelfAid")?.id??null
       };
 
       if(record.immediate&&!threat.reacted&&!this.scheduler.hasAction(actor.id,"ReactToIncomingFire")){

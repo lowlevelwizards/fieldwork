@@ -101,6 +101,9 @@ export class RoleActionRuntime{
           game,actor,role,procedure,mission,now,
           objectives:context?.services?.objectives,
           objectiveApproaches:context?.services?.objectiveApproaches,
+          positionQueries:context?.services?.positionQueries,
+          directionalCover:context?.services?.directionalCover,
+          destinationClaims:context?.services?.destinationClaims,
           teamKnowledge,
           teamAgenda:context?.services?.teamAgenda
         });

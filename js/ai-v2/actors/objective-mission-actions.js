@@ -1,19 +1,28 @@
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 
-export function extendObjectiveMissionContext(baseContext,{game,actor,role,procedure,mission,objectives,objectiveApproaches,teamKnowledge,teamAgenda,now=0}={}){
+export function extendObjectiveMissionContext(baseContext,{game,actor,role,procedure,mission,objectives,objectiveApproaches,positionQueries,directionalCover,destinationClaims,teamKnowledge,teamAgenda,now=0}={}){
   if(procedure?.procedureId!=="restore_field_relay")return baseContext;
   const objectiveId=mission?.objectivePlan?.objectiveId??null;
   const objective=objectiveId?objectives?.get?.(objectiveId):null;
   if(!objective)return{...baseContext,objectiveMission:null};
   const teamActors=(game?.actors??[]).filter(candidate=>candidate.teamId===actor.teamId&&!candidate.medical?.dead);
   const approach=objectiveApproaches?.getOrSelect?.({game,teamId:actor.teamId,objective,teamActors,plan:mission.objectivePlan?.approachPolicy??{},now})??null;
-  const destination=approach?.rolePoints?.[role.roleId]??null;
+  let destination=approach?.rolePoints?.[role.roleId]??null;
   const forward=approach?{x:-approach.vector.x,y:-approach.vector.y}:{x:0,y:-1};
   const defaultFocus={x:objective.x+forward.x*(mission.objectivePlan?.securityFocusDistance??320),y:objective.y+forward.y*(mission.objectivePlan?.securityFocusDistance??320)};
   const supporting=teamAgenda?.get?.(actor.teamId)?.supporting??null;
   const report=supporting?.subjectId?teamKnowledge?.getTeamContacts?.(actor.teamId)?.find(item=>item.subjectId===supporting.subjectId)??null:null;
   const supportingContact=report?{subjectId:report.subjectId,approximatePosition:{...report.approximatePosition},confidence:report.confidence,label:supporting.selected?.label??"Heightened watch"}:null;
   const focus=role.roleId==="local_security"&&supportingContact?{...supportingContact.approximatePosition}:defaultFocus;
+  if(role.roleId==="approach_lead"&&distance(actor,objective)<=Math.max(360,mission.objectivePlan?.approachPolicy?.stagingDistance*1.6||400))destination={x:actor.x,y:actor.y};
+  if(role.roleId==="local_security"&&supportingContact){
+    const cover=directionalCover?.findBestSlot?.({game,actor,roleId:"local_security",threatPoint:focus,teamActors,claims:destinationClaims,now,policy:{maximumCoverDistance:420,maximumTravel:420,minimumProtection:.42,maximumCohesionDistance:650}})?.best;
+    if(cover?.point)destination={...cover.point};
+  }else if(role.roleId==="local_security"&&positionQueries){
+    const sector={x:focus.x,y:focus.y,sampleSpread:90};
+    const adaptive=positionQueries.findBestResponsibilityPosition({game,actor,sector,teamActors,claims:destinationClaims,now,policy:{maximumTravel:250,minimumVisibility:.48,minimumCoverage:.5,maximumCohesionDistance:560,minimumFriendlySpacing:58}})?.best;
+    if(adaptive?.point)destination={...adaptive.point};
+  }
   return{
     ...baseContext,
     objectiveMission:{
