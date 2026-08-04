@@ -617,6 +617,12 @@ export class LivingSandboxState{
     operation.returnReadyAt=this.liveMode&&this.geography.enabled
       ?(operation.physicalReturnComplete?now+this.postCompletionHold:Infinity)
       :now+this.postCompletionHold;
+    const faction=this.factions.get(operation.factionId);
+    if(faction&&!operation.contested&&!operation.scoreAwarded){
+      const points=operation.scoreValue??50;
+      faction.score+=points;operation.scoreAwarded=true;operation.scoreAwardedAt=now;
+      this.#record("faction_score_awarded",now,{factionId:faction.id,operationId:operation.id,points,totalScore:faction.score,objectiveId:operation.objectiveId,awardStage:"objective_completed"});
+    }
     this.#record("faction_operation_returning",now,{operationId,teamId:operation.teamId,objectiveId:operation.objectiveId,returnReadyAt:operation.returnReadyAt,physicalRoute:Boolean(this.liveMode&&this.geography.enabled),originPositionId:operation.originPositionId});
     return true;
   }
@@ -671,7 +677,7 @@ export class LivingSandboxState{
       if(!challenger.contested||challenger.contestedRole!=="challenger"||challenger.status!=="deployed")continue;
       const primary=this.operations.get(challenger.primaryOperationId);
       if(!primary||primary.status!=="deployed"){
-        if(this.interruptOperation(challenger.id,{now,reason:"contested_primary_no_longer_active",blockingOperationId:primary?.id??null,result:"deferred_after_standoff",violent:false}))resolved.push(challenger.id);
+        if(this.interruptOperation(challenger.id,{now,reason:primary?.violent?"contested_primary_ended_after_armed_contact":"contested_primary_no_longer_active",blockingOperationId:primary?.id??null,result:primary?.violent?"deferred_after_armed_contact":"deferred_after_standoff",violent:Boolean(primary?.violent)}))resolved.push(challenger.id);
         continue;
       }
       if(now-(challenger.deployedAt??now)<maximumDuration)continue;
@@ -883,7 +889,7 @@ export class LivingSandboxState{
       }
     }
     if(!interrupted&&faction&&!operation.contested){
-      faction.score+=operation.scoreValue??50;
+      if(!operation.scoreAwarded){faction.score+=operation.scoreValue??50;operation.scoreAwarded=true;}
       const returnedAmount=operation.resourceType?Math.max(0,finite(operation.returnedResourceAmount,operation.resourceAmount)):0;
       if(operation.resourceType&&returnedAmount>0)faction.resources[operation.resourceType]=(faction.resources[operation.resourceType]??0)+returnedAmount;
       this.#record("faction_score_awarded",now,{factionId:faction.id,operationId:operation.id,points:operation.scoreValue??50,totalScore:faction.score,resourceType:operation.resourceType,resourceAmount:returnedAmount,abandonedResourceAmount:operation.abandonedResourceAmount??0});
