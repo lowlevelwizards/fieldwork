@@ -8,7 +8,7 @@ export function projectOutsideObstacles(game,x,y,radius=18,clearance=6){
       const minimum=radius+(obstacle.radius??0)+clearance;
       const distance=Math.hypot(dx,dy);
       if(distance<minimum){
-        const angle=distance>.001?Math.atan2(dy,dx):Math.random()*Math.PI*2;
+        const angle=distance>.001?Math.atan2(dy,dx):((((Math.imul(Math.round(px*10),73856093)^Math.imul(Math.round(py*10),19349663)^Math.imul(Math.round(obstacle.x*10),83492791)^Math.imul(Math.round(obstacle.y*10),2654435761))>>>0)/4294967296)*Math.PI*2);
         px=obstacle.x+Math.cos(angle)*minimum;
         py=obstacle.y+Math.sin(angle)*minimum;
         moved=true;

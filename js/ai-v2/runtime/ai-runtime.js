@@ -6,6 +6,7 @@ import { ReportCasualtyAction } from "../actions/report-casualty-action.js";
 import { ActorInitiativeRuntime } from "../actors/actor-initiative-runtime.js";
 import { RoleActionRuntime } from "../actors/role-action-runtime.js";
 import { LocalAutonomyRuntime } from "../actors/local-autonomy-runtime.js";
+import { OperationalTravelRuntime } from "../actors/operational-travel-runtime.js";
 import { RolePositionRuntime } from "../actors/role-position-runtime.js";
 import { DefensivePositionRuntime } from "../actors/defensive-position-runtime.js";
 import { CommunicationExecutor } from "../communication/communication-executor.js";
@@ -91,6 +92,7 @@ export class AIV2Runtime{
     this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog,arbiter:this.actionArbiter});
     this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog,arbiter:this.actionArbiter});
     this.localAutonomy=new LocalAutonomyRuntime({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
+    this.operationalTravel=new OperationalTravelRuntime({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
     this.directionalCover=new DirectionalCoverService();
     this.evacuationRoutes=new EvacuationRouteService({decisionLog:this.decisionLog});
@@ -156,6 +158,7 @@ export class AIV2Runtime{
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.teamAgenda.update({missions:this.teamMissions,teamResponses:this.teamResponses,objectives:this.objectives,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamAgenda,now:this.elapsed});
+    this.operationalTravel.update({game:this.game,teamAgenda:this.teamAgenda,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.roleActions.update({
       game:this.game,
       teamProcedures:this.teamProcedures,
@@ -200,6 +203,7 @@ export class AIV2Runtime{
       now:this.elapsed,
       procedures:this.teamProcedures.summary(),
       roleActions:this.roleActions.summary(),
+      operationalTravel:this.operationalTravel.summary(),
       rolePositions:this.rolePositions.summary(),
       defensivePositions:this.defensivePositions.summary(),
       destinationClaims:this.destinationClaims.summary(this.elapsed),
@@ -345,6 +349,7 @@ export class AIV2Runtime{
         teamAgenda:this.teamAgenda,
         actionArbiter:this.actionArbiter,
         localAutonomy:this.localAutonomy,
+        operationalTravel:this.operationalTravel,
         authorityTiers:ACTION_AUTHORITY_TIERS,
         ambientPerception:this.ambientPerception,
         teamProcedures:this.teamProcedures,

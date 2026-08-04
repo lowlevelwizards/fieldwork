@@ -1,5 +1,5 @@
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
-const LIVE_PROCEDURES=new Set(["service_infrastructure","recover_supplies","survey_route"]);
+const LIVE_PROCEDURES=new Set(["service_infrastructure","recover_supplies","survey_route","establish_forward_position"]);
 
 function roleOffset(roleId,point,index=0){
   const angle=(index%2?1:-1)*.12;
@@ -99,11 +99,12 @@ export function evaluateLiveOperationActions(context){
 
   if(phaseId==="inspect_objective"&&role.roleId==="objective_specialist"&&procedure.permissions?.inspect)return[{type:"InspectObjective",score:1,reason:`${role.label} verifies the site before the operation changes persistent world state.`,directive:{...common,duration:liveOperation.inspectDuration,completionEvent:"objective_inspected"}}];
 
-  if(procedure.procedureId==="service_infrastructure"&&phaseId==="perform_objective_work"){
+  if(["service_infrastructure","establish_forward_position"].includes(procedure.procedureId)&&phaseId==="perform_objective_work"){
     if(role.roleId==="objective_specialist"){
       const skill=.62+(Number(actor.aiV2Capabilities?.technicalWork)||0)*.72;
       const resourceFactor=.72+(Number(liveOperation.operation.resourceCoverage)||0)*.28;
-      return[{type:"PerformObjectiveWork",score:1,reason:"The Field Technician owns finite, capability-scaled service work.",directive:{...common,workRate:skill*resourceFactor,workLabel:`${liveOperation.workVerb[0]?.toUpperCase()??"S"}${liveOperation.workVerb.slice(1)} ${liveOperation.objective.label}`,completedLabel:`${liveOperation.objective.label} ${liveOperation.completedVerb}`,completionEvent:"objective_restored"}}];
+      const building=procedure.procedureId==="establish_forward_position";
+      return[{type:"PerformObjectiveWork",score:1,reason:building?"The Field Builder owns finite, resource-backed construction work.":"The Field Technician owns finite, capability-scaled service work.",directive:{...common,workRate:skill*resourceFactor,workLabel:building?`Establishing ${liveOperation.objective.label}`:`${liveOperation.workVerb[0]?.toUpperCase()??"S"}${liveOperation.workVerb.slice(1)} ${liveOperation.objective.label}`,completedLabel:building?`${liveOperation.objective.label} established`:`${liveOperation.objective.label} ${liveOperation.completedVerb}`,completionEvent:"objective_restored"}}];
     }
     if(role.roleId==="approach_lead"&&!liveOperation.contact&&procedure.permissions?.assist)return[{type:"AssistObjectiveWork",score:.72,reason:"The Route Lead has free capacity and can assist technical work without abandoning team security.",directive:{...common,assistPoint:{...liveOperation.assistPoint},reason:`${role.label}: assist the active technician`}}];
   }

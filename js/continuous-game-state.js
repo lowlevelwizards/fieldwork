@@ -19,7 +19,7 @@ import { CombatPostureSystem } from "./combat-posture.js";
 import { AIV2Runtime, AI_RUNTIME_MODES } from "./ai-v2/runtime/ai-runtime.js";
 
 export class ContinuousGameState extends GameState {
-  constructor({scenario="operations",aiRuntime=AI_RUNTIME_MODES.LEGACY,sandboxFixture=SANDBOX_FIXTURE_IDS.OPEN_CONTACT}={}) {
+  constructor({scenario="operations",aiRuntime=AI_RUNTIME_MODES.LEGACY,sandboxFixture=SANDBOX_FIXTURE_IDS.OPEN_CONTACT,campaignSnapshot=null}={}) {
     super();
     this.scenarioMode=scenario;
     this.aiRuntimeMode=aiRuntime===AI_RUNTIME_MODES.V2?AI_RUNTIME_MODES.V2:AI_RUNTIME_MODES.LEGACY;
@@ -50,7 +50,7 @@ export class ContinuousGameState extends GameState {
       this.operator.x=fixture.operatorSpawn.x;this.operator.y=fixture.operatorSpawn.y;
       this.clockMinutes=13*60+20;this.weather="Clear";
       this.incident.state="resolved";this.incident.bandageUsed=true;this.incident.workerSheltered=true;this.incident.waterUsed=true;this.incident.radioRestored=true;
-      this.operations=new CombatSandboxDirector(this,{fixtureId:fixture.id});
+      this.operations=new CombatSandboxDirector(this,{fixtureId:fixture.id,campaignSnapshot:scenario==="live"?campaignSnapshot:null});
       this.objectiveText=scenario==="live"?"Live Sandbox · Persistent faction operations":`Behavior Lab ${fixture.index} · ${fixture.label}`;
     }
     this.excursion = new ContinuousExcursionController(this);

@@ -1,9 +1,10 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/><meta name="theme-color" content="#1f2a24"/><meta name="fieldwork-build" content="2.2"/><title>Fieldwork 2.2 — Living Consequences & Adaptive Operations</title><link rel="stylesheet" href="styles.css?v=22-living-consequences-20260804"/><link rel="stylesheet" href="styles-0.6a.css?v=22-living-consequences-20260804"/><link rel="stylesheet" href="presentation-isolation.css?v=22-living-consequences-20260804"/><link rel="stylesheet" href="combat-controls.css?v=22-living-consequences-20260804"/></head><body><main id="app">
-<section id="title-screen" class="screen screen--active"><div class="title-card"><p class="eyebrow">FIELD TEST 2.2</p><h1>FIELDWORK</h1><p class="subtitle">Working Landscape</p><p class="intro">Enter a working landscape. Choose where to help, adapt when plans break, and make it back.</p><div class="title-actions">
-<button id="live-sandbox-button" class="primary-button">Live Sandbox</button>
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/><meta name="theme-color" content="#1f2a24"/><meta name="fieldwork-build" content="2.3"/><title>Fieldwork 2.3 — Operational Geography & Campaign Network</title><link rel="stylesheet" href="styles.css?v=23-operational-geography-20260804"/><link rel="stylesheet" href="styles-0.6a.css?v=23-operational-geography-20260804"/><link rel="stylesheet" href="presentation-isolation.css?v=23-operational-geography-20260804"/><link rel="stylesheet" href="combat-controls.css?v=23-operational-geography-20260804"/></head><body><main id="app">
+<section id="title-screen" class="screen screen--active"><div class="title-card"><p class="eyebrow">FIELD TEST 2.3</p><h1>FIELDWORK</h1><p class="subtitle">Working Landscape</p><p class="intro">Enter a working landscape. Choose where to help, adapt when plans break, and make it back.</p><div class="title-actions">
+<button id="continue-campaign-button" class="primary-button" hidden>Continue Campaign</button>
+<button id="live-sandbox-button" class="secondary-button">New Campaign</button>
 <button id="sandbox-button" class="secondary-button">Behavior Lab</button>
 <button id="begin-button" class="secondary-button">Working Landscape</button>
-</div><label class="runtime-picker" for="ai-runtime-select"><span>AI runtime</span><select id="ai-runtime-select"><option value="legacy">Legacy 1.2H</option><option value="v2">AI V2 — Adaptive Causal Runtime</option></select><small id="ai-runtime-description"></small></label><label class="runtime-picker sandbox-picker" for="sandbox-fixture-select"><span>Behavior Lab fixture</span><select id="sandbox-fixture-select"><option value="open_contact">01 · Open Contact</option><option value="observation">02 · Observation & Concealment</option><option value="cover_position">03 · Cover & Position</option><option value="casualty_recovery">04 · Casualty Recovery</option><option value="objective_initiative">05 · Objective Initiative</option></select><small id="sandbox-fixture-description"></small></label><p class="version">Build <span id="title-build-id">2.2</span></p></div></section>
+</div><label class="runtime-picker" for="ai-runtime-select"><span>AI runtime</span><select id="ai-runtime-select"><option value="legacy">Legacy 1.2H</option><option value="v2">AI V2 — Adaptive Causal Runtime</option></select><small id="ai-runtime-description"></small></label><label class="runtime-picker sandbox-picker" for="sandbox-fixture-select"><span>Behavior Lab fixture</span><select id="sandbox-fixture-select"><option value="open_contact">01 · Open Contact</option><option value="observation">02 · Observation & Concealment</option><option value="cover_position">03 · Cover & Position</option><option value="casualty_recovery">04 · Casualty Recovery</option><option value="objective_initiative">05 · Objective Initiative</option></select><small id="sandbox-fixture-description"></small></label><p class="version">Build <span id="title-build-id">2.3</span></p></div></section>
 <section id="game-screen" class="screen"><canvas id="game-canvas"></canvas><div class="minimal-hud">
   <div class="minimal-status"><strong id="world-time">07:45</strong><span id="weather-icon" aria-hidden="true">☀</span><span id="world-phase" class="sr-only">Morning · Clear</span></div>
   <div id="medical-status" class="medical-status" hidden><strong id="medical-condition">HEALTHY</strong><span id="medical-detail">No wounds</span></div>
@@ -13,15 +14,17 @@
   </div>
 </div>
 <section id="live-sandbox-panel" class="live-sandbox-panel" hidden>
-  <header><div><span>FIELDWORK 2.2</span><strong>LIVING CONSEQUENCES</strong></div><button id="live-panel-toggle" type="button">−</button></header>
+  <header><div><span>FIELDWORK 2.3</span><strong>OPERATIONAL GEOGRAPHY</strong></div><button id="live-panel-toggle" type="button">−</button></header>
   <div id="live-sandbox-controls" class="live-sandbox-controls">
     <button id="live-pause" type="button">PAUSE</button>
     <button class="live-speed live-speed--active" data-speed="1" type="button">1×</button>
     <button class="live-speed" data-speed="2" type="button">2×</button>
     <button class="live-speed" data-speed="4" type="button">4×</button>
-    <button id="live-restart" type="button">RESTART</button>
+    <button id="live-save" type="button">SAVE</button>
+    <button id="live-restart" type="button">NEW</button>
   </div>
   <div id="live-factions" class="live-factions"></div>
+  <div class="live-section"><span>CAMPAIGN NETWORK · BASES, FORWARD POSITIONS & ROUTES</span><div id="live-network"></div></div>
   <div class="live-section"><span>ACTIVE OPERATIONS</span><div id="live-operations"></div></div>
   <div class="live-section"><span>TOP FACTION PROPOSALS</span><div id="live-candidates"></div></div>
   <div class="live-section"><span>CAMPAIGN ROSTERS · SURVIVORS, WOUNDS & EXPERIENCE</span><div id="live-roster"></div></div>
@@ -52,4 +55,4 @@
 <div id="dialogue-overlay" class="dialogue-overlay" hidden><section class="dialogue-card"><p id="dialogue-role" class="eyebrow">WORKER</p><h2 id="dialogue-name">Worker</h2><p id="dialogue-text"></p><button id="dialogue-close" class="primary-button">Continue</button></section></div>
 <div id="inspect-overlay" class="inspect-overlay" hidden><section class="inspect-card"><p id="inspect-category" class="eyebrow">OBSERVATION</p><h2 id="inspect-name">Object</h2><p id="inspect-size"></p><p id="inspect-description"></p><p id="inspect-location" class="inspect-location"></p><button id="inspect-close" class="primary-button">Back</button></section></div>
 <div id="report-overlay" class="inspect-overlay" hidden><section class="inspect-card"><p class="eyebrow">FIELD REPORT</p><h2 id="report-title">North Culvert</h2><div id="report-lines" class="report-lines"></div><button id="report-close" class="primary-button">Close Report</button></section></div>
-</section></main><script type="module" src="js/main.js?v=22-living-consequences-20260804"></script></body></html>
+</section></main><script type="module" src="js/main.js?v=23-operational-geography-20260804"></script></body></html>

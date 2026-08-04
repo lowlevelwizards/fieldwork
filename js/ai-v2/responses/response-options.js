@@ -29,8 +29,8 @@ function option({id,label,summary,base=0,terms,reason,eligible=null}){
 }
 
 const relevantEncounter=({encounter})=>encounter?.subjectKind!=="friendly_casualty"&&(encounter?.state==="relevant"||encounter?.state==="potentially_incompatible");
-const friendlyCasualtyEligible=({ledger,encounter})=>encounter?.subjectKind==="friendly_casualty"&&ledger.recoveryPlanAvailable>0&&ledger.casualtyUrgency>0&&ledger.evacuationRequired<=0;
-const casualtyEvacuationEligible=({ledger,encounter})=>encounter?.subjectKind==="friendly_casualty"&&ledger.evacuationRequired>0&&ledger.casualtyStabilized>0&&ledger.evacuationPlanAvailable>0;
+const friendlyCasualtyEligible=({ledger,encounter})=>encounter?.subjectKind==="friendly_casualty"&&ledger.casualtyDead<=0&&ledger.recoveryPlanAvailable>0&&ledger.casualtyUrgency>0&&ledger.evacuationRequired<=0;
+const casualtyEvacuationEligible=({ledger,encounter})=>encounter?.subjectKind==="friendly_casualty"&&ledger.casualtyDead<=0&&ledger.evacuationRequired>0&&ledger.casualtyStabilized>0&&ledger.evacuationPlanAvailable>0;
 const boundaryWarningEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.boundaryTrigger>0;
 const silentWithdrawalEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.warningHeard>0&&ledger.withdrawalPlanAvailable>0;
 const monitorDepartureEligible=({ledger,encounter})=>relevantEncounter({encounter})&&ledger.warningIssued>0&&ledger.departureEvidence>0;

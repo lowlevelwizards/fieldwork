@@ -6,7 +6,13 @@ function cloneRecord(record){return record?{...record,selected:cloneSelected(rec
 
 function missionAgenda({mission,objective,encounterResponse,now}){
   const complete=objective.state===(mission.objectivePlan.desiredState??"operational");
-  const liveIntent=mission.liveOperation?(mission.operationKind==="recover_supplies"?{id:"recover_supplies",active:"Recover Supplies",complete:"Cargo Secured",summary:"Inspect the cache, physically secure finite packages, and return only what is carried out."}:mission.operationKind==="survey_route"?{id:"survey_route",active:"Survey Route",complete:"Survey Complete",summary:"Move through multiple observation points and return with recorded route intelligence."}:{id:"service_infrastructure",active:"Service Infrastructure",complete:"Infrastructure Operational",summary:"Diagnose, service, verify, and secure the assigned infrastructure."}):null;
+  const liveIntent=mission.liveOperation?(mission.operationKind==="recover_supplies"
+    ?{id:"recover_supplies",active:"Recover Supplies",complete:"Cargo Secured",summary:"Inspect the cache, physically secure finite packages, and return only what is carried out."}
+    :mission.operationKind==="survey_route"
+      ?{id:"survey_route",active:"Survey Route",complete:"Survey Complete",summary:"Move through connected route segments and return with recorded intelligence."}
+      :mission.operationKind==="establish_forward_position"
+        ?{id:"establish_forward_position",active:"Establish Forward Position",complete:"Forward Position Operational",summary:"Carry field resources through the campaign network, secure the site, and establish a persistent operational foothold."}
+        :{id:"service_infrastructure",active:"Service Infrastructure",complete:"Infrastructure Operational",summary:"Diagnose, service, verify, and secure the assigned infrastructure."}):null;
   const selected={
     id:liveIntent?.id??"restore_objective",
     label:complete?(liveIntent?.complete??"Hold Restored Objective"):(liveIntent?.active??"Restore Objective"),

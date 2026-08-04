@@ -110,12 +110,14 @@ export class ActorActionEvaluator{
           }
         }];
       }
-      if(procedure.phase?.id==="await_response"&&focus){
+      if(["await_response","reassess"].includes(procedure.phase?.id)&&focus){
         return[{
           type:"HoldReady",
           score:.98,
-          reason:`${role.label} must remain available while the team waits for an observable response to the warning.`,
-          directive:{...common,reason:`${role.label}: awaiting response after the warning`,label,focus:{...focus}}
+          reason:procedure.phase?.id==="reassess"
+            ?`${role.label} preserves the challenged boundary while the team chooses its next response.`
+            :`${role.label} must remain available while the team waits for an observable response to the warning.`,
+          directive:{...common,reason:procedure.phase?.id==="reassess"?`${role.label}: preserve the challenged boundary during reassessment`:`${role.label}: awaiting response after the warning`,label,focus:{...focus}}
         }];
       }
       return[];

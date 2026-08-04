@@ -24,6 +24,7 @@ export class Renderer{
       this.#drawRoad(ctx,game.map.road);
       this.#drawBloodDecals(ctx,game);
       this.#drawBrush(ctx,game.map.brush);
+      this.#drawCampaignGeography(ctx,game);
       this.#drawLiveOperationAssets(ctx,game);
       this.#drawAIV2ObservationWorld(ctx,game);
     }else{
@@ -336,6 +337,40 @@ export class Renderer{
  }
 
 
+
+
+ #drawCampaignGeography(ctx,game){
+  if(game.scenarioMode!=="live"||!game.livingSandbox)return;
+  const geography=game.livingSandbox.summary?.().geography;if(!geography?.enabled)return;
+  const nodes=new Map((geography.nodes??[]).map(node=>[node.id,node]));
+  const factionAccent={northline:"#8fae83",commune:"#d6bb68",freelancers:"#df8c4e"};
+  ctx.save();
+  try{
+   ctx.lineCap="round";ctx.lineJoin="round";
+   for(const route of geography.routes??[]){
+    const from=nodes.get(route.from),to=nodes.get(route.to);if(!from||!to)continue;
+    const blocked=route.state==="blocked",unknown=route.state==="unknown",verified=route.state==="verified";
+    ctx.strokeStyle=blocked?"rgba(160,73,60,.4)":verified?"rgba(184,190,151,.28)":unknown?"rgba(115,122,104,.2)":"rgba(150,143,113,.23)";
+    ctx.lineWidth=route.terrain==="road"?18:route.terrain==="marsh"?11:13;
+    ctx.setLineDash(blocked?[12,10]:unknown?[7,10]:[]);
+    ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke();
+    ctx.strokeStyle="rgba(238,232,208,.10)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke();
+   }
+   ctx.setLineDash([]);
+   for(const position of geography.positions??[]){
+    const accent=factionAccent[position.ownerFactionId]??"#9c9b85";
+    if(position.active&&position.communicationRange>0){ctx.fillStyle=`${accent}0d`;ctx.strokeStyle=`${accent}26`;ctx.lineWidth=2;ctx.setLineDash([16,18]);ctx.beginPath();ctx.arc(position.x,position.y,position.communicationRange,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.setLineDash([]);}
+    ctx.fillStyle=position.active?"rgba(18,27,22,.92)":"rgba(18,27,22,.48)";ctx.strokeStyle=position.active?accent:"rgba(185,174,139,.34)";ctx.lineWidth=3;ctx.beginPath();ctx.arc(position.x,position.y,position.kind==="base"?30:22,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle=accent;ctx.font="850 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(position.kind==="base"?"BASE":position.active?position.kind.replaceAll("_"," ").toUpperCase():"FORWARD SITE",position.x,position.y);
+   }
+   const operations=game.livingSandbox.activeOperations?.()??[];
+   for(const operation of operations){
+    const points=operation.status==="returning"||operation.status==="interrupted"?operation.routePlan?.returnWaypoints:operation.routePlan?.waypoints;
+    if(!points?.length)continue;const accent=factionAccent[operation.factionId]??"#dfc170";
+    ctx.strokeStyle=`${accent}88`;ctx.lineWidth=4;ctx.setLineDash([14,9]);ctx.beginPath();ctx.moveTo(points[0].x,points[0].y);for(const point of points.slice(1))ctx.lineTo(point.x,point.y);ctx.stroke();ctx.setLineDash([]);
+   }
+  }finally{ctx.restore();}
+ }
 
  #drawLiveOperationAssets(ctx,game){
   if(game.scenarioMode!=="live"||!game.livingSandbox)return;

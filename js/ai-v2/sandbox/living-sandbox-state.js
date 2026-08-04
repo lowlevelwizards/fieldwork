@@ -1,3 +1,5 @@
+import { OperationalGeographyState } from "../campaign/operational-geography-state.js";
+
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
@@ -69,6 +71,7 @@ function cloneFaction(faction){
 function cloneNeed(need){
   return need?{
     ...need,
+    routeIds:[...(need.routeIds??[])],
     capabilityNeeds:{...need.capabilityNeeds},
     cargoPackages:(need.cargoPackages??[]).map(cloneCargo),
     surveyPoints:(need.surveyPoints??[]).map(cloneSurveyPoint),
@@ -85,6 +88,11 @@ function cloneOperation(operation){
     assignments:(operation.assignments??[]).map(item=>({...item})),
     objectivePoint:operation.objectivePoint?{...operation.objectivePoint}:null,
     entryPoint:operation.entryPoint?{...operation.entryPoint}:null,
+    returnPoint:operation.returnPoint?{...operation.returnPoint}:null,
+    routePlan:operation.routePlan?{...operation.routePlan,nodeIds:[...(operation.routePlan.nodeIds??[])],routeIds:[...(operation.routePlan.routeIds??[])],waypoints:(operation.routePlan.waypoints??[]).map(item=>({...item})),returnWaypoints:(operation.routePlan.returnWaypoints??[]).map(item=>({...item}))}:null,
+    stages:(operation.stages??[]).map(stage=>({...stage})),
+    actorRouteProgress:Object.fromEntries(Object.entries(operation.actorRouteProgress??{}).map(([id,value])=>[id,{...value}])),
+    returnedActorIds:[...(operation.returnedActorIds??[])],
     capabilityNeeds:{...(operation.capabilityNeeds??{})},
     scoreBreakdown:{...(operation.scoreBreakdown??{})},
     resourceCost:{...(operation.resourceCost??{})},
@@ -140,7 +148,17 @@ function capabilityScore(member,key){return clamp(member?.capabilities?.[key]??0
 function roleCapabilitiesForNeed(need){
   if(need.kind==="recover_supplies")return{specialist:"carrying",lead:"navigation",support:"security"};
   if(need.kind==="survey_route")return{specialist:"observation",lead:"scouting",support:"security"};
+  if(need.kind==="establish_forward_position")return{specialist:"technicalWork",lead:"carrying",support:"security"};
   return{specialist:"technicalWork",lead:"navigation",support:"security"};
+}
+
+function buildOperationStages(kind,routePlan){
+  const missionLabel=kind==="recover_supplies"?"Recover finite cargo":kind==="survey_route"?"Survey connected route":kind==="establish_forward_position"?"Establish forward position":"Service infrastructure";
+  return[
+    {id:"deploy_route",label:"Travel through campaign network",status:"active",routeNodeIds:[...(routePlan?.nodeIds??[])]},
+    {id:"field_mission",label:missionLabel,status:"pending"},
+    {id:"return_route",label:"Return through campaign network",status:"pending",routeNodeIds:[...(routePlan?.nodeIds??[])].reverse()}
+  ];
 }
 
 function specialtyForMember(member){
@@ -174,6 +192,11 @@ export class LivingSandboxState{
     this.turnover={...(config.turnover??{})};
     this.contention={enabled:true,minimumPrimaryAge:3.5,chance:.72,...(config.contention??{})};
     this.factions=new Map((config.factions??[]).map((spec,index)=>[spec.id,normalizedFaction(spec,index)]));
+    this.geography=new OperationalGeographyState({config:config.geography??{},factions:[...this.factions.values()],decisionLog});
+    for(const faction of this.factions.values()){
+      const base=this.geography.getBase(faction.id);
+      if(base)faction.entryPoint={x:base.x,y:base.y,facing:base.facing??faction.entryPoint.facing};
+    }
     this.needs=new Map();
     this.operations=new Map();
     this.history=[];
@@ -217,7 +240,7 @@ export class LivingSandboxState{
             existing.resolvedAt=null;
             existing.satisfiedAt=null;
             existing.cargoPackages=buildCargoPackages(existing,objective,this.seed+Math.round(now));
-            existing.surveyPoints=buildSurveyPoints(existing,objective,this.seed+Math.round(now));
+            existing.surveyPoints=this.geography.enabled&&existing.routeIds?.length?this.geography.surveyPointsForRoutes(existing.routeIds,{objectiveId:existing.objectiveId}):buildSurveyPoints(existing,objective,this.seed+Math.round(now));
             this.#record("world_need_reopened",now,{needId:existing.id,objectiveId:objective.id,previousOperationId:existing.previousOperationId});
           }
         }
@@ -238,6 +261,9 @@ export class LivingSandboxState{
         scoreValue:Math.max(1,Math.round(finite(spec.scoreValue,50))),
         resourceType:spec.resourceType??null,
         resourceAmount:Math.max(0,finite(spec.resourceAmount,0)),
+        nodeId:spec.nodeId??null,
+        routeIds:[...(spec.routeIds??[])],
+        dependencyValue:clamp(spec.dependencyValue??0),
         capabilityNeeds:Object.fromEntries(Object.entries(spec.capabilityNeeds??{
           technicalWork:.72,navigation:.45,security:.45
         }).map(([key,value])=>[key,clamp(value)])),
@@ -257,10 +283,12 @@ export class LivingSandboxState{
         operationalMemory:[]
       };
       need.cargoPackages=buildCargoPackages(need,objective,this.seed);
-      need.surveyPoints=buildSurveyPoints(need,objective,this.seed);
+      need.surveyPoints=this.geography.enabled&&need.routeIds?.length?this.geography.surveyPointsForRoutes(need.routeIds,{objectiveId:need.objectiveId}):buildSurveyPoints(need,objective,this.seed);
       this.needs.set(objective.id,need);
       this.#record("world_need_created",now,{needId:need.id,objectiveId:objective.id,kind:need.kind,urgency:need.urgency});
     }
+    this.geography.syncWorld({objectives,now});
+    this.geography.updatePostures({factions:[...this.factions.values()],needs:[...this.needs.values()],now});
   }
 
   updateRecovery({now=0}={}){
@@ -295,10 +323,13 @@ export class LivingSandboxState{
       const objective=objectiveById.get(need.objectiveId);
       if(!objective||objective.state===need.desiredState)continue;
       for(const faction of this.factions.values()){
+        if(this.liveMode&&!this.geography.canAttemptObjective(faction.id,need.objectiveId,{resources:faction.resources}))continue;
         const available=faction.roster.filter(member=>member.status==="available"&&member.healthStatus!=="dead");
         if(available.length<this.teamSize)continue;
         const team=this.#selectTeam(faction,need);
         if(team.length<this.teamSize)continue;
+        const launchPlan=this.liveMode?(need.kind==="survey_route"?this.geography.chooseSurveyLaunchPlan(faction.id,need.routeIds):this.geography.chooseLaunchPlan(faction.id,need.objectiveId)):null;
+        if(this.liveMode&&!launchPlan)continue;
         const priority=clamp(faction.priorities[need.kind]??0);
         const capabilityFit=this.#teamCapabilityFit(team,need.capabilityNeeds);
         let score;
@@ -308,21 +339,36 @@ export class LivingSandboxState{
           scoreBreakdown={priority:priority*.58,urgency:need.urgency*.27,capabilityFit:capabilityFit*.15,total:score};
         }else{
           const interest=clamp(faction.interests[need.interestKey]??.5);
-          const travelDistance=distance(faction.entryPoint,objective);
+          const travelDistance=launchPlan?.route?.distance??distance(faction.entryPoint,objective);
+          const routeCost=launchPlan?.route?.cost??travelDistance;
           const worldDiagonal=Math.hypot(7600,4200);
-          const travelCost=clamp(travelDistance/worldDiagonal);
+          const travelCost=clamp(routeCost/(worldDiagonal*1.2));
           const scarcity=clamp(1-(available.length-this.teamSize)/Math.max(1,faction.roster.length-this.teamSize));
           const retryPressure=clamp((need.attemptCount??0)*.08,0,.24);
           const continuity=objective.progress>0?clamp(objective.progress)*.1:0;
           const variation=(stableUnit(`${this.seed}:${this.operationSequence+1}:${faction.id}:${need.id}`)-.5)*.05;
+          const posture=this.geography.postureModifier(faction.id,need.kind);
+          const dependency=clamp(need.dependencyValue??0)+this.geography.dependencyValue(need.objectiveId);
+          const networkConfidence=(launchPlan?.route?.verifiedRatio??.5)*.06;
+          const routeRiskMemory=-Math.min(.16,(need.operationalMemory??[]).filter(item=>["operation_overdue","armed_contact","fatal_field_loss"].includes(item.type)).length*.055);
+          const factionOperations=[...this.operations.values()].filter(operation=>operation.factionId===faction.id&&!operation.contested);
+          const recentKinds=factionOperations.slice(-5).map(operation=>operation.kind);
+          const kindRepetition=-recentKinds.filter(kind=>kind===need.kind).length*.035;
+          const firstKindBonus=factionOperations.some(operation=>operation.kind===need.kind)?0:.11;
           const terms={
-            priority:priority*.22,
-            interest:interest*.2,
-            urgency:need.urgency*.18,
-            strategicValue:need.strategicValue*.14,
-            capabilityFit:capabilityFit*.16,
+            priority:priority*.2,
+            interest:interest*.18,
+            urgency:need.urgency*.17,
+            strategicValue:need.strategicValue*.13,
+            capabilityFit:capabilityFit*.15,
             continuity,
-            travelCost:-travelCost*.11,
+            dependency,
+            posture,
+            networkConfidence,
+            routeRiskMemory,
+            kindRepetition,
+            firstKindBonus,
+            travelCost:-travelCost*.12,
             rosterScarcity:-scarcity*.08,
             retryPressure:-retryPressure,
             variation
@@ -330,24 +376,29 @@ export class LivingSandboxState{
           score=Object.values(terms).reduce((sum,value)=>sum+value,0);
           scoreBreakdown={...terms,total:score,travelDistance:Math.round(travelDistance),availableRoster:available.length};
         }
-        const travelDistance=distance(faction.entryPoint,objective);
+        const travelDistance=launchPlan?.route?.distance??distance(faction.entryPoint,objective);
+        const siteRequirements=need.kind==="establish_forward_position"?(this.geography.getPosition(need.objectiveId)?.requirements??{}):{};
         const resourceCost={
-          fuel:travelDistance>3600?1:0,
-          technical:need.kind==="restore_infrastructure"?1:0,
-          medical:0
+          fuel:siteRequirements.fuel??(travelDistance>3600?1:0),
+          technical:siteRequirements.technical??(need.kind==="restore_infrastructure"?1:0),
+          medical:siteRequirements.medical??0,
+          food:siteRequirements.food??0
         };
         const required=Object.values(resourceCost).reduce((sum,value)=>sum+value,0);
         const covered=Object.entries(resourceCost).reduce((sum,[key,value])=>sum+Math.min(value,faction.resources[key]??0),0);
         const resourceCoverage=required?covered/required:1;
         if(this.liveMode){score+=(resourceCoverage-1)*.16;scoreBreakdown.resourceCoverage=resourceCoverage*.06;scoreBreakdown.resourceShortage=-(1-resourceCoverage)*.16;scoreBreakdown.total=score;}
-        candidates.push({need,objective,faction,team,score,scoreBreakdown,capabilityFit,resourceCost,resourceCoverage});
+        candidates.push({need,objective,faction,team,score,scoreBreakdown,capabilityFit,resourceCost,resourceCoverage,launchPlan});
       }
     }
     candidates.sort((left,right)=>right.score-left.score||right.need.urgency-left.need.urgency||left.faction.priorityOrder-right.faction.priorityOrder||left.need.id.localeCompare(right.need.id));
     this.lastCandidateScores=candidates.slice(0,18).map(candidate=>({
       factionId:candidate.faction.id,factionLabel:candidate.faction.label,needId:candidate.need.id,objectiveId:candidate.need.objectiveId,
       objectiveLabel:candidate.objective.name??candidate.need.objectiveId,kind:candidate.need.kind,score:candidate.score,scoreBreakdown:{...candidate.scoreBreakdown},
-      rosterIds:candidate.team.map(member=>member.id)
+      rosterIds:candidate.team.map(member=>member.id),
+      originPositionId:candidate.launchPlan?.origin?.id??null,
+      routeDistance:Math.round(candidate.launchPlan?.route?.distance??0),
+      routeVerifiedRatio:candidate.launchPlan?.route?.verifiedRatio??0
     }));
     const selected=candidates[0];
     if(!selected)return null;
@@ -376,7 +427,7 @@ export class LivingSandboxState{
       resourceCost:{...selected.resourceCost},
       resourceCoverage:selected.resourceCoverage,
       cargoPackages:(selected.need.cargoPackages??[]).map(cloneCargo),
-      surveyPoints:(selected.need.surveyPoints??[]).map(cloneSurveyPoint),
+      surveyPoints:selected.need.kind==="survey_route"&&selected.launchPlan?.surveyRouteId?this.geography.surveyPointsForRoutes([selected.launchPlan.surveyRouteId],{objectiveId:selected.need.objectiveId,fromNodeId:selected.launchPlan.surveyFromNodeId}):(selected.need.surveyPoints??[]).map(cloneSurveyPoint),
       operationalMemory:(selected.need.operationalMemory??[]).map(item=>({...item})),
       returnedResourceAmount:0,
       abandonedResourceAmount:0,
@@ -391,7 +442,23 @@ export class LivingSandboxState{
       assignments,
       actorIds:[],
       teamId:null,
-      entryPoint:{...selected.faction.entryPoint},
+      originPositionId:selected.launchPlan?.origin?.id??null,
+      originNodeId:selected.launchPlan?.origin?.nodeId??null,
+      targetNodeId:selected.need.kind==="survey_route"?(selected.launchPlan?.surveyFromNodeId??selected.need.nodeId):selected.need.nodeId??this.geography.getNodeForObjective(selected.need.objectiveId)?.id??null,
+      entryPoint:selected.launchPlan?.origin?{x:selected.launchPlan.origin.x,y:selected.launchPlan.origin.y,facing:selected.launchPlan.origin.facing??selected.faction.entryPoint.facing}:{...selected.faction.entryPoint},
+      returnPoint:selected.launchPlan?.origin?{x:selected.launchPlan.origin.x,y:selected.launchPlan.origin.y}:{x:selected.faction.entryPoint.x,y:selected.faction.entryPoint.y},
+      routePlan:selected.launchPlan?.route?{...selected.launchPlan.route,returnWaypoints:[...(selected.launchPlan.route.waypoints??[])].reverse().map(item=>({...item}))}:null,
+      stages:buildOperationStages(selected.need.kind,selected.launchPlan?.route),
+      currentStageIndex:0,
+      actorRouteProgress:{},
+      returnedActorIds:[],
+      unreturnedActorIds:[],
+      contactStatus:"in_contact",
+      lastCommunicationAt:now,
+      outOfContactSince:null,
+      routeSurveyIds:[...(selected.need.routeIds??[])],
+      surveyFromNodeId:selected.launchPlan?.surveyFromNodeId??null,
+      surveyToNodeId:selected.launchPlan?.surveyToNodeId??null,
       proposedAt:now,
       deployedAt:null,
       objectiveCompletedAt:null,
@@ -454,20 +521,22 @@ export class LivingSandboxState{
       if(available.length<this.teamSize)continue;
       const team=this.#selectTeam(faction,need);
       if(team.length<this.teamSize)continue;
+      const launchPlan=this.geography.chooseLaunchPlan(faction.id,need.objectiveId);
+      if(this.geography.enabled&&!launchPlan)continue;
       const priority=clamp(faction.priorities[need.kind]??0);
       const interest=clamp(faction.interests[need.interestKey]??.5);
       const capabilityFit=this.#teamCapabilityFit(team,need.capabilityNeeds);
-      const travelCost=clamp(distance(faction.entryPoint,objective)/Math.hypot(7600,4200));
+      const travelCost=clamp((launchPlan?.route?.cost??distance(faction.entryPoint,objective))/Math.hypot(7600,4200));
       const conflictCost=(1-clamp(faction.riskTolerance??.5))*.14;
       const variation=(stableUnit(`${this.seed}:${primary.id}:${faction.id}:rival`)-.5)*.04;
       const score=priority*.2+interest*.23+need.urgency*.14+need.strategicValue*.17+capabilityFit*.14+(faction.riskTolerance??.5)*.16-travelCost*.24-conflictCost+variation;
-      candidates.push({faction,team,score,capabilityFit,travelCost});
+      candidates.push({faction,team,score,capabilityFit,travelCost,launchPlan});
     }
     candidates.sort((a,b)=>b.score-a.score||b.faction.riskTolerance-a.faction.riskTolerance||a.faction.priorityOrder-b.faction.priorityOrder);
     const selected=candidates[0];
     if(!selected){primary.contestedDispatchCreated=true;return null;}
     const operationId=`sandbox_operation_${++this.operationSequence}`;
-    const resourceCost={fuel:distance(selected.faction.entryPoint,objective)>3600?1:0,technical:1,medical:0};
+    const resourceCost={fuel:(selected.launchPlan?.route?.distance??distance(selected.faction.entryPoint,objective))>3600?1:0,technical:1,medical:0,food:0};
     const operation={
       id:operationId,kind:primary.kind,templateId:primary.templateId,family:primary.family,
       label:`Contest access to ${primary.objectiveLabel}`,status:"proposed",
@@ -479,7 +548,13 @@ export class LivingSandboxState{
       capabilityNeeds:{...primary.capabilityNeeds},capabilityFit:selected.capabilityFit,score:selected.score,
       scoreBreakdown:{contention:1,riskTolerance:selected.faction.riskTolerance,travelCost:-selected.travelCost*.24,total:selected.score},
       contactResolve:Math.max(.84,selected.faction.contactResolve??.5),rosterIds:selected.team.map(member=>member.id),assignments:this.#assignResponsibilities(selected.team,need),
-      actorIds:[],teamId:null,entryPoint:{...selected.faction.entryPoint},proposedAt:now,deployedAt:null,objectiveCompletedAt:null,returnReadyAt:null,completedAt:null,
+      actorIds:[],teamId:null,
+      originPositionId:selected.launchPlan?.origin?.id??null,originNodeId:selected.launchPlan?.origin?.nodeId??null,targetNodeId:need.nodeId??this.geography.getNodeForObjective(primary.objectiveId)?.id??null,
+      entryPoint:selected.launchPlan?.origin?{x:selected.launchPlan.origin.x,y:selected.launchPlan.origin.y,facing:selected.launchPlan.origin.facing??selected.faction.entryPoint.facing}:{...selected.faction.entryPoint},
+      returnPoint:selected.launchPlan?.origin?{x:selected.launchPlan.origin.x,y:selected.launchPlan.origin.y}:{x:selected.faction.entryPoint.x,y:selected.faction.entryPoint.y},
+      routePlan:selected.launchPlan?.route?{...selected.launchPlan.route,returnWaypoints:[...(selected.launchPlan.route.waypoints??[])].reverse().map(item=>({...item}))}:null,
+      stages:buildOperationStages(primary.kind,selected.launchPlan?.route),currentStageIndex:0,actorRouteProgress:{},returnedActorIds:[],unreturnedActorIds:[],contactStatus:"in_contact",lastCommunicationAt:now,outOfContactSince:null,routeSurveyIds:[...(need.routeIds??[])],
+      proposedAt:now,deployedAt:null,objectiveCompletedAt:null,returnReadyAt:null,completedAt:null,
       attemptNumber:1,result:null,violent:false,interruptedAt:null,interruptionReason:null,blockingOperationId:primary.id,outcomeId:null,rosterOutcome:[],
       contested:true,contestedRole:"challenger",primaryOperationId:primary.id,contestedDispatchCreated:true
     };
@@ -504,6 +579,13 @@ export class LivingSandboxState{
     operation.teamId=teamId;
     operation.actorIds=[...actorIds];
     operation.deployedAt=now;
+    const outbound=operation.routePlan?.waypoints??[];
+    operation.actorRouteProgress={};
+    for(const actorId of actorIds)operation.actorRouteProgress[actorId]={mode:"outbound",index:outbound.length>1?1:outbound.length,complete:outbound.length<=1,lastReachedAt:now};
+    operation.currentStageIndex=outbound.length>1?0:1;
+    if(operation.stages?.[0])operation.stages[0].status=outbound.length>1?"active":"completed";
+    if(operation.stages?.[1])operation.stages[1].status=outbound.length>1?"pending":"active";
+    operation.routeStartedAt=now;
     const faction=this.factions.get(operation.factionId);
     for(let index=0;index<operation.rosterIds.length;index+=1){
       const member=faction?.roster.find(candidate=>candidate.id===operation.rosterIds[index]);
@@ -523,8 +605,19 @@ export class LivingSandboxState{
     if(!operation||operation.status!=="deployed")return false;
     operation.status="returning";
     operation.objectiveCompletedAt=now;
-    operation.returnReadyAt=now+this.postCompletionHold;
-    this.#record("faction_operation_returning",now,{operationId,teamId:operation.teamId,objectiveId:operation.objectiveId,returnReadyAt:operation.returnReadyAt});
+    operation.currentStageIndex=2;
+    if(operation.stages?.[1])operation.stages[1].status="completed";
+    if(operation.stages?.[2])operation.stages[2].status="active";
+    const waypoints=operation.routePlan?.returnWaypoints??[];
+    operation.returnedActorIds=[];
+    operation.unreturnedActorIds=[];
+    operation.returnStartedAt=now;
+    operation.physicalReturnComplete=waypoints.length<=1;
+    for(const actorId of operation.actorIds??[])operation.actorRouteProgress[actorId]={mode:"return",index:waypoints.length>1?1:waypoints.length,complete:waypoints.length<=1,lastReachedAt:now};
+    operation.returnReadyAt=this.liveMode&&this.geography.enabled
+      ?(operation.physicalReturnComplete?now+this.postCompletionHold:Infinity)
+      :now+this.postCompletionHold;
+    this.#record("faction_operation_returning",now,{operationId,teamId:operation.teamId,objectiveId:operation.objectiveId,returnReadyAt:operation.returnReadyAt,physicalRoute:Boolean(this.liveMode&&this.geography.enabled),originPositionId:operation.originPositionId});
     return true;
   }
 
@@ -538,7 +631,18 @@ export class LivingSandboxState{
     operation.interruptionReason=reason;
     operation.blockingOperationId=blockingOperationId;
     operation.outcomeId=outcomeId;
-    operation.returnReadyAt=now+this.interruptedReturnHold;
+    operation.currentStageIndex=2;
+    if(operation.stages?.[1])operation.stages[1].status="interrupted";
+    if(operation.stages?.[2])operation.stages[2].status="active";
+    const returnWaypoints=operation.routePlan?.returnWaypoints??[];
+    operation.returnedActorIds=[];
+    operation.unreturnedActorIds=[];
+    operation.returnStartedAt=now;
+    operation.physicalReturnComplete=returnWaypoints.length<=1;
+    for(const actorId of operation.actorIds??[])operation.actorRouteProgress[actorId]={mode:"return",index:returnWaypoints.length>1?1:returnWaypoints.length,complete:returnWaypoints.length<=1,lastReachedAt:now};
+    operation.returnReadyAt=this.liveMode&&this.geography.enabled
+      ?(operation.physicalReturnComplete?now+this.interruptedReturnHold:Infinity)
+      :now+this.interruptedReturnHold;
     if(operation.contested&&operation.primaryOperationId){
       const primary=this.operations.get(operation.primaryOperationId);
       if(primary){
@@ -597,8 +701,87 @@ export class LivingSandboxState{
 
   readyReturns({now=0}={}){
     return[...this.operations.values()]
-      .filter(operation=>["returning","interrupted"].includes(operation.status)&&finite(operation.returnReadyAt,Infinity)<=now)
+      .filter(operation=>{
+        if(!["returning","interrupted"].includes(operation.status))return false;
+        if(finite(operation.returnReadyAt,Infinity)<=now)return true;
+        const fallback=finite(operation.returnStartedAt,now)+120;
+        if(now>=fallback){operation.returnReadyAt=now;operation.physicalReturnComplete=true;this.#record("operation_return_route_timeout",now,{operationId:operation.id,factionId:operation.factionId});return true;}
+        return false;
+      })
       .map(cloneOperation);
+  }
+
+  operationRouteStatus(operationId,actorId){
+    const operation=this.operations.get(operationId);if(!operation)return null;
+    const progress=operation.actorRouteProgress?.[actorId]??null;
+    const mode=progress?.mode??(operation.status==="returning"||operation.status==="interrupted"?"return":"outbound");
+    const waypoints=mode==="return"?(operation.routePlan?.returnWaypoints??[]):(operation.routePlan?.waypoints??[]);
+    const waypoint=progress&&!progress.complete?waypoints[progress.index]??null:null;
+    return{operationId,actorId,mode,index:progress?.index??0,complete:Boolean(progress?.complete),waypoint:waypoint?{...waypoint}:null,total:waypoints.length,originPositionId:operation.originPositionId,currentStageIndex:operation.currentStageIndex,contactStatus:operation.contactStatus};
+  }
+
+  markActorRouteWaypoint({operationId,actorId,mode,index,now=0}={}){
+    const operation=this.operations.get(operationId);const progress=operation?.actorRouteProgress?.[actorId];
+    if(!operation||!progress||progress.mode!==mode)return false;
+    const waypoints=mode==="return"?(operation.routePlan?.returnWaypoints??[]):(operation.routePlan?.waypoints??[]);
+    if(index!==progress.index)return false;
+    progress.index+=1;progress.lastReachedAt=now;
+    if(progress.index>=waypoints.length){
+      progress.complete=true;
+      if(mode==="outbound"){
+        const all=operation.actorIds.every(id=>operation.actorRouteProgress?.[id]?.complete);
+        if(all){operation.currentStageIndex=1;if(operation.stages?.[0])operation.stages[0].status="completed";if(operation.stages?.[1])operation.stages[1].status="active";operation.arrivedAtObjectiveNetworkAt=now;this.#record("operation_deploy_route_completed",now,{operationId,factionId:operation.factionId,routeIds:[...(operation.routePlan?.routeIds??[])]});}
+      }else{
+        if(!operation.returnedActorIds.includes(actorId))operation.returnedActorIds.push(actorId);
+        const all=operation.actorIds.filter(id=>id).every(id=>operation.actorRouteProgress?.[id]?.complete||operation.returnedActorIds.includes(id)||operation.unreturnedActorIds?.includes(id));
+        if(all){operation.physicalReturnComplete=true;operation.returnReadyAt=now+(operation.status==="interrupted"?this.interruptedReturnHold:this.postCompletionHold);if(operation.stages?.[2])operation.stages[2].status="completed";this.#record("operation_return_route_completed",now,{operationId,factionId:operation.factionId,originPositionId:operation.originPositionId});}
+      }
+    }
+    return true;
+  }
+
+
+  markActorsUnableToReturn({operationId,actorIds=[],now=0,reason="field_loss"}={}){
+    const operation=this.operations.get(operationId);if(!operation)return false;
+    operation.unreturnedActorIds=operation.unreturnedActorIds??[];
+    for(const actorId of actorIds){
+      const progress=operation.actorRouteProgress?.[actorId];if(progress){progress.complete=true;progress.index=(operation.routePlan?.returnWaypoints??[]).length;progress.unableToReturn=true;progress.lastReachedAt=now;}
+      if(!operation.unreturnedActorIds.includes(actorId))operation.unreturnedActorIds.push(actorId);
+    }
+    const all=(operation.actorIds??[]).every(id=>operation.actorRouteProgress?.[id]?.complete||operation.returnedActorIds?.includes(id)||operation.unreturnedActorIds.includes(id));
+    if(all&&["returning","interrupted"].includes(operation.status)){operation.physicalReturnComplete=true;operation.returnReadyAt=now+(operation.status==="interrupted"?this.interruptedReturnHold:this.postCompletionHold);if(operation.stages?.[2])operation.stages[2].status="completed";}
+    this.#record("operation_actor_unable_to_return",now,{operationId,factionId:operation.factionId,actorIds:[...actorIds],reason});
+    return true;
+  }
+
+  markActorsAtReturn({operationId,actorIds=[],now=0,reason="safe_return"}={}){
+    const operation=this.operations.get(operationId);if(!operation)return false;
+    for(const actorId of actorIds){
+      const progress=operation.actorRouteProgress?.[actorId];if(progress){progress.complete=true;progress.index=(operation.routePlan?.returnWaypoints??[]).length;}
+      if(!operation.returnedActorIds.includes(actorId))operation.returnedActorIds.push(actorId);
+    }
+    operation.physicalReturnComplete=true;operation.returnReadyAt=now+(operation.status==="interrupted"?this.interruptedReturnHold:this.postCompletionHold);
+    if(operation.stages?.[2])operation.stages[2].status="completed";
+    this.#record("operation_return_route_completed",now,{operationId,factionId:operation.factionId,originPositionId:operation.originPositionId,reason});
+    return true;
+  }
+
+  updateOperationCommunication(operationId,{actors=[],now=0}={}){
+    const operation=this.operations.get(operationId);if(!operation)return null;
+    const previous=operation.contactStatus??"in_contact";
+    const next=this.geography.updateOperationCommunication(operation,actors,{now});
+    if(next&&next!==previous){
+      const event=next==="out_of_contact"?"operation_went_out_of_contact":next==="overdue"?"operation_became_overdue":"operation_contact_restored";
+      this.#record(event,now,{operationId:operation.id,factionId:operation.factionId,objectiveId:operation.objectiveId,previousStatus:previous,nextStatus:next});
+    }
+    if(next==="overdue"&&previous!=="overdue"){
+      const memory={type:"operation_overdue",at:now,operationId:operation.id,objectiveId:operation.objectiveId,routeIds:[...(operation.routePlan?.routeIds??[])]};
+      operation.operationalMemory=[...(operation.operationalMemory??[]),memory].slice(-12);
+      const need=[...this.needs.values()].find(candidate=>candidate.id===operation.needId);
+      if(need)need.operationalMemory=[...(need.operationalMemory??[]),memory].slice(-8);
+      this.#record("faction_operation_overdue",now,{operationId:operation.id,factionId:operation.factionId,objectiveId:operation.objectiveId,routeIds:[...(operation.routePlan?.routeIds??[])]});
+    }
+    return next;
   }
 
   reconcileReturn(operationId,{actors=[],now=0}={}){
@@ -705,7 +888,10 @@ export class LivingSandboxState{
       if(operation.resourceType&&returnedAmount>0)faction.resources[operation.resourceType]=(faction.resources[operation.resourceType]??0)+returnedAmount;
       this.#record("faction_score_awarded",now,{factionId:faction.id,operationId:operation.id,points:operation.scoreValue??50,totalScore:faction.score,resourceType:operation.resourceType,resourceAmount:returnedAmount,abandonedResourceAmount:operation.abandonedResourceAmount??0});
     }
-    this.#record(interrupted?"faction_operation_deferred":"faction_operation_completed",now,{operationId,factionId:operation.factionId,needId:operation.needId,objectiveId:operation.objectiveId,result:operation.result,violent:Boolean(operation.violent),blockingOperationId:operation.blockingOperationId,outcomeId:operation.outcomeId});
+    const worldObjective=this.geography.worldObjectives.get(operation.objectiveId)??null;
+    this.geography.applyOperationOutcome({operation,objective:worldObjective,now});
+    this.geography.recordPositionReturn(operation.originPositionId,{factionId:operation.factionId,resourceType:!interrupted?operation.resourceType:null,amount:!interrupted?(operation.returnedResourceAmount??0):0,now});
+    this.#record(interrupted?"faction_operation_deferred":"faction_operation_completed",now,{operationId,factionId:operation.factionId,needId:operation.needId,objectiveId:operation.objectiveId,result:operation.result,violent:Boolean(operation.violent),blockingOperationId:operation.blockingOperationId,outcomeId:operation.outcomeId,originPositionId:operation.originPositionId,contactStatus:operation.contactStatus});
     return true;
   }
 
@@ -799,6 +985,11 @@ export class LivingSandboxState{
     return true;
   }
 
+  recordWorldObjectiveChanged({objectiveId,state,nextTurnoverAt=null,now=0}={}){
+    this.#record("live_world_objective_changed",now,{objectiveId,state,nextTurnoverAt});
+    return true;
+  }
+
   getOperation(operationId){return cloneOperation(this.operations.get(operationId)??null);}
   getFaction(factionId){const faction=this.factions.get(factionId);return faction?cloneFaction(faction):null;}
   getNeedByObjective(objectiveId){return cloneNeed(this.needs.get(objectiveId)??null);}
@@ -813,6 +1004,7 @@ export class LivingSandboxState{
         id:faction.id,
         label:faction.label,
         score:faction.score,
+        posture:this.geography.posture(faction.id),
         resources:{...faction.resources},
         available:faction.roster.filter(member=>member.status==="available").length,
         assigned:faction.roster.filter(member=>member.status==="assigned").length,
@@ -826,8 +1018,44 @@ export class LivingSandboxState{
       operations:[...this.operations.values()].map(cloneOperation),
       candidates:this.getCandidateScores(),
       activeOperationIds:this.activeOperations().map(operation=>operation.id),
+      geography:this.geography.summary(),
       history:this.history.map(entry=>({...entry,data:{...entry.data}}))
     };
+  }
+
+  exportCampaignState({now=0}={}){
+    const factions=[...this.factions.values()].map(cloneFaction);
+    const operations=[...this.operations.values()].map(operation=>{
+      const copy=cloneOperation(operation);
+      if(["proposed","deployed","returning","interrupted"].includes(copy.status)){
+        copy.status="deferred";copy.result="deferred_after_campaign_save";copy.completedAt=now;copy.teamId=null;copy.actorIds=[];copy.actorRouteProgress={};copy.returnedActorIds=[];copy.unreturnedActorIds=[];
+      }
+      return copy;
+    });
+    for(const faction of factions)for(const member of faction.roster){
+      if(["assigned","deployed"].includes(member.status)){member.status=member.healthStatus==="dead"?"dead":"available";member.dutyStatus=member.status;member.operationId=null;member.deployedActorId=null;member.availableAt=0;}
+    }
+    return{
+      version:3,seed:this.seed,operationSequence:this.operationSequence,lastDispatchAt:this.lastDispatchAt,
+      factions,needs:[...this.needs.values()].map(cloneNeed),operations,history:this.history.map(entry=>({...entry,data:{...entry.data}})),geography:this.geography.exportState()
+    };
+  }
+
+  importCampaignState(snapshot,{now=0}={}){
+    if(!snapshot||snapshot.version!==3)return false;
+    this.seed=Math.round(finite(snapshot.seed,this.seed));this.operationSequence=Math.max(0,Math.round(finite(snapshot.operationSequence,0)));this.lastDispatchAt=finite(snapshot.lastDispatchAt,-Infinity);
+    for(const savedFaction of snapshot.factions??[]){
+      const faction=this.factions.get(savedFaction.id);if(!faction)continue;
+      faction.score=finite(savedFaction.score);faction.resources={...faction.resources,...(savedFaction.resources??{})};
+      for(const savedMember of savedFaction.roster??[]){const member=faction.roster.find(item=>item.id===savedMember.id);if(member)Object.assign(member,cloneRosterMember(savedMember));}
+    }
+    this.needs=new Map((snapshot.needs??[]).map(need=>[need.objectiveId,cloneNeed(need)]));
+    this.operations=new Map((snapshot.operations??[]).map(operation=>[operation.id,cloneOperation(operation)]));
+    this.history=(snapshot.history??[]).map(entry=>({...entry,data:{...entry.data}}));
+    this.geography.importState(snapshot.geography);
+    for(const need of this.needs.values())if(need.status==="assigned"){need.status="open";need.operationId=null;need.lastChangedAt=now;}
+    this.#record("campaign_state_loaded",now,{operationSequence:this.operationSequence,factionCount:this.factions.size,needCount:this.needs.size});
+    return true;
   }
 
   #selectTeam(faction,need){
@@ -855,9 +1083,9 @@ export class LivingSandboxState{
 
   #assignResponsibilities(team,need){
     const [lead,specialist,security]=team;
-    const specialistLabel=need.kind==="recover_supplies"?"supply_handler":need.kind==="survey_route"?"survey_recorder":"objective_specialist";
+    const specialistLabel=need.kind==="recover_supplies"?"supply_handler":need.kind==="survey_route"?"survey_recorder":need.kind==="establish_forward_position"?"field_builder":"objective_specialist";
     return[
-      lead?{rosterId:lead.id,responsibility:need.kind==="survey_route"?"route_scout":"approach_lead"}:null,
+      lead?{rosterId:lead.id,responsibility:need.kind==="survey_route"?"route_scout":need.kind==="establish_forward_position"?"supply_lead":"approach_lead"}:null,
       specialist?{rosterId:specialist.id,responsibility:specialistLabel}:null,
       security?{rosterId:security.id,responsibility:"local_security"}:null
     ].filter(Boolean);
