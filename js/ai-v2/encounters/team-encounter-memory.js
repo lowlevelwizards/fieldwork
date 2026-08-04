@@ -1,9 +1,11 @@
 import { assessEncounterHypothesis, assessFriendlyCasualtyHypothesis, ENCOUNTER_STATES } from "./encounter-assessment.js";
+import { ContactResolutionService } from "./contact-resolution-service.js";
 
 export class TeamEncounterMemory{
   constructor({decisionLog=null}={}){
     this.decisionLog=decisionLog;
     this.byTeam=new Map();
+    this.contactResolution=new ContactResolutionService({decisionLog});
   }
 
   update({game=null,missions,teamKnowledge,teamUnderstanding=null,casualtyKnowledge=null,heardCommunications=null,teamProcedures=null,now=0}={}){
@@ -38,6 +40,11 @@ export class TeamEncounterMemory{
           ?assessFriendlyCasualtyHypothesis({mission,report:understoodReport,now})
           :assessEncounterHypothesis({mission,report:understoodReport,heardWarning,outgoingWarning,now});
         if(!assessed)continue;
+        if(mission.liveOperation&&entry.kind==="contact"&&assessed.subjectTeamId){
+          const relationship=understanding?.relationship??assessed.relationship??"unknown";
+          const contactResolution=this.contactResolution.assess({game,observerTeamId:mission.teamId,subjectTeamId:assessed.subjectTeamId,relationship,now});
+          if(contactResolution){assessed.contactResolution=contactResolution;if(contactResolution.materiallyRelevant){assessed.state=relationship==="hostile"?ENCOUNTER_STATES.POTENTIALLY_INCOMPATIBLE:ENCOUNTER_STATES.RELEVANT;assessed.relevanceScore=Math.max(assessed.relevanceScore??0,.88);assessed.reason=`${assessed.reason??"Opposing team recognized."} ${contactResolution.objectiveConflict?"Both teams require the same objective.":contactResolution.routeConflict?"Their projected movement corridors conflict.":"Safe team separation is no longer assured."}`;}}
+        }
         if(assessed.subjectKind==="friendly_casualty"){
           const casualty=(game?.actors??[]).find(actor=>actor.id===assessed.subjectId&&actor.teamId===mission.teamId)??null;
           const assessment=casualty&&!casualty.aiV2Evacuated?game?.wounds?.getAssessment?.(casualty)??null:null;
