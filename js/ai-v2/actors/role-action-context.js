@@ -143,8 +143,8 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
     const authored=mission?.recoveryPlan?.securitySector;
     if(authored)sector={...authored};
   }else if(["transport_casualty","secure_evacuation_route","rear_security_evacuation"].includes(need)){
-    const hypothesis=teamEncounters?.getBestTeamHypothesis?.(actor?.teamId)??null;
-    const casualtyId=hypothesis?.subjectKind==="friendly_casualty"?hypothesis.subjectId:null;
+    const hypothesis=(teamEncounters?.getTeamHypotheses?.(actor?.teamId)??[]).find(candidate=>candidate.subjectKind==="friendly_casualty")??null;
+    const casualtyId=hypothesis?.subjectId??null;
     const casualty=game?.actors?.find(candidate=>candidate.id===casualtyId)??null;
     const plan=mission?.evacuationPlan;
     const selected=evacuationRoutes?.getSelected?.(actor?.teamId)??null;
@@ -198,8 +198,8 @@ export function buildRoleActionContext({game,actor,role,procedure,mission,teamKn
       }
     }
   }else if(need==="recover_casualty"){
-    const hypothesis=teamEncounters?.getBestTeamHypothesis?.(actor?.teamId)??null;
-    const casualtyId=hypothesis?.subjectKind==="friendly_casualty"?hypothesis.subjectId:null;
+    const hypothesis=(teamEncounters?.getTeamHypotheses?.(actor?.teamId)??[]).find(candidate=>candidate.subjectKind==="friendly_casualty")??null;
+    const casualtyId=hypothesis?.subjectId??null;
     const casualty=game?.actors?.find(candidate=>candidate.id===casualtyId)??null;
     const plan=mission?.recoveryPlan;
     if(casualty&&plan?.recoveryPoint){
