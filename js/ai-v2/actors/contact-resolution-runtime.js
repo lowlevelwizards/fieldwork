@@ -28,7 +28,7 @@ export class ContactResolutionRuntime{
       const isShooter=index<shooterCount;
       const target=hostileTargets[index%Math.max(1,hostileTargets.length)]??null;
       const directive={focus:{...spatial.otherCenter},targetPoint:target?{x:target.x,y:target.y}:{...spatial.otherCenter},targetActorId:target?.id??null,subjectTeamId:encounter.subjectTeamId,maximumRounds:6,task:"Hostile contact",label:"Opposing team",reason:"Confirmed hostile contact governs a bounded engagement while shooters distribute attention across active threats.",provenance:{owner:"contact_resolution_runtime",source:"governing_response",responseId:response.selected.id,subjectTeamId:encounter.subjectTeamId}};
-      const action=isShooter&&target?new ContactFireAction({actorId:actor.id,directive}):new HoldReadyAction({actorId:actor.id,directive});
+      const action=isShooter?new ContactFireAction({actorId:actor.id,directive}):new HoldReadyAction({actorId:actor.id,directive});
       this.#submit(actor,action,response,now,isShooter?1:.94);return;
     }
     if(mode==="avoid"&&String(response.teamId).localeCompare(String(encounter.subjectTeamId??""))<0){actor.operationPausedByEncounter=false;return;}
