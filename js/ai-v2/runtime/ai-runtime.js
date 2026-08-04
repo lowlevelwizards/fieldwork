@@ -4,6 +4,8 @@ import { ReportContactAction } from "../actions/report-contact-action.js";
 import { ReportContactUpdateAction } from "../actions/report-contact-update-action.js";
 import { ReportCasualtyAction } from "../actions/report-casualty-action.js";
 import { ActorInitiativeRuntime } from "../actors/actor-initiative-runtime.js";
+import { ActorTacticalPictureService } from "../actors/actor-tactical-picture-service.js";
+import { ActorTacticalDeliberationRuntime } from "../actors/actor-tactical-deliberation-runtime.js";
 import { RoleActionRuntime } from "../actors/role-action-runtime.js";
 import { LocalAutonomyRuntime } from "../actors/local-autonomy-runtime.js";
 import { OperationalTravelRuntime } from "../actors/operational-travel-runtime.js";
@@ -102,6 +104,8 @@ export class AIV2Runtime{
     this.operationalTravel=new OperationalTravelRuntime({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
     this.directionalCover=new DirectionalCoverService();
+    this.tacticalPictures=new ActorTacticalPictureService({directionalCover:this.directionalCover,decisionLog:this.decisionLog});
+    this.tacticalDeliberation=new ActorTacticalDeliberationRuntime({arbiter:this.actionArbiter,decisionLog:this.decisionLog});
     this.evacuationRoutes=new EvacuationRouteService({decisionLog:this.decisionLog});
     this.destinationClaims=new DestinationClaimService({decisionLog:this.decisionLog});
     this.positionSlots=new PositionSlotClaimService({decisionLog:this.decisionLog});
@@ -173,6 +177,8 @@ export class AIV2Runtime{
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.teamAgenda.update({missions:this.teamMissions,teamResponses:this.teamResponses,objectives:this.objectives,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamAgenda,now:this.elapsed});
+    this.tacticalPictures.update({game:this.game,personalKnowledge:this.personalKnowledge,teamKnowledge:this.teamKnowledge,threatKnowledge:this.threatKnowledge,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,now:this.elapsed});
+    this.tacticalDeliberation.update({game:this.game,tacticalPictures:this.tacticalPictures,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,now:this.elapsed});
     this.contactResolution.update({game:this.game,teamResponses:this.teamResponses,teamEncounters:this.teamEncounters,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.operationalTravel.update({game:this.game,teamAgenda:this.teamAgenda,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.roleActions.update({
@@ -372,6 +378,8 @@ export class AIV2Runtime{
         localAutonomy:this.localAutonomy,
         operationalTravel:this.operationalTravel,
         contactResolution:this.contactResolution,
+        tacticalPictures:this.tacticalPictures,
+        tacticalDeliberation:this.tacticalDeliberation,
         authorityTiers:ACTION_AUTHORITY_TIERS,
         ambientPerception:this.ambientPerception,
         teamProcedures:this.teamProcedures,
