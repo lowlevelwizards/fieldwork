@@ -8,8 +8,8 @@ function capability(actor,key,fallback=0){const value=Number(actor?.aiV2Capabili
 function approachTransition(nextPhase){
   return transition("objective_position_reached",{
     from:"approach_objective",
-    to:record=>(record.objective?.arrivedRoles?.length??0)>=3?nextPhase:"approach_objective",
-    reason:"All three field responsibilities occupy distinct positions before the operation advances.",
+    to:record=>Boolean(record.objective?.arrivedRoles?.includes("objective_specialist")&&record.objective?.arrivedRoles?.some(roleId=>roleId!=="objective_specialist"))?nextPhase:"approach_objective",
+    reason:"The specialist has access and at least one teammate has established useful local coverage; the remaining role may adapt instead of completing a fixed formation.",
     apply:(record,{data})=>{
       record.objective=record.objective??{arrivedRoles:[]};
       record.objective.arrivedRoles=record.objective.arrivedRoles??[];

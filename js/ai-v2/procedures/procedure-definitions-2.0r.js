@@ -48,8 +48,8 @@ const RESTORE_OBJECTIVE=Object.freeze({
   transitions:Object.freeze([
     transition("objective_position_reached",{
       from:"approach_objective",
-      to:record=>(record.objective?.arrivedRoles?.length??0)>=3?"inspect_objective":"approach_objective",
-      reason:"The team records each distinct objective position and begins inspection only after all three responsibilities are physically established.",
+      to:record=>Boolean(record.objective?.arrivedRoles?.includes("objective_specialist")&&record.objective?.arrivedRoles?.some(roleId=>roleId!=="objective_specialist"))?"inspect_objective":"approach_objective",
+      reason:"Inspection begins once the specialist has access and one teammate provides useful local coverage; exact formation geometry is not required.",
       apply:(record,{data})=>{
         record.objective=record.objective??{arrivedRoles:[]};
         record.objective.arrivedRoles=record.objective.arrivedRoles??[];

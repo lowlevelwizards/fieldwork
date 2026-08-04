@@ -29,8 +29,8 @@ const ESTABLISH_FORWARD_POSITION=Object.freeze({
   transitions:Object.freeze([
     transition("objective_position_reached",{
       from:"approach_objective",
-      to:record=>(record.objective?.arrivedRoles?.length??0)>=3?"inspect_objective":"approach_objective",
-      reason:"All field-position responsibilities occupy distinct sites before construction begins.",
+      to:record=>Boolean(record.objective?.arrivedRoles?.includes("objective_specialist")&&record.objective?.arrivedRoles?.some(roleId=>roleId!=="objective_specialist"))?"inspect_objective":"approach_objective",
+      reason:"The builder has access and at least one teammate has established useful local coverage; the remaining role may adapt to terrain and contact.",
       apply:(record,{data})=>{record.objective=record.objective??{arrivedRoles:[]};record.objective.arrivedRoles=record.objective.arrivedRoles??[];if(data?.roleId&&!record.objective.arrivedRoles.includes(data.roleId))record.objective.arrivedRoles.push(data.roleId);record.objective.objectiveId=data?.objectiveId??record.objective.objectiveId??null;}
     }),
     transition("objective_inspected",{from:"inspect_objective",to:"perform_objective_work",reason:"The site is connected and buildable.",apply:(record,{data})=>{record.objective={...(record.objective??{}),objectiveId:data?.objectiveId??null,inspected:true};}}),
