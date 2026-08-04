@@ -8,8 +8,21 @@ function cloneSelection(selection){
     ...selection,
     objectivePoint:{...selection.objectivePoint},
     vector:{...selection.vector},
-    rolePoints:Object.fromEntries(Object.entries(selection.rolePoints).map(([key,value])=>[key,{...value}]))
+    rolePoints:Object.fromEntries(Object.entries(selection.rolePoints).map(([key,value])=>[key,{...value}])),
+    responsibilityZones:selection.responsibilityZones?Object.fromEntries(Object.entries(selection.responsibilityZones).map(([key,value])=>[key,{...value,center:{...value.center}}])):null,
+    utility:selection.utility?{...selection.utility}:null
   }:null;
+}
+
+
+function nearbyCoverUtility(game,point,maximumDistance=180){
+  let best=0;
+  for(const obstacle of game?.map?.obstacles??[]){
+    const radius=Math.max(18,Number(obstacle.radius)||36);
+    const edge=Math.max(0,distance(point,obstacle)-radius);
+    best=Math.max(best,clamp(1-edge/Math.max(1,maximumDistance)));
+  }
+  return best;
 }
 
 function center(actors=[]){
@@ -52,6 +65,10 @@ export class ObjectiveApproachService{
       const travelUtility=clamp(1-travel/Math.max(1,plan.maximumTravel??1400));
       const spacingUtility=clamp(spread/Math.max(1,roleSpacing*1.2));
       const directness=clamp(1-distance(teamCenter,rolePoints.objective_specialist)/Math.max(1,plan.maximumTravel??1400));
+      const specialistCover=nearbyCoverUtility(game,rolePoints.objective_specialist,210);
+      const securityCover=nearbyCoverUtility(game,rolePoints.local_security,240);
+      const fallbackPoint={x:stage.x+direction.x*110,y:stage.y+direction.y*110};
+      const fallbackClear=isActorPositionClear(game,fallbackPoint.x,fallbackPoint.y,18)?1:0;
       candidates.push({
         id:`${objective.id}:${direction.id}`,
         objectiveId:objective.id,
@@ -59,7 +76,14 @@ export class ObjectiveApproachService{
         objectivePoint:{x:objective.x,y:objective.y},
         vector:{x:direction.x,y:direction.y},
         rolePoints,
-        score:travelUtility*.48+directness*.38+spacingUtility*.14
+        responsibilityZones:{
+          objectiveAccess:{center:{...rolePoints.objective_specialist},radius:Math.max(32,interactionDistance*.55)},
+          securityCoverage:{center:{...rolePoints.local_security},radius:Math.max(90,roleSpacing)},
+          supportRange:{center:{...stage},radius:Math.max(120,roleSpacing*1.45)},
+          fallbackAccess:{center:fallbackPoint,radius:70}
+        },
+        utility:{travel:travelUtility,directness,spacing:spacingUtility,specialistCover,securityCover,fallback:fallbackClear},
+        score:travelUtility*.31+directness*.24+spacingUtility*.08+specialistCover*.14+securityCover*.17+fallbackClear*.06
       });
     }
 
