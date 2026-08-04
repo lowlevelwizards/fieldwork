@@ -1,5 +1,10 @@
 # Fieldwork AI V2
 
+## 2.7 continuous tactical deliberation
+
+Procedures define responsibilities and constraints; the new tactical-picture and deliberation services continuously let actors propose locally sensible ways to fulfill them. Personal perception, threat memory, suppression, wounds, cover, spacing, and responsibility are consolidated before atomic actions compete through the authority arbiter.
+
+
 AI V2 is a parallel causal runtime. It does not import or advance the legacy tactical decision authorities.
 
 ## Current milestone: 2.0P
