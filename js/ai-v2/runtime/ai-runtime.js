@@ -123,6 +123,7 @@ export class AIV2Runtime{
 
   update(delta){
     this.elapsed+=delta;
+    for(const actor of this.game?.actors??[])actor.aiV2Suppression=Math.max(0,Number(actor.aiV2Suppression??0)-Math.max(0,delta)*(actor.aiV2ThreatReaction?.status==="moving_to_cover"?2.5:5.5));
     this.visibleByObserver=new Map();
     this.objectives.syncFromGame(this.game);
     this.teamMissions.syncFromGame(this.game);
