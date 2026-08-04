@@ -1,0 +1,31 @@
+name: Temporary 2.3 audit export
+on:
+  pull_request:
+    branches: [AI-2.0]
+    paths: ['.github/workflows/temporary-2.3-audit-export.yml']
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: AI-2.0
+      - name: Package exact branch source
+        run: |
+          zip -qr fieldwork-2.3-current.zip . -x '.git/*' 'fieldwork-2.3-current.zip'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fieldwork-2.3-audit-source
+          path: fieldwork-2.3-current.zip
+          retention-days: 1
+      - name: Close trigger PR and delete branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          gh pr close "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" || true
+          git push origin --delete "$HEAD_REF" || true
