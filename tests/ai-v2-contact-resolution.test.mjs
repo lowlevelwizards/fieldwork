@@ -27,3 +27,13 @@ test("shared objective access selects contest while hostile contact selects enga
  const hostile={...spatial,relationship:"hostile",kind:"engage"};
  assert.equal(evaluateTeamResponses({mission:mission("team_a"),encounter:encounter(hostile,"hostile")}).selected.id,"engage_contact");
 });
+
+
+test("a pass-through contract remains fire-safe but still requires physical separation",()=>{
+ const game={actors:[actor("a1","team_a","northline",100,100,1,0),actor("b1","team_b","commune",360,100,-1,0)]};
+ const spatial=new ContactResolutionService().assess({game,observerTeamId:"team_a",subjectTeamId:"team_b",relationship:"deconflicting",now:3});
+ assert.equal(spatial.materiallyRelevant,true);
+ assert.equal(spatial.kind,"avoid");
+ const result=evaluateTeamResponses({mission:mission("team_a"),encounter:encounter(spatial,"deconflicting")});
+ assert.equal(result.selected.id,"avoid_contact");
+});
