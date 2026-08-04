@@ -1,0 +1,20 @@
+Fieldwork 2.5b — Live Sandbox Correction
+
+- Live campaign panel refreshes from simulation elapsed time rather than the static world clock.
+- Deployed, wounded, dead, and score values now reflect current live state.
+- Objective score is awarded when useful work completes, with duplicate-award protection on return.
+- Neutral route conflicts use deterministic right-of-way and one-sided sidestepping rather than reciprocal retreat loops.
+- Contested teams occupy persistent access positions instead of repeatedly abandoning and re-approaching the same objective.
+- Hostile/contested relevance begins farther out and persists with release hysteresis.
+- A larger portion of a hostile team may conduct bounded fire, with longer bounded bursts.
+- Casualty recovery explicitly tracks the friendly casualty even when hostile contact is the team's highest-priority threat.
+- Aid providers are protected from contact-resolution preemption while security operators retain the contact response.
+- Live roster health/status updates occur while operators remain deployed.
+- Spectator panning is unbounded; spectator zoom range is 0.03x–3x and zooms around screen center.
+- Follow Team continuously follows the living team centroid and manual camera input releases follow mode.
+
+Validation:
+- Syntax: 191 JavaScript modules
+- Imports: 159 reachable modules, no cycles or retired duplicates
+- Focused contact, casualty, hostile-priority, live-fire, and 2.4 living-sandbox regressions pass.
+- Full repository run reached 39 passing tests before the existing Node test process exceeded the execution window; no failure was reported before timeout.
