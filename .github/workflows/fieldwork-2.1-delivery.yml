@@ -4,10 +4,7 @@ on:
   pull_request:
     branches:
       - AI-2.0
-    types:
-      - opened
-      - synchronize
-      - reopened
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
@@ -28,8 +25,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .delivery/fieldwork-2.1.part-* > /tmp/fieldwork-2.1.patch.xz.b64
-          base64 --decode /tmp/fieldwork-2.1.patch.xz.b64 | xz --decompress > /tmp/fieldwork-2.1.patch
+          test "$(wc -c < .delivery/fieldwork-2.1.part-00)" = "18000"
+          test "$(wc -c < .delivery/fieldwork-2.1.part-01)" = "10488"
+          test "$(sha256sum .delivery/fieldwork-2.1.part-00 | cut -d' ' -f1)" = "6e1eb7279fce898299c6c494a02192402356116e10fb9b6432c387d857d228b2"
+          test "$(sha256sum .delivery/fieldwork-2.1.part-01 | cut -d' ' -f1)" = "ae5810d3d5f3b02d947af75e7badc6904c141d896ded998894fe598c5ea0b239"
+          cat .delivery/fieldwork-2.1.part-00 .delivery/fieldwork-2.1.part-01 > /tmp/fieldwork-2.1.patch.xz.b64
+          test "$(sha256sum /tmp/fieldwork-2.1.patch.xz.b64 | cut -d' ' -f1)" = "46a9d423449629dc698f6fb968bc1bf2061537b6db8b28c682d387947a0d1fb3"
+          base64 --decode /tmp/fieldwork-2.1.patch.xz.b64 > /tmp/fieldwork-2.1.patch.xz
+          xz --test /tmp/fieldwork-2.1.patch.xz
+          xz --decompress --stdout /tmp/fieldwork-2.1.patch.xz > /tmp/fieldwork-2.1.patch
           test -s /tmp/fieldwork-2.1.patch
 
       - name: Apply Fieldwork 2.1 to current AI-2.0
@@ -73,5 +77,4 @@ jobs:
 
       - name: Remove staging branch
         if: success()
-        shell: bash
         run: git push origin --delete agent/2.1-live-sandbox-staging || true
