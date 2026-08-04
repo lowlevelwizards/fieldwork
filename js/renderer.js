@@ -55,11 +55,13 @@ export class Renderer{
   }finally{
     ctx.restore();
   }
-  this.#drawPlayerVisionConeScreen(ctx,game);
-  this.#drawInteractionPromptScreen(ctx,game);
-  this.#drawCombatAimScreen(ctx,game);
-  this.#drawSuppressionScreen(ctx,game);
-  this.#drawWoundScreen(ctx,game);
+  if(game.scenarioMode!=="live"){
+   this.#drawPlayerVisionConeScreen(ctx,game);
+   this.#drawInteractionPromptScreen(ctx,game);
+   this.#drawCombatAimScreen(ctx,game);
+   this.#drawSuppressionScreen(ctx,game);
+   this.#drawWoundScreen(ctx,game);
+  }
   if(game.weather==="Rain"||game.weather==="Heavy Rain")this.#drawRain(ctx,w,h,game.weather==="Heavy Rain"?1.65:1);
   this.#drawEnvironmentOverlay(ctx,w,h,game);
  }
@@ -296,13 +298,14 @@ export class Renderer{
   }
 
   game.operator.backpackLoadRatio=game.inventory.getUsedPips()/game.backpack.capacityPips;
-  if(game.scenarioMode==="live"&&game.operator.aiSpectatorHidden)return;
-  const carried=game.getHeldItem();
-  entries.push({
-    y:game.operator.y+game.operator.radius,
-    id:`operator:${game.operator.id}`,
-    draw:()=>this.#drawPlayer(ctx,game.operator,carried)
-  });
+  if(!(game.scenarioMode==="live"&&game.operator.aiSpectatorHidden)){
+   const carried=game.getHeldItem();
+   entries.push({
+     y:game.operator.y+game.operator.radius,
+     id:`operator:${game.operator.id}`,
+     draw:()=>this.#drawPlayer(ctx,game.operator,carried)
+   });
+  }
 
   entries.sort((a,b)=>a.y-b.y);
   for(const entry of entries){

@@ -54,12 +54,26 @@ function refreshContinueButton(){const button=$("#continue-campaign-button");if(
 refreshContinueButton();
 
 const camera=new Camera();let game=new ContinuousGameState({scenario:"operations",aiRuntime:selectedAIRuntime(),sandboxFixture:selectedSandboxFixture()});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
-const sandboxButton=$("#sandbox-button"),liveSandboxButton=$("#live-sandbox-button"),continueCampaignButton=$("#continue-campaign-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
+const sandboxButton=$("#sandbox-button"),liveSandboxButton=$("#live-sandbox-button"),continueCampaignButton=$("#continue-campaign-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill"),joystickZone=$("#joystick-zone"),backpackButton=$("#backpack-button");
 let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null,simulationPaused=false,simulationSpeed=1,lastLiveDashboardAt=-Infinity,lastCampaignAutosaveAt=-Infinity,spectatorTeamIndex=-1,spectatorStoryIndex=-1,spectatorDragging=false,spectatorPointer=null,spectatorPointers=new Map(),spectatorPinchDistance=0;
+
+function syncSpectatorPresentation(){
+ const spectator=game.scenarioMode==="live";
+ document.documentElement.classList.toggle("spectator-only",spectator);
+ if(joystickZone)joystickZone.hidden=spectator;
+ if(backpackButton)backpackButton.hidden=spectator;
+ if(combatControls)combatControls.hidden=spectator||!game.combat?.weaponAvailable;
+ if(interactButton&&spectator)interactButton.hidden=true;
+ if(spectator){
+  game.combat?.toggleAim?.(false);
+  input.reset?.();
+ }
+}
 function resizeAndCenter(reason="viewport"){
   renderer.resize();
   if(game.scenarioMode==="live"){game.operator.aiSpectatorHidden=true;game.operator.lockedByInteraction=true;camera.setSpectatorMode(true);camera.fitBounds(game.map?.worldBounds??{width:7600,height:4200});}
   else{camera.setSpectatorMode(false);camera.lockTo(game.operator);}
+  syncSpectatorPresentation();
   console.info("Viewport synchronized",{build:BUILD_ID,reason,operator:{x:game.operator.x,y:game.operator.y},camera:{x:camera.x,y:camera.y,width:camera.width,height:camera.height}});
 }
 function startGame(scenario="operations",campaignSnapshot=null){
@@ -117,6 +131,9 @@ function updateInteractionUI(){
   n.style.opacity=String(Math.min(1,m.time/.25));
   return n;
  }));
+ if(game.scenarioMode==="live"){
+  interactButton.hidden=true;searchStatus.hidden=true;searchFill.style.width="0%";return;
+ }
  $("#pack-usage-compact").textContent=`${game.inventory.getUsedPips()}/8`;
 
  const action=game.interaction.activeAction;
@@ -232,6 +249,7 @@ if(game.aiRuntimeMode==="v2"){
 const errors=validateItemLocations(game);$("#debug-audit").textContent=errors.length?`${errors.length} issue(s)`:"OK";}
 function updateCombatUI(){
  const combat=game.combat;
+ if(game.scenarioMode==="live"){combat.toggleAim?.(false);combatControls.hidden=true;return;}
  const available=combat.weaponAvailable;
  combatControls.hidden=!available;
  if(!available){
@@ -492,7 +510,7 @@ function restartLive(){
  updateLiveDashboard(true);
 }
 
-function frame(now){const realDelta=Math.min((now-lastTime)/1000,.033);const delta=simulationPaused?0:realDelta*simulationSpeed;lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.update(game,realDelta);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;$("#weather-icon").textContent=game.isNight?.()?"☾":game.weather==="Rain"||game.weather==="Heavy Rain"?"☂":game.weather==="Cloudy"?"☁":game.weather==="Fog"?"≋":"☀";updateObjective();updateCompass();updateCombatUI();updateMedicalUI();updateLiveDashboard();if(game.scenarioMode==="live"&&game.operations?.elapsed-lastCampaignAutosaveAt>=18){lastCampaignAutosaveAt=game.operations.elapsed;saveLiveCampaign({silent:true});}if(!$("#debug-panel").hidden)updateDebug(realDelta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
+function frame(now){const realDelta=Math.min((now-lastTime)/1000,.033);const delta=simulationPaused?0:realDelta*simulationSpeed;lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,game.scenarioMode==="live"||inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());syncSpectatorPresentation();camera.update(game,realDelta);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;$("#weather-icon").textContent=game.isNight?.()?"☾":game.weather==="Rain"||game.weather==="Heavy Rain"?"☂":game.weather==="Cloudy"?"☁":game.weather==="Fog"?"≋":"☀";updateObjective();updateCompass();updateCombatUI();updateMedicalUI();updateLiveDashboard();if(game.scenarioMode==="live"&&game.operations?.elapsed-lastCampaignAutosaveAt>=18){lastCampaignAutosaveAt=game.operations.elapsed;saveLiveCampaign({silent:true});}if(!$("#debug-panel").hidden)updateDebug(realDelta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
 function recoverPosition(source){const before={x:game.operator.x,y:game.operator.y};game.resetPosition();camera.snapTo(game.operator);console.info("Fieldwork position recovery",{build:BUILD_ID,source,before,after:{x:game.operator.x,y:game.operator.y}});}
 
 
