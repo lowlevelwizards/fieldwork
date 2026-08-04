@@ -1,3 +1,15 @@
+
+## 2.6 — Adaptive Actor Tactics & Procedural Flexibility
+
+- Incoming fire now owns locomotion, attention, and stance at Immediate Survival authority and drives exposed actors toward directional cover or a lateral emergency evasion point.
+- Conscious operators with treatable uncontrolled bleeding can suspend ordinary mission travel and perform self aid from their own finite medical supplies.
+- Contact fire excludes dead, unconscious, and critical/incapable bodies from ordinary target selection and bullet intersection.
+- Engagement shooters are limited and distributed across distinct active threats; remaining operators hold security rather than stacking fire on one target.
+- V2 marksmanship now incorporates movement, suppression, injury, and accumulating recoil into shot deviation.
+- Suppression decays over time and incoming rounds continuously refresh survival evidence.
+- Objective approach selection now samples additional terrain-responsive radial approaches while retaining stable cardinal behavior.
+- Objective procedures can advance once the specialist has access and useful local coverage exists; they no longer require every role to complete a decorative three-point formation.
+- Approach leads may preserve an already useful position, and local security can select visibility- or threat-informed terrain positions.
 ## Fieldwork 2.5 — Faction Contact Resolution & Hostile Contention
 
 - Added spatially grounded opposing-team contact obligations.
