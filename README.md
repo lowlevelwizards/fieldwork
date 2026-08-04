@@ -1,4 +1,4 @@
-# Fieldwork 2.4 — Team Recognition, Deconfliction & Local Cooperation
+# Fieldwork 2.5 — Team Recognition, Deconfliction & Local Cooperation
 
 Fieldwork is an isometric extraction-survival sandbox about persistent small teams doing necessary work in an unstable shared landscape. Build 2.4 extends the authority-constrained live campaign with team-level recognition: operators can aggregate sightings into a practical understanding of another field team, infer visible work or distress, pass safely, divide local security, contribute bounded assistance, or retain the existing warning and breakaway path when operations are genuinely incompatible.
 

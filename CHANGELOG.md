@@ -1,3 +1,11 @@
+## Fieldwork 2.5 — Faction Contact Resolution & Hostile Contention
+
+- Added spatially grounded opposing-team contact obligations.
+- Added avoid, contest, and hostile-contact response options.
+- Added physical circumvention/contest positioning through the authority arbiter.
+- Added active spectator world bounds, free pan, wheel zoom, and pinch zoom.
+- Disabled the player avatar in Live Sandbox observation mode.
+
 # Fieldwork 2.4
 
 ## Team Recognition, Deconfliction & Local Cooperation
