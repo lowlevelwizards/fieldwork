@@ -5,7 +5,7 @@ export class InvariantMonitor{
     this.signature="";
   }
 
-  inspect(snapshot,{now=0,procedures=[],roleActions=[],operationalTravel=[],rolePositions=[],defensivePositions=[],destinationClaims=[],positionSlots=[],patientClaims=[],scheduler=null}={}){
+  inspect(snapshot,{now=0,procedures=[],roleActions=[],operationalTravel=[],rolePositions=[],defensivePositions=[],destinationClaims=[],positionSlots=[],patientClaims=[],scheduler=null,actionArbiter=[]}={}){
     const violations=[];
     const ids=new Set();
     for(const actor of snapshot.actors){
@@ -15,13 +15,24 @@ export class InvariantMonitor{
     }
 
     const travelByActor=new Map((operationalTravel??[]).map(item=>[item.actorId,item]));
+    const arbiterByActor=new Map((actionArbiter??[]).map(item=>[item.actorId,item]));
     const roleActionByActor=new Map();
     for(const assignment of roleActions){
       if(roleActionByActor.has(assignment.actorId))violations.push({code:"duplicate_role_action_assignment",actorId:assignment.actorId});
       roleActionByActor.set(assignment.actorId,assignment);
       if(!ids.has(assignment.actorId))violations.push({code:"unknown_role_action_actor",actorId:assignment.actorId});
       if(scheduler&&!scheduler.hasAction(assignment.actorId,assignment.actionType)&&!scheduler.hasAction(assignment.actorId,"FollowOperationRoute")){
-        violations.push({code:"role_action_not_scheduled",actorId:assignment.actorId,actionType:assignment.actionType});
+        const trace=arbiterByActor.get(assignment.actorId);
+        const rejected=trace?.rejected?.find(proposal=>proposal.actionType===assignment.actionType)??null;
+        const highestActive=Math.max(...(trace?.active??[]).map(action=>Number(action.priority)||0),0);
+        const deliberatelyPreempted=Boolean(
+          highestActive>=500||
+          (rejected&&(
+            rejected.resultReason==="higher_authority_proposal_owns_channel"||
+            (String(rejected.resultReason??"").startsWith("channel_busy:")&&highestActive>=Number(rejected.authorityTier??0))
+          ))
+        );
+        if(!deliberatelyPreempted)violations.push({code:"role_action_not_scheduled",actorId:assignment.actorId,actionType:assignment.actionType});
       }
     }
 

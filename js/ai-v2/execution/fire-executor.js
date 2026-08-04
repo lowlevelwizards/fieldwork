@@ -61,9 +61,13 @@ export class FireExecutor{
       y:origin.y+Math.sin(shotAngle)*targetDistance
     };
 
+    const relationships=game?.aiV2?.relationships??null;
+    const protectedFriendly=candidate=>candidate&&relationships
+      ?relationships.isProtectedFriendly(actor,candidate,{now:game.aiV2?.elapsed??0})
+      :candidate?.teamId===actor.teamId||Boolean(candidate?.factionId&&candidate.factionId===actor.factionId);
     let friendlyBlock=null;
     for(const friendly of game.actors??[]){
-      if(friendly.id===actor.id||friendly.teamId!==actor.teamId||friendly.medical?.dead)continue;
+      if(friendly.id===actor.id||!protectedFriendly(friendly)||friendly.medical?.dead)continue;
       const hit=segmentCircleHit(origin,intended,{x:friendly.x,y:friendly.y,radius:(friendly.radius??18)+8});
       if(hit&&(!friendlyBlock||hit.t<friendlyBlock.hit.t))friendlyBlock={friendly,hit};
     }
@@ -84,7 +88,7 @@ export class FireExecutor{
     }
     let actorIntersection=null;
     for(const candidate of game.actors??[]){
-      if(candidate.id===actor.id||candidate.teamId===actor.teamId||candidate.medical?.dead)continue;
+      if(candidate.id===actor.id||protectedFriendly(candidate)||candidate.medical?.dead)continue;
       const hit=segmentCircleHit(origin,intended,{x:candidate.x,y:candidate.y,radius:Math.max(10,(candidate.radius??18)*.72)});
       if(hit&&hit.t<nearest.t&&(!actorIntersection||hit.t<actorIntersection.hit.t))actorIntersection={candidate,hit};
     }
@@ -104,7 +108,7 @@ export class FireExecutor{
 
     let nearestThreat=null;
     for(const candidate of game.actors??[]){
-      if(candidate.teamId===actor.teamId||candidate.medical?.dead)continue;
+      if(protectedFriendly(candidate)||candidate.medical?.dead)continue;
       const miss=this.#pointSegmentDistance(candidate,origin,nearest.point);
       if(miss<=115)candidate.aiV2Suppression=clamp((candidate.aiV2Suppression??0)+18*(1-miss/115),0,100);
       if(miss>128)continue;
@@ -151,6 +155,7 @@ export class FireExecutor{
         targetActorId:nearestThreat.candidate.id,
         sourceActorId:actor.id,
         sourceTeamId:actor.teamId,
+        sourceFactionId:actor.factionId??null,
         sourcePoint:{...origin},
         impactPoint:{...nearest.point},
         nearMissDistance:nearestThreat.miss,

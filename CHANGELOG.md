@@ -1,3 +1,17 @@
+# Fieldwork 2.4
+
+## Team Recognition, Deconfliction & Local Cooperation
+
+- Corrected Live Sandbox roster kits so Northline, Commune, and Freelancers use their real faction visual families instead of the generic fallback.
+- Added faction-colored operator halos, persistent team labels, relationship links, a fit-map spectator camera, free pan/zoom, team cycling, and story-event focus.
+- Added a shared relationship resolver used by warnings, firing-line safety, suppression, and encounter interpretation.
+- Made separate teams from the same faction protected friendlies that cannot warn, suppress, shoot, or wound one another.
+- Added team-contact understanding that aggregates observed operators into recognized teams with faction confidence, visible-operation hypotheses, distress state, and local interaction protocols.
+- Added temporary pass-through, parallel-work, shared-security, and casualty-aid contracts without merging team missions or physical authority.
+- Added authority-constrained inter-team spacing, cooperative objective assistance, and bounded cross-team stabilization actions.
+- Preserved incompatible contested operations, warning/refusal, demonstrative fire, protective breakaway, persistent consequences, operational geography, and campaign saves.
+- Added regressions for all-faction spawning, real faction kits, warning/fire safety, team recognition, deconfliction, compatible work, casualty aid, natural assistance, and continued armed contention.
+
 # Fieldwork 2.0P
 
 ## Actor Initiative & Protective Breakaway

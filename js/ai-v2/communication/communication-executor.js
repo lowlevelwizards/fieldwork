@@ -84,20 +84,22 @@ export class CommunicationExecutor{
     return{status:"completed",progress:1,recipientIds:validRecipientIds};
   }
 
-  findDirectedRecipients(game,speaker,{targetPoint,range=1120,coneDegrees=88}={}){
+  findDirectedRecipients(game,speaker,{targetPoint,range=1120,coneDegrees=88,targetTeamId=null}={}){
     if(!speaker?.teamId||!targetPoint)return[];
     const centerAngle=directedAngleTo(speaker,targetPoint);
     const halfCone=Math.max(10,Math.min(180,coneDegrees))*Math.PI/360;
     return game.actors.filter(actor=>{
       if(actor.id===speaker.id||actor.teamId===speaker.teamId||actor.medical?.dead||actor.medical?.unconscious)return false;
+      if(targetTeamId&&actor.teamId!==targetTeamId)return false;
+      if(game?.aiV2?.relationships&&!game.aiV2.relationships.canWarn(speaker,actor,{now:game.aiV2.elapsed??0}))return false;
       if(distanceBetween(actor,speaker)>range)return false;
       const angle=directedAngleTo(speaker,actor);
       return Math.abs(normalizeAngle(angle-centerAngle))<=halfCone;
     });
   }
 
-  beginDirectedWarning({game,speaker,targetPoint,message,warningType="stop_and_identify",now=0,range=1120,coneDegrees=88,duration=1.45}={}){
-    const recipients=this.findDirectedRecipients(game,speaker,{targetPoint,range,coneDegrees});
+  beginDirectedWarning({game,speaker,targetPoint,message,warningType="stop_and_identify",now=0,range=1120,coneDegrees=88,duration=1.45,targetTeamId=null}={}){
+    const recipients=this.findDirectedRecipients(game,speaker,{targetPoint,range,coneDegrees,targetTeamId});
     if(!speaker||!targetPoint||!message||!recipients.length)return null;
     return{
       method:"raised_voice",
@@ -113,6 +115,7 @@ export class CommunicationExecutor{
       duration:Math.max(.3,duration),
       range,
       coneDegrees,
+      targetTeamId,
       completed:false
     };
   }
@@ -129,7 +132,8 @@ export class CommunicationExecutor{
     const currentlyAudible=new Set(this.findDirectedRecipients(game,speaker,{
       targetPoint:session.targetPoint,
       range:session.range,
-      coneDegrees:session.coneDegrees
+      coneDegrees:session.coneDegrees,
+      targetTeamId:session.targetTeamId??null
     }).map(actor=>actor.id));
     const validRecipientIds=session.recipientIds.filter(id=>currentlyAudible.has(id));
     if(!validRecipientIds.length)return{status:"failed",reason:"no_recipients_in_directed_voice",progress:1,recipientIds:[]};

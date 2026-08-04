@@ -15,7 +15,8 @@ function boundaryAssessment(boundary,encounter,informationCertainty){
   const activityAllowed=boundary.allowedActivities?.includes(encounter.activity)??false;
   const activityReady=boundary.requireActivityUpdate?encounter.reportKind==="activity_update"&&activityAllowed:true;
   const confidenceReady=(encounter.reportConfidence??0)>=boundary.minimumConfidence;
-  const trigger=inside&&activityReady&&confidenceReady&&encounter.intent!=="hostile"&&!encounter.warningIssued;
+  const protectedRelationship=["same_faction","cooperating","deconflicting","own_team"].includes(encounter.relationship);
+  const trigger=inside&&activityReady&&confidenceReady&&!protectedRelationship&&encounter.intent!=="hostile"&&!encounter.warningIssued;
   return{
     established:true,
     inside,
@@ -165,6 +166,16 @@ export function buildTeamDecisionLedger({mission,encounter,outcome=null}={}){
     positionLabel:context.positionLabel,
     exitLabel:context.exitLabel,
     evidenceLabel:`${Math.round(encounter.reportConfidence??0)}% second-hand contact report`,
+    recognizedTeam:encounter.subjectTeamId?1:0,
+    sameFaction:encounter.relationship==="same_faction"?1:0,
+    cooperating:encounter.relationship==="cooperating"?1:0,
+    deconflicting:encounter.relationship==="deconflicting"?1:0,
+    nonHostileRelationship:["same_faction","cooperating","deconflicting"].includes(encounter.relationship)?1:0,
+    compatibleOperation:["coordinate_locally","parallel_work_candidate","pass_through","area_secure_pass_around","pass_and_exchange"].includes(encounter.interactionProtocol)?1:0,
+    distressObserved:encounter.distress?.active?1:0,
+    interactionProtocol:encounter.interactionProtocol??null,
+    relationship:encounter.relationship??"unknown",
+    operationHypothesis:encounter.operationHypothesis?{...encounter.operationHypothesis}:null,
     responseBias:{...(mission.responseBias??{})}
   };
 }

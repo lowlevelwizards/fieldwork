@@ -3,6 +3,13 @@ import { drawOperator } from "./presentation/operator-renderer.js";
 import { drawWorldEntity } from "./presentation/world-entity-renderer.js";
 import { findEntity } from "./world-entities.js";
 
+const LIVE_FACTION_STYLE=Object.freeze({
+  northline:{label:"NORTHLINE",stroke:"#d5b45b",fill:"rgba(213,180,91,.14)",text:"#f0d889"},
+  commune:{label:"COMMUNE",stroke:"#9db76f",fill:"rgba(157,183,111,.14)",text:"#c5d998"},
+  freelancers:{label:"FREELANCERS",stroke:"#ef8d3f",fill:"rgba(239,141,63,.14)",text:"#ffb36d"}
+});
+const liveFactionStyle=factionId=>LIVE_FACTION_STYLE[factionId]??{label:String(factionId??"UNKNOWN").toUpperCase(),stroke:"#d8d6bf",fill:"rgba(216,214,191,.12)",text:"#e5e3cf"};
+
 export class Renderer{
  constructor(canvas,camera){this.canvas=canvas;this.context=canvas.getContext("2d",{alpha:false});this.camera=camera;this.dpr=1;this.lastOperatorRenderError=null;}
  resize(){const rect=this.canvas.getBoundingClientRect();this.dpr=Math.min(window.devicePixelRatio||1,2);this.canvas.width=Math.max(1,Math.round(rect.width*this.dpr));this.canvas.height=Math.max(1,Math.round(rect.height*this.dpr));this.context.setTransform(this.dpr,0,0,this.dpr,0,0);this.camera.resize(rect.width,rect.height);}
@@ -27,6 +34,7 @@ export class Renderer{
       this.#drawCampaignGeography(ctx,game);
       this.#drawLiveOperationAssets(ctx,game);
       this.#drawAIV2ObservationWorld(ctx,game);
+      this.#drawLiveFactionHalos(ctx,game);
     }else{
       this.#drawRoad(ctx,game.map.road);
       this.#drawTrail(ctx,game.map.trail);
@@ -41,6 +49,7 @@ export class Renderer{
       this.#drawWildlife(ctx,game);
     }
     this.#drawDepthSortedActors(ctx,game);
+    this.#drawLiveTeamIdentity(ctx,game);
     this.#drawCombatWorld(ctx,game);
     this.#drawMapBorder(ctx);
   }finally{
@@ -175,6 +184,57 @@ export class Renderer{
   }finally{ctx.restore();}
  }
  #drawWildlife(ctx,game){ctx.save();for(const bird of game.wildlife){ctx.globalAlpha=game.weather==="Fog"?.22:.45;ctx.fillStyle="#d7d0a6";ctx.beginPath();ctx.ellipse(bird.x,bird.y,3.4,1.8,Math.sin(bird.phase)*.5,0,Math.PI*2);ctx.fill();}ctx.restore();}
+ #drawLiveFactionHalos(ctx,game){
+  if(game?.scenarioMode!=="live")return;
+  const inverse=1/Math.max(.08,this.camera.zoom);
+  ctx.save();
+  try{
+   for(const actor of game.actors??[]){
+    if(!actor.factionId||actor.medical?.dead)continue;
+    const style=liveFactionStyle(actor.factionId);
+    const radius=20+Math.min(10,inverse*2.4);
+    ctx.fillStyle=style.fill;ctx.strokeStyle=style.stroke;ctx.lineWidth=Math.max(1.5,2.2*inverse*.38);
+    ctx.beginPath();ctx.ellipse(actor.x,actor.y+31,radius,radius*.42,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+   }
+  }finally{ctx.restore();}
+ }
+ #drawLiveTeamIdentity(ctx,game){
+  if(game?.scenarioMode!=="live")return;
+  const teams=new Map();
+  for(const actor of game.actors??[]){
+   if(!actor.teamId||!actor.factionId||actor.medical?.dead)continue;
+   if(!teams.has(actor.teamId))teams.set(actor.teamId,[]);
+   teams.get(actor.teamId).push(actor);
+  }
+  const inverse=1/Math.max(.08,this.camera.zoom);
+  const centroids=new Map([...teams].map(([teamId,actors])=>[teamId,{x:actors.reduce((sum,a)=>sum+a.x,0)/actors.length,y:actors.reduce((sum,a)=>sum+a.y,0)/actors.length,actors}]));
+  ctx.save();
+  try{
+   const contracts=game.aiV2?.relationships?.summary?.({now:game.aiV2?.elapsed??0})??[];
+   for(const contract of contracts){
+    const a=centroids.get(contract.teamIds?.[0]),b=centroids.get(contract.teamIds?.[1]);if(!a||!b)continue;
+    const cooperative=["cooperate","shared_security","casualty_aid"].includes(contract.type);
+    ctx.strokeStyle=cooperative?"rgba(125,202,168,.62)":"rgba(206,207,162,.42)";ctx.lineWidth=2.2*inverse;ctx.setLineDash(cooperative?[10*inverse,5*inverse]:[5*inverse,8*inverse]);
+    ctx.beginPath();ctx.moveTo(a.x,a.y-42*inverse);ctx.lineTo(b.x,b.y-42*inverse);ctx.stroke();ctx.setLineDash([]);
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-48*inverse;
+    ctx.fillStyle="rgba(18,27,22,.84)";ctx.beginPath();ctx.roundRect(mx-48*inverse,my-9*inverse,96*inverse,18*inverse,8*inverse);ctx.fill();
+    ctx.fillStyle=cooperative?"#9bd4b7":"#d2d0a0";ctx.font=`800 ${7.5*inverse}px system-ui`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(contract.type).replaceAll("_"," ").toUpperCase(),mx,my);
+   }
+   for(const [teamId,entry] of centroids){
+    const actor=entry.actors[0],style=liveFactionStyle(actor.factionId);
+    const operation=actor.operationId?game.livingSandbox?.getOperation?.(actor.operationId):null;
+    const procedure=game.aiV2?.teamProcedures?.get?.(teamId);
+    const mission=operation?.objectiveLabel??operation?.label??"FIELD TEAM";
+    const stage=procedure?.phase?.label??operation?.stages?.[operation.currentStageIndex]?.label??"ASSEMBLING";
+    const x=entry.x,y=Math.min(...entry.actors.map(item=>item.y))-88*inverse;
+    const title=`${style.label} · ${mission}`.toUpperCase();
+    ctx.font=`850 ${8.5*inverse}px system-ui`;const titleWidth=Math.min(260*inverse,ctx.measureText(title).width+20*inverse);
+    ctx.fillStyle="rgba(16,24,20,.88)";ctx.beginPath();ctx.roundRect(x-titleWidth/2,y-11*inverse,titleWidth,22*inverse,10*inverse);ctx.fill();
+    ctx.strokeStyle=style.stroke;ctx.lineWidth=1.3*inverse;ctx.stroke();ctx.fillStyle=style.text;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(title,x,y-1*inverse);
+    ctx.font=`700 ${6.5*inverse}px system-ui`;ctx.fillStyle="rgba(230,231,212,.76)";ctx.fillText(String(stage).toUpperCase(),x,y+12*inverse);
+   }
+  }finally{ctx.restore();}
+ }
  #drawDepthSortedActors(ctx,game){
   const targetedId=game.interaction.targetId;
   const entries=game.map.obstacles.map(o=>({

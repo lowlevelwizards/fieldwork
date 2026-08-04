@@ -73,6 +73,9 @@ export class PersonalKnowledgeStore{
         classification:"armed_person",
         identity:"unknown",
         factionId:null,
+        factionConfidence:0,
+        subjectTeamId:target.teamId??null,
+        relationship:observer.factionId&&target.factionId&&observer.factionId===target.factionId?"same_faction":"unknown",
         confidence:8,
         level:"glimpse",
         approximatePosition:initialPosition,
@@ -90,6 +93,11 @@ export class PersonalKnowledgeStore{
     const wasVisible=record.currentlyVisible;
     const previousActivityRevision=record.track?.activityRevision??0;
     record.confidence=clamp(record.confidence+(evidence.confidenceRate??10)*Math.max(0,delta),0,92);
+    record.subjectTeamId=target.teamId??record.subjectTeamId??null;
+    const sameFaction=Boolean(observer.factionId&&target.factionId&&observer.factionId===target.factionId);
+    record.relationship=sameFaction?"same_faction":record.relationship??"unknown";
+    record.factionConfidence=clamp((record.factionConfidence??0)+(sameFaction?100:(evidence.distance??999)<360?18:9)*Math.max(0,delta),0,100);
+    if(sameFaction||record.factionConfidence>=42){record.factionId=target.factionId??record.factionId??null;record.identity=sameFaction?"recognized_friendly_operator":record.factionId?"recognized_faction_operator":"unknown";}
     record.level=contactLevel(record.confidence);
     record.approximatePosition=approximatePosition(observer,target,evidence,record.confidence);
     record.lastObservedAt=now;

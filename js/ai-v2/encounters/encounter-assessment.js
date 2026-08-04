@@ -55,9 +55,17 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
   let state=ENCOUNTER_STATES.POSSIBLE;
   let reason="A contact report exists, but its relationship to the mission remains uncertain.";
 
+  const protectedRelationship=["same_faction","cooperating","deconflicting","own_team"].includes(report.relationship);
   if(stale){
     state=ENCOUNTER_STATES.STALE;
     reason="The mission-relevant report is now too old or uncertain to support a current conclusion.";
+  }else if(protectedRelationship){
+    state=spatial.proximity>.18?ENCOUNTER_STATES.RELEVANT:ENCOUNTER_STATES.POSSIBLE;
+    reason=report.interactionProtocol==="coordinate_locally"
+      ?"A recognized compatible team is working in the same area; coordinate responsibilities instead of challenging it."
+      :report.interactionProtocol==="casualty_aid"||report.interactionProtocol==="consider_aid"
+        ?"A recognized nearby team appears distressed; local aid or safe passage may be useful."
+        :"A recognized non-hostile team is moving through the mission area and should be locally deconflicted.";
   }else if(spatial.inside&&confidence>=mission.incompatibleConfidence&&mission.interference){
     state=ENCOUNTER_STATES.POTENTIALLY_INCOMPATIBLE;
     reason=mission.interference.reason;
@@ -76,7 +84,7 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
   const complianceDuration=mission.boundary?.complianceDuration??2.4;
   const stationaryRefusal=Boolean(mission.liveOperation&&report.activity==="stationary"&&warningAge>=complianceDuration+3.5);
   const warningIgnored=Boolean(
-    outgoingWarning&&!stale&&!outgoingWarning.enforcementUsed&&spatial.inside&&
+    outgoingWarning&&!protectedRelationship&&!stale&&!outgoingWarning.enforcementUsed&&spatial.inside&&
     (["approaching","repositioning"].includes(report.activity)||(report.activity==="lost"&&age<=3.5)||stationaryRefusal)&&
     warningAge>=complianceDuration
   );
@@ -116,6 +124,11 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
     spatial:{...spatial},
     identity:report.identity??"unknown",
     factionId:report.factionId??null,
+    subjectTeamId:report.subjectTeamId??null,
+    relationship:report.relationship??"unknown",
+    interactionProtocol:report.interactionProtocol??null,
+    operationHypothesis:report.operationHypothesis?{...report.operationHypothesis}:null,
+    distress:report.distress?{...report.distress}:null,
     activity:report.activity??null,
     activityLabel:report.activityLabel??null,
     activityRevision:report.activityRevision??0,

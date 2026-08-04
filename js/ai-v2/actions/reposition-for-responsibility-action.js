@@ -42,7 +42,7 @@ export class RepositionForResponsibilityAction extends AIV2Action{
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     if(!actor||actor.medical?.dead||actor.medical?.unconscious||!this.directive?.destination)return false;
     const role=services?.teamProcedures?.getActorRole?.(actor.id);
-    return Boolean(role&&role.roleId===this.directive.roleId&&role.procedureId===this.directive.procedureId&&role.permissions?.relocate);
+    return Boolean(role&&role.roleId===this.directive.roleId&&role.procedureId===this.directive.procedureId&&(!this.directive.phaseId||role.phase?.id===this.directive.phaseId)&&role.permissions?.relocate);
   }
 
   start(now,context){

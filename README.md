@@ -1,3 +1,23 @@
+# Fieldwork 2.4 — Team Recognition, Deconfliction & Local Cooperation
+
+Fieldwork is an isometric extraction-survival sandbox about persistent small teams doing necessary work in an unstable shared landscape. Build 2.4 extends the authority-constrained live campaign with team-level recognition: operators can aggregate sightings into a practical understanding of another field team, infer visible work or distress, pass safely, divide local security, contribute bounded assistance, or retain the existing warning and breakaway path when operations are genuinely incompatible.
+
+## 2.4 authority chain
+
+```text
+faction operation chooses why
+→ team mission and agenda choose what matters
+→ procedure assigns who owns each responsibility
+→ team-contact understanding interprets nearby groups
+→ local interaction contracts permit bounded cooperation or deconfliction
+→ actor autonomy proposes how to help, pass, or preserve spacing
+→ the arbiter and scheduler alone grant physical control
+```
+
+The Live Sandbox now includes a fit-map spectator view, team/story cycling, distinct faction visuals, local relationship links, and a dashboard showing recognized teams and temporary contracts. Same-faction and cooperating teams are protected across voice warnings, firing lines, suppression, and wounds.
+
+---
+
 # Fieldwork 2.0P — Actor Initiative & Protective Breakaway
 
 Fieldwork is an isometric extraction-survival prototype about small teams doing necessary work in an unstable conflict zone.

@@ -1,39 +1,39 @@
 const rosterMember=(id,name,role,kitId,capabilities)=>({id,name,role,kitId,capabilities});
 
 const northlineRoster=[
-  rosterMember("northline_mara","Mara Velez","Route Lead","northline_rifle",{navigation:.88,scouting:.72,observation:.74,security:.72,technicalWork:.38,medical:.28,carrying:.58}),
-  rosterMember("northline_owen","Owen Pike","Field Technician","northline_rifle",{navigation:.56,scouting:.42,observation:.55,security:.62,technicalWork:.94,medical:.22,carrying:.66}),
-  rosterMember("northline_sable","Sable Hart","Security Operator","northline_rifle",{navigation:.62,scouting:.58,observation:.88,security:.94,technicalWork:.22,medical:.24,carrying:.62}),
-  rosterMember("northline_iman","Iman Cross","Field Medic","northline_support",{navigation:.54,scouting:.46,observation:.68,security:.52,technicalWork:.32,medical:.95,carrying:.56}),
-  rosterMember("northline_jules","Jules Mercer","Recon Operator","northline_rifle",{navigation:.82,scouting:.94,observation:.91,security:.64,technicalWork:.26,medical:.18,carrying:.48}),
-  rosterMember("northline_teo","Teo Ward","Technical Operator","northline_support",{navigation:.52,scouting:.38,observation:.58,security:.56,technicalWork:.86,medical:.34,carrying:.72}),
-  rosterMember("northline_ada","Ada Finch","Field Operator","northline_rifle",{navigation:.66,scouting:.62,observation:.66,security:.71,technicalWork:.46,medical:.42,carrying:.64}),
-  rosterMember("northline_rowan","Rowan Beck","Heavy Carrier","northline_support",{navigation:.48,scouting:.35,observation:.52,security:.76,technicalWork:.44,medical:.18,carrying:.96}),
-  rosterMember("northline_niko","Niko Vale","Reserve Operator","northline_rifle",{navigation:.6,scouting:.55,observation:.63,security:.67,technicalWork:.52,medical:.3,carrying:.61})
+  rosterMember("northline_mara","Mara Velez","Route Lead","northline_standard_light",{navigation:.88,scouting:.72,observation:.74,security:.72,technicalWork:.38,medical:.28,carrying:.58}),
+  rosterMember("northline_owen","Owen Pike","Field Technician","northline_standard_mid",{navigation:.56,scouting:.42,observation:.55,security:.62,technicalWork:.94,medical:.22,carrying:.66}),
+  rosterMember("northline_sable","Sable Hart","Security Operator","northline_standard_dark",{navigation:.62,scouting:.58,observation:.88,security:.94,technicalWork:.22,medical:.24,carrying:.62}),
+  rosterMember("northline_iman","Iman Cross","Field Medic","northline_standard_mid",{navigation:.54,scouting:.46,observation:.68,security:.52,technicalWork:.32,medical:.95,carrying:.56}),
+  rosterMember("northline_jules","Jules Mercer","Recon Operator","northline_standard_light",{navigation:.82,scouting:.94,observation:.91,security:.64,technicalWork:.26,medical:.18,carrying:.48}),
+  rosterMember("northline_teo","Teo Ward","Technical Operator","northline_standard_dark",{navigation:.52,scouting:.38,observation:.58,security:.56,technicalWork:.86,medical:.34,carrying:.72}),
+  rosterMember("northline_ada","Ada Finch","Field Operator","northline_standard_light",{navigation:.66,scouting:.62,observation:.66,security:.71,technicalWork:.46,medical:.42,carrying:.64}),
+  rosterMember("northline_rowan","Rowan Beck","Heavy Carrier","northline_standard_mid",{navigation:.48,scouting:.35,observation:.52,security:.76,technicalWork:.44,medical:.18,carrying:.96}),
+  rosterMember("northline_niko","Niko Vale","Reserve Operator","northline_standard_dark",{navigation:.6,scouting:.55,observation:.63,security:.67,technicalWork:.52,medical:.3,carrying:.61})
 ];
 
 const communeRoster=[
-  rosterMember("commune_lena","Lena Moss","Route Scout","commune_rifle",{navigation:.86,scouting:.92,observation:.82,security:.58,technicalWork:.3,medical:.34,carrying:.52}),
-  rosterMember("commune_avi","Avi Reed","Utility Worker","commune_rifle",{navigation:.58,scouting:.44,observation:.58,security:.55,technicalWork:.89,medical:.38,carrying:.7}),
-  rosterMember("commune_nia","Nia Sol","Community Guard","commune_rifle",{navigation:.61,scouting:.56,observation:.82,security:.88,technicalWork:.28,medical:.31,carrying:.65}),
-  rosterMember("commune_pavel","Pavel Dune","Field Medic","commune_support",{navigation:.55,scouting:.48,observation:.7,security:.48,technicalWork:.34,medical:.96,carrying:.56}),
-  rosterMember("commune_rook","Rook Alder","Surveyor","commune_rifle",{navigation:.84,scouting:.86,observation:.94,security:.52,technicalWork:.46,medical:.22,carrying:.46}),
-  rosterMember("commune_yara","Yara Bell","Supply Handler","commune_support",{navigation:.56,scouting:.42,observation:.59,security:.57,technicalWork:.48,medical:.32,carrying:.95}),
-  rosterMember("commune_emil","Emil North","Repair Worker","commune_rifle",{navigation:.52,scouting:.4,observation:.54,security:.6,technicalWork:.82,medical:.28,carrying:.74}),
-  rosterMember("commune_sora","Sora Penn","Field Operator","commune_rifle",{navigation:.68,scouting:.65,observation:.72,security:.68,technicalWork:.44,medical:.45,carrying:.62}),
-  rosterMember("commune_cal","Cal Wren","Reserve Operator","commune_rifle",{navigation:.63,scouting:.58,observation:.64,security:.65,technicalWork:.5,medical:.36,carrying:.63})
+  rosterMember("commune_lena","Lena Moss","Route Scout","commune_rust_green",{navigation:.86,scouting:.92,observation:.82,security:.58,technicalWork:.3,medical:.34,carrying:.52}),
+  rosterMember("commune_avi","Avi Reed","Utility Worker","commune_brown_denim",{navigation:.58,scouting:.44,observation:.58,security:.55,technicalWork:.89,medical:.38,carrying:.7}),
+  rosterMember("commune_nia","Nia Sol","Community Guard","commune_green_brown",{navigation:.61,scouting:.56,observation:.82,security:.88,technicalWork:.28,medical:.31,carrying:.65}),
+  rosterMember("commune_pavel","Pavel Dune","Field Medic","commune_rust_black",{navigation:.55,scouting:.48,observation:.7,security:.48,technicalWork:.34,medical:.96,carrying:.56}),
+  rosterMember("commune_rook","Rook Alder","Surveyor","commune_rust_green",{navigation:.84,scouting:.86,observation:.94,security:.52,technicalWork:.46,medical:.22,carrying:.46}),
+  rosterMember("commune_yara","Yara Bell","Supply Handler","commune_brown_denim",{navigation:.56,scouting:.42,observation:.59,security:.57,technicalWork:.48,medical:.32,carrying:.95}),
+  rosterMember("commune_emil","Emil North","Repair Worker","commune_green_brown",{navigation:.52,scouting:.4,observation:.54,security:.6,technicalWork:.82,medical:.28,carrying:.74}),
+  rosterMember("commune_sora","Sora Penn","Field Operator","commune_rust_black",{navigation:.68,scouting:.65,observation:.72,security:.68,technicalWork:.44,medical:.45,carrying:.62}),
+  rosterMember("commune_cal","Cal Wren","Reserve Operator","commune_rust_green",{navigation:.63,scouting:.58,observation:.64,security:.65,technicalWork:.5,medical:.36,carrying:.63})
 ];
 
 const freelancerRoster=[
-  rosterMember("freelancer_kite","Kite Rios","Pathfinder","freelancer_rifle",{navigation:.94,scouting:.9,observation:.82,security:.66,technicalWork:.34,medical:.2,carrying:.58}),
-  rosterMember("freelancer_mica","Mica Shaw","Tech Raider","freelancer_rifle",{navigation:.68,scouting:.56,observation:.66,security:.72,technicalWork:.86,medical:.18,carrying:.71}),
-  rosterMember("freelancer_voss","Voss Gray","Security Contractor","freelancer_rifle",{navigation:.62,scouting:.6,observation:.86,security:.95,technicalWork:.22,medical:.16,carrying:.68}),
-  rosterMember("freelancer_ren","Ren Crow","Combat Medic","freelancer_support",{navigation:.6,scouting:.54,observation:.72,security:.64,technicalWork:.28,medical:.9,carrying:.6}),
-  rosterMember("freelancer_izzy","Izzy Pike","Scout","freelancer_rifle",{navigation:.88,scouting:.95,observation:.93,security:.57,technicalWork:.2,medical:.24,carrying:.48}),
-  rosterMember("freelancer_dex","Dex Orra","Load Carrier","freelancer_support",{navigation:.57,scouting:.46,observation:.6,security:.7,technicalWork:.46,medical:.18,carrying:.98}),
-  rosterMember("freelancer_sam","Sam Quill","Fixer","freelancer_rifle",{navigation:.61,scouting:.48,observation:.62,security:.64,technicalWork:.8,medical:.28,carrying:.69}),
-  rosterMember("freelancer_noa","Noa Flint","Field Operator","freelancer_rifle",{navigation:.7,scouting:.68,observation:.72,security:.74,technicalWork:.4,medical:.32,carrying:.64}),
-  rosterMember("freelancer_tamsin","Tamsin Ro","Reserve Operator","freelancer_rifle",{navigation:.65,scouting:.61,observation:.68,security:.69,technicalWork:.48,medical:.3,carrying:.66})
+  rosterMember("freelancer_kite","Kite Rios","Pathfinder","freelancer_black_gray",{navigation:.94,scouting:.9,observation:.82,security:.66,technicalWork:.34,medical:.2,carrying:.58}),
+  rosterMember("freelancer_mica","Mica Shaw","Tech Raider","freelancer_brown_black",{navigation:.68,scouting:.56,observation:.66,security:.72,technicalWork:.86,medical:.18,carrying:.71}),
+  rosterMember("freelancer_voss","Voss Gray","Security Contractor","freelancer_gray_brown",{navigation:.62,scouting:.6,observation:.86,security:.95,technicalWork:.22,medical:.16,carrying:.68}),
+  rosterMember("freelancer_ren","Ren Crow","Combat Medic","freelancer_black_brown",{navigation:.6,scouting:.54,observation:.72,security:.64,technicalWork:.28,medical:.9,carrying:.6}),
+  rosterMember("freelancer_izzy","Izzy Pike","Scout","freelancer_black_gray",{navigation:.88,scouting:.95,observation:.93,security:.57,technicalWork:.2,medical:.24,carrying:.48}),
+  rosterMember("freelancer_dex","Dex Orra","Load Carrier","freelancer_brown_black",{navigation:.57,scouting:.46,observation:.6,security:.7,technicalWork:.46,medical:.18,carrying:.98}),
+  rosterMember("freelancer_sam","Sam Quill","Fixer","freelancer_gray_brown",{navigation:.61,scouting:.48,observation:.62,security:.64,technicalWork:.8,medical:.28,carrying:.69}),
+  rosterMember("freelancer_noa","Noa Flint","Field Operator","freelancer_black_brown",{navigation:.7,scouting:.68,observation:.72,security:.74,technicalWork:.4,medical:.32,carrying:.64}),
+  rosterMember("freelancer_tamsin","Tamsin Ro","Reserve Operator","freelancer_black_gray",{navigation:.65,scouting:.61,observation:.68,security:.69,technicalWork:.48,medical:.3,carrying:.66})
 ];
 
 const objective=(id,name,x,y,{family,kind,propType,state,desiredState,interestKey,value,urgency,workDuration,resourceType=null,resourceAmount=0,nodeId=null,routeIds=[],dependencyValue=0})=>({

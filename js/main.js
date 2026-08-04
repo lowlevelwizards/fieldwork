@@ -8,7 +8,7 @@ import { validateItemLocations } from "./item-locations.js";
 import { renderItemThumbnail } from "./presentation/item-renderer.js";
 import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js";
 
-const BUILD_ID="2.3";
+const BUILD_ID="2.4";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -27,7 +27,7 @@ aiRuntimeSelect.value=initialRuntime;
 function selectedAIRuntime(){return aiRuntimeSelect.value==="v2"?"v2":"legacy";}
 function updateAIRuntimeDescription(){
   aiRuntimeDescription.textContent=selectedAIRuntime()==="v2"
-    ?"Adaptive causal AI: operators react to personal hostile evidence, teams coordinate a bounded protective breakaway, and casualty care still continues through adaptive evacuation and safe return."
+    ?"Adaptive causal AI: persistent field teams recognize faction and operation cues, deconflict compatible movement, offer bounded assistance, and preserve the existing warning, breakaway, casualty, and campaign systems."
     :"Preserved 1.2H research prototype with the existing combat and medical AI.";
 }
 updateAIRuntimeDescription();
@@ -46,7 +46,7 @@ function updateSandboxFixtureDescription(){
 }
 updateSandboxFixtureDescription();
 
-const CAMPAIGN_STORAGE_KEY="fieldwork.liveCampaign.2.3";
+const CAMPAIGN_STORAGE_KEY="fieldwork.liveCampaign.2.4";
 function readCampaignSnapshot(){try{const raw=localStorage.getItem(CAMPAIGN_STORAGE_KEY);return raw?JSON.parse(raw):null;}catch{return null;}}
 function writeCampaignSnapshot(snapshot){try{if(snapshot)localStorage.setItem(CAMPAIGN_STORAGE_KEY,JSON.stringify(snapshot));return true;}catch{return false;}return false;}
 function clearCampaignSnapshot(){try{localStorage.removeItem(CAMPAIGN_STORAGE_KEY);}catch{}}
@@ -55,10 +55,11 @@ refreshContinueButton();
 
 const camera=new Camera();let game=new ContinuousGameState({scenario:"operations",aiRuntime:selectedAIRuntime(),sandboxFixture:selectedSandboxFixture()});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
 const sandboxButton=$("#sandbox-button"),liveSandboxButton=$("#live-sandbox-button"),continueCampaignButton=$("#continue-campaign-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
-let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null,simulationPaused=false,simulationSpeed=1,lastLiveDashboardAt=-Infinity,lastCampaignAutosaveAt=-Infinity;
+let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null,simulationPaused=false,simulationSpeed=1,lastLiveDashboardAt=-Infinity,lastCampaignAutosaveAt=-Infinity,spectatorTeamIndex=-1,spectatorStoryIndex=-1,spectatorDragging=false,spectatorPointer=null;
 function resizeAndCenter(reason="viewport"){
   renderer.resize();
-  camera.lockTo(game.operator);
+  if(game.scenarioMode==="live"){camera.setSpectatorMode(true);camera.fitBounds(game.map?.worldBounds??{width:7600,height:4200});}
+  else{camera.setSpectatorMode(false);camera.lockTo(game.operator);}
   console.info("Viewport synchronized",{build:BUILD_ID,reason,operator:{x:game.operator.x,y:game.operator.y},camera:{x:camera.x,y:camera.y,width:camera.width,height:camera.height}});
 }
 function startGame(scenario="operations",campaignSnapshot=null){
@@ -74,7 +75,8 @@ function startGame(scenario="operations",campaignSnapshot=null){
   const objective=$("#objective-card");
   if(scenario==="live"){
     const fixture=game.sandboxFixture;
-    objective.querySelector(".objective-kicker").textContent="FIELDWORK 2.3 OPERATIONAL GEOGRAPHY";
+    objective.querySelector(".objective-kicker").textContent="FIELDWORK 2.4 TEAM UNDERSTANDING";
+    camera.setSpectatorMode(true);
     objective.querySelector("strong").textContent=fixture.label;
     objective.querySelector("span:last-child").textContent=fixture.question;
     $("#live-sandbox-panel").hidden=false;
@@ -320,7 +322,12 @@ function readableEvent(entry,summary){
   faction_route_knowledge_updated:"Route intelligence updated",
   faction_communications_extended:"Communications network extended",
   operation_deploy_route_completed:"Deployment route completed",
-  operation_return_route_completed:"Team reached campaign base"
+  operation_return_route_completed:"Team reached campaign base",
+  team_contact_understanding_updated:"Team recognized nearby operation",
+  team_interaction_contract_established:"Local interaction contract established",
+  team_interaction_contract_ended:"Local interaction contract ended",
+  cross_team_casualty_stabilized:"Neighboring team casualty stabilized",
+  objective_assistance_started:"Neighboring operator assisting work"
  };
  const label=labels[entry.type]??entry.type.replaceAll("_"," ");
  return`${label}${faction?` · ${faction}`:""}${subject?` · ${subject}`:""}`;
@@ -365,6 +372,7 @@ function updateLiveDashboard(force=false){
  const active=summary.operations.filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status));
  operations.replaceChildren(...active.slice(-8).map(operation=>{
   const row=liveElement("article",`live-operation live-operation--${operation.kind.replaceAll("_","-")}${operation.contested?" live-operation--contested":""}`);
+  row.dataset.teamId=operation.teamId??"";row.dataset.operationId=operation.id;row.tabIndex=0;row.title="Focus this operation";
   row.append(
    liveElement("strong",null,`${operation.factionLabel} · ${operation.label}`),
    liveElement("small",null,operationDetail(operation)),
@@ -373,6 +381,24 @@ function updateLiveDashboard(force=false){
   return row;
  }));
  if(!active.length)operations.append(liveElement("div","live-event","No active operations; factions are evaluating open needs."));
+ const interactions=$("#live-interactions");
+ const understandings=game.aiV2?.teamUnderstanding?.summary?.()??[];
+ const contracts=game.aiV2?.relationships?.summary?.({now:game.aiV2?.elapsed??0})??[];
+ const interactionRows=[];
+ for(const group of understandings)for(const contact of group.contacts??[]){
+  const observerActor=game.actors.find(actor=>actor.teamId===group.teamId);
+  const subjectActor=game.actors.find(actor=>actor.teamId===contact.subjectTeamId);
+  if(!observerActor||!subjectActor)continue;
+  const row=liveElement("article",`live-interaction live-interaction--${contact.relationship}`);
+  row.dataset.teamId=group.teamId;row.tabIndex=0;
+  row.append(liveElement("strong",null,`${observerActor.factionId} recognizes ${contact.factionId??"unknown"} team`),liveElement("small",null,`${contact.operationHypothesis?.label??"unclear activity"}${contact.operationHypothesis?.objectiveLabel?` · ${contact.operationHypothesis.objectiveLabel}`:""} · ${contact.protocol?.replaceAll("_"," ")??"observe"}${contact.distress?.active?` · DISTRESS ${contact.distress.severity}`:""}`));
+  interactionRows.push(row);
+ }
+ for(const contract of contracts){
+  const row=liveElement("div","live-event live-contract",`${contract.type.replaceAll("_"," ")} · ${contract.teamIds.join(" ↔ ")}`);interactionRows.push(row);
+ }
+ interactions.replaceChildren(...interactionRows.slice(-8));
+ if(!interactionRows.length)interactions.append(liveElement("div","live-event","Teams have not yet formed a recognized local interaction."));
  const candidates=$("#live-candidates");
  candidates.replaceChildren(...(summary.candidates??[]).slice(0,5).map(candidate=>{
   const terms=candidate.scoreBreakdown??{};
@@ -431,11 +457,23 @@ function updateLiveDashboard(force=false){
   return row;
  }));
  const events=$("#live-events");
- const interesting=new Set(["faction_contested_operation_proposed","live_ballistic_wound","cargo_package_dropped","cargo_package_picked_up","operation_cargo_reconciled","survey_point_recorded","roster_member_returned","roster_member_died","roster_member_leveled","faction_operation_interrupted","faction_operation_deferred","faction_operation_completed","live_world_objective_changed","world_need_reopened","faction_posture_changed","forward_position_established","operation_went_out_of_contact","operation_became_overdue","operation_contact_restored","resources_delivered_to_position","faction_route_knowledge_updated","faction_communications_extended","operation_deploy_route_completed","operation_return_route_completed"]);
+ const interesting=new Set(["faction_contested_operation_proposed","live_ballistic_wound","cargo_package_dropped","cargo_package_picked_up","operation_cargo_reconciled","survey_point_recorded","roster_member_returned","roster_member_died","roster_member_leveled","faction_operation_interrupted","faction_operation_deferred","faction_operation_completed","live_world_objective_changed","world_need_reopened","faction_posture_changed","forward_position_established","operation_went_out_of_contact","operation_became_overdue","operation_contact_restored","resources_delivered_to_position","faction_route_knowledge_updated","faction_communications_extended","operation_deploy_route_completed","operation_return_route_completed","team_contact_understanding_updated","team_interaction_contract_established","team_interaction_contract_ended","cross_team_casualty_stabilized","objective_assistance_started"]);
  const feed=summary.history.filter(entry=>interesting.has(entry.type)).slice(-9).reverse();
  events.replaceChildren(...feed.map(entry=>liveElement("div",`live-event live-event--${entry.type}`,readableEvent(entry,summary))));
  if(!feed.length)events.append(liveElement("div","live-event","The live campaign is beginning to write its first field history."));
 }
+function activeLiveOperations(){return game.livingSandbox?.summary?.().operations?.filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status)&&operation.teamId)??[];}
+function focusLiveTeam(teamId){
+ const actors=game.actors.filter(actor=>actor.teamId===teamId&&!actor.medical?.dead);if(!actors.length)return false;
+ const point={x:actors.reduce((sum,actor)=>sum+actor.x,0)/actors.length,y:actors.reduce((sum,actor)=>sum+actor.y,0)/actors.length};
+ camera.focusOn(point,{zoom:.62});game.pushMessage(`Following ${actors[0].factionId} · ${actors[0].currentTask??"field team"}`,2.2);return true;
+}
+function cycleLiveTeam(){const operations=activeLiveOperations();if(!operations.length)return false;spectatorTeamIndex=(spectatorTeamIndex+1)%operations.length;return focusLiveTeam(operations[spectatorTeamIndex].teamId);}
+function cycleLiveStory(){
+ const events=game.aiV2?.decisionLog?.entries?.filter(entry=>["team_contact_understanding_updated","team_interaction_contract_established","directed_warning_delivered","live_ballistic_wound","cross_team_casualty_stabilized"].includes(entry.type)&&entry.teamId)??[];
+ const teams=[...new Set(events.map(event=>event.teamId).filter(teamId=>game.actors.some(actor=>actor.teamId===teamId)))];if(!teams.length)return cycleLiveTeam();spectatorStoryIndex=(spectatorStoryIndex+1)%teams.length;return focusLiveTeam(teams[spectatorStoryIndex]);
+}
+function fitLiveMap(){camera.setSpectatorMode(true);camera.fitBounds(game.map?.worldBounds??{width:7600,height:4200});}
 function saveLiveCampaign({silent=false}={}){
  if(game.scenarioMode!=="live")return false;
  const snapshot=game.operations?.exportCampaignSnapshot?.();
@@ -476,6 +514,15 @@ $("#live-pause")?.addEventListener("click",()=>{simulationPaused=!simulationPaus
 document.querySelectorAll(".live-speed").forEach(button=>button.addEventListener("click",()=>{simulationSpeed=Number(button.dataset.speed)||1;simulationPaused=false;$("#live-pause").textContent="PAUSE";document.querySelectorAll(".live-speed").forEach(candidate=>candidate.classList.toggle("live-speed--active",candidate===button));}));
 $("#live-save")?.addEventListener("click",()=>saveLiveCampaign());
 $("#live-restart")?.addEventListener("click",restartLive);
+$("#live-fit")?.addEventListener("click",fitLiveMap);
+$("#live-next-team")?.addEventListener("click",cycleLiveTeam);
+$("#live-next-story")?.addEventListener("click",cycleLiveStory);
+$("#live-operations")?.addEventListener("click",event=>{const row=event.target.closest?.("[data-team-id]");if(row?.dataset.teamId)focusLiveTeam(row.dataset.teamId);});
+$("#live-interactions")?.addEventListener("click",event=>{const row=event.target.closest?.("[data-team-id]");if(row?.dataset.teamId)focusLiveTeam(row.dataset.teamId);});
+canvas.addEventListener("pointerdown",event=>{if(game.scenarioMode!=="live")return;spectatorDragging=true;spectatorPointer={x:event.clientX,y:event.clientY};canvas.setPointerCapture?.(event.pointerId);});
+canvas.addEventListener("pointermove",event=>{if(!spectatorDragging||game.scenarioMode!=="live"||!spectatorPointer)return;camera.panByScreen(event.clientX-spectatorPointer.x,event.clientY-spectatorPointer.y);spectatorPointer={x:event.clientX,y:event.clientY};});
+const endSpectatorDrag=()=>{spectatorDragging=false;spectatorPointer=null;};canvas.addEventListener("pointerup",endSpectatorDrag);canvas.addEventListener("pointercancel",endSpectatorDrag);
+canvas.addEventListener("wheel",event=>{if(game.scenarioMode!=="live")return;event.preventDefault();const rect=canvas.getBoundingClientRect();camera.zoomAt(event.deltaY<0?1.14:.88,event.clientX-rect.left,event.clientY-rect.top);},{passive:false});
 $("#live-panel-toggle")?.addEventListener("click",()=>{$("#live-sandbox-panel").classList.toggle("live-sandbox-panel--collapsed");});
 $("#backpack-button").addEventListener("click",event=>{event.preventDefault();event.stopPropagation();inventoryOpen?closeInventory():openInventory();});
 $("#inventory-close").addEventListener("click",closeInventory);

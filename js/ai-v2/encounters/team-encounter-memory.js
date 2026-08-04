@@ -6,7 +6,7 @@ export class TeamEncounterMemory{
     this.byTeam=new Map();
   }
 
-  update({game=null,missions,teamKnowledge,casualtyKnowledge=null,heardCommunications=null,teamProcedures=null,now=0}={}){
+  update({game=null,missions,teamKnowledge,teamUnderstanding=null,casualtyKnowledge=null,heardCommunications=null,teamProcedures=null,now=0}={}){
     const touched=new Set();
     for(const mission of missions?.summary?.()??[]){
       const reports=[
@@ -32,9 +32,11 @@ export class TeamEncounterMemory{
           touched.add(`${mission.teamId}:${report.subjectId}`);
           continue;
         }
+        const understanding=entry.kind==="contact"&&report.subjectTeamId?teamUnderstanding?.get?.(mission.teamId,report.subjectTeamId)??null:null;
+        const understoodReport=understanding?{...report,relationship:understanding.relationship,interactionProtocol:understanding.protocol,subjectTeamId:understanding.subjectTeamId,operationHypothesis:understanding.operationHypothesis?{...understanding.operationHypothesis}:null,distress:understanding.distress?{...understanding.distress}:null}:report;
         let assessed=entry.kind==="casualty"
-          ?assessFriendlyCasualtyHypothesis({mission,report,now})
-          :assessEncounterHypothesis({mission,report,heardWarning,outgoingWarning,now});
+          ?assessFriendlyCasualtyHypothesis({mission,report:understoodReport,now})
+          :assessEncounterHypothesis({mission,report:understoodReport,heardWarning,outgoingWarning,now});
         if(!assessed)continue;
         if(assessed.subjectKind==="friendly_casualty"){
           const casualty=(game?.actors??[]).find(actor=>actor.id===assessed.subjectId&&actor.teamId===mission.teamId)??null;

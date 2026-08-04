@@ -40,10 +40,12 @@ export class IssueWarningAction extends AIV2Action{
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     if(!actor||actor.medical?.dead||actor.medical?.unconscious||!this.directive?.targetPoint)return false;
     const boundary=this.directive.boundary??{};
+    const subjectActor=game?.actors?.find(candidate=>candidate.id===this.directive.subjectId)??null;
     return Boolean(services?.communication?.findDirectedRecipients?.(game,actor,{
       targetPoint:this.directive.targetPoint,
       range:boundary.voiceRange,
-      coneDegrees:boundary.coneDegrees
+      coneDegrees:boundary.coneDegrees,
+      targetTeamId:subjectActor?.teamId??null
     })?.length);
   }
 
@@ -56,6 +58,7 @@ export class IssueWarningAction extends AIV2Action{
     super.start(now,context);
     const actor=context?.game?.actors?.find(candidate=>candidate.id===this.actorId);
     const boundary=this.directive.boundary??{};
+    const subjectActor=context?.game?.actors?.find(candidate=>candidate.id===this.directive.subjectId)??null;
     this.transmission=context?.services?.communication?.beginDirectedWarning?.({
       game:context.game,
       speaker:actor,
@@ -65,7 +68,8 @@ export class IssueWarningAction extends AIV2Action{
       now,
       range:boundary.voiceRange,
       coneDegrees:boundary.coneDegrees,
-      duration:boundary.warningDuration
+      duration:boundary.warningDuration,
+      targetTeamId:subjectActor?.teamId??null
     })??null;
     if(actor){
       actor.currentTask=this.directive.task??actor.currentTask;

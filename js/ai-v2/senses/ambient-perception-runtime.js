@@ -37,8 +37,7 @@ export class AmbientPerceptionRuntime{
       const candidates=activeActors.filter(target=>
         target.id!==observer.id&&
         target.teamId!==observer.teamId&&
-        target.factionId&&observer.factionId&&
-        target.factionId!==observer.factionId
+        target.factionId&&observer.factionId
       );
       for(const target of candidates){
         const observationCapability=Math.max(0,Math.min(1,Number(observer.aiV2Capabilities?.observation)||.5));

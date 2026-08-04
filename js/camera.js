@@ -13,6 +13,8 @@ export class Camera {
     this.targetZoom=1;
     this.width=this.screenWidth;
     this.height=this.screenHeight;
+    this.spectatorMode=false;
+    this.spectatorTarget=null;
   }
 
   resize(width,height) {
@@ -68,7 +70,34 @@ export class Camera {
     return best;
   }
 
+  setSpectatorMode(enabled=true){this.spectatorMode=Boolean(enabled);if(!enabled)this.spectatorTarget=null;}
+
+  fitBounds(bounds,{padding=.05}={}){
+    const width=Math.max(1,Number(bounds?.width)||MAP_WIDTH),height=Math.max(1,Number(bounds?.height)||MAP_HEIGHT);
+    const fit=Math.min(this.screenWidth/(width*(1+padding*2)),this.screenHeight/(height*(1+padding*2)));
+    this.zoom=this.targetZoom=clamp(fit,.08,1);this.#refreshWorldSize();
+    this.x=(width-this.width)/2;this.y=(height-this.height)/2;this.spectatorTarget=null;this.#clamp();
+  }
+
+  focusOn(target,{zoom=.72}={}){
+    if(!target)return;this.spectatorMode=true;this.spectatorTarget=target;this.targetZoom=clamp(zoom,.12,1);
+  }
+
+  panByScreen(dx,dy){this.spectatorTarget=null;this.x-=dx/Math.max(.01,this.zoom);this.y-=dy/Math.max(.01,this.zoom);this.#clamp();}
+
+  zoomAt(factor,screenX=this.screenWidth/2,screenY=this.screenHeight/2){
+    const before=this.screenToWorld(screenX,screenY);this.spectatorTarget=null;this.zoom=this.targetZoom=clamp(this.zoom*factor,.08,1);this.#refreshWorldSize();
+    this.x=before.x-screenX/this.zoom;this.y=before.y-screenY/this.zoom;this.#clamp();
+  }
+
   update(game,delta) {
+    if(this.spectatorMode){
+      if(this.spectatorTarget&&Number.isFinite(this.spectatorTarget.x)&&Number.isFinite(this.spectatorTarget.y)){
+        const ease=1-Math.exp(-delta*5);this.zoom=lerp(this.zoom,this.targetZoom,ease);this.#refreshWorldSize();
+        this.x=lerp(this.x,this.spectatorTarget.x-this.width/2,ease);this.y=lerp(this.y,this.spectatorTarget.y-this.height/2,ease);this.#clamp();
+      }
+      return;
+    }
     const operator=game?.operator;
     if(!operator||!Number.isFinite(operator.x)||!Number.isFinite(operator.y))return;
 

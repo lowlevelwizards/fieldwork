@@ -21,6 +21,7 @@ import { CasualtyCareExecutor } from "../execution/casualty-care-executor.js";
 import { FireExecutor } from "../execution/fire-executor.js";
 import { PersonalKnowledgeStore } from "../knowledge/personal-knowledge.js";
 import { TeamKnowledgeStore } from "../knowledge/team-knowledge.js";
+import { TeamContactUnderstandingStore } from "../knowledge/team-contact-understanding.js";
 import { HeardCommunicationStore } from "../knowledge/heard-communication.js";
 import { CasualtyKnowledgeStore } from "../knowledge/casualty-knowledge.js";
 import { ThreatKnowledgeStore } from "../knowledge/threat-knowledge.js";
@@ -36,6 +37,8 @@ import { DirectionalCoverService } from "../position/directional-cover-service.j
 import { PositionSlotClaimService } from "../position/position-slot-claim-service.js";
 import { EvacuationRouteService } from "../position/evacuation-route-service.js";
 import { TeamResponseState } from "../responses/team-response-state.js";
+import { TeamRelationshipService } from "../relationships/team-relationship-service.js";
+import { TeamInteractionRuntime } from "../interactions/team-interaction-runtime.js";
 import { evaluateCasualtyObservation } from "../senses/casualty-observation.js";
 import { AmbientPerceptionRuntime } from "../senses/ambient-perception-runtime.js";
 import { captureWorldSnapshot } from "./world-snapshot.js";
@@ -77,6 +80,9 @@ export class AIV2Runtime{
     this.actionArbiter=game?.scenarioMode==="live"?new ActorActionArbiter({scheduler:this.scheduler,decisionLog:this.decisionLog}):null;
     this.personalKnowledge=new PersonalKnowledgeStore({decisionLog:this.decisionLog});
     this.teamKnowledge=new TeamKnowledgeStore({decisionLog:this.decisionLog});
+    this.relationships=new TeamRelationshipService({decisionLog:this.decisionLog});
+    this.teamUnderstanding=new TeamContactUnderstandingStore({decisionLog:this.decisionLog});
+    this.teamInteractions=new TeamInteractionRuntime({decisionLog:this.decisionLog});
     this.heardCommunications=new HeardCommunicationStore({decisionLog:this.decisionLog});
     this.casualtyKnowledge=new CasualtyKnowledgeStore({decisionLog:this.decisionLog});
     this.threatKnowledge=new ThreatKnowledgeStore({decisionLog:this.decisionLog});
@@ -154,7 +160,13 @@ export class AIV2Runtime{
     this.#ensureContactReports();
     this.#ensureContactUpdateReports();
     this.#ensureCasualtyReports();
-    this.teamEncounters.update({game:this.game,missions:this.teamMissions,teamKnowledge:this.teamKnowledge,casualtyKnowledge:this.casualtyKnowledge,heardCommunications:this.heardCommunications,teamProcedures:this.teamProcedures,now:this.elapsed});
+    this.relationships.update({game:this.game,now:this.elapsed});
+    const liveTeamSocial=Boolean(this.game?.livingSandbox?.liveMode);
+    if(liveTeamSocial){
+      this.teamUnderstanding.update({game:this.game,teamKnowledge:this.teamKnowledge,personalKnowledge:this.personalKnowledge,relationships:this.relationships,now:this.elapsed});
+      this.teamInteractions.update({game:this.game,understanding:this.teamUnderstanding,relationships:this.relationships,teamMissions:this.teamMissions,now:this.elapsed});
+    }
+    this.teamEncounters.update({game:this.game,missions:this.teamMissions,teamKnowledge:this.teamKnowledge,teamUnderstanding:liveTeamSocial?this.teamUnderstanding:null,casualtyKnowledge:this.casualtyKnowledge,heardCommunications:this.heardCommunications,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.teamAgenda.update({missions:this.teamMissions,teamResponses:this.teamResponses,objectives:this.objectives,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamAgenda,now:this.elapsed});
@@ -191,7 +203,7 @@ export class AIV2Runtime{
       casualtyKnowledge:this.casualtyKnowledge,
       now:this.elapsed
     });
-    this.localAutonomy.update({game:this.game,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,roleActions:this.roleActions,now:this.elapsed});
+    this.localAutonomy.update({game:this.game,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,teamInteractions:liveTeamSocial?this.teamInteractions:null,roleActions:this.roleActions,now:this.elapsed});
     this.actionArbiter?.resolve?.({now:this.elapsed,context:this.#context(this.elapsed)});
     this.#updateActorDiagnostics();
 
@@ -209,7 +221,8 @@ export class AIV2Runtime{
       destinationClaims:this.destinationClaims.summary(this.elapsed),
       positionSlots:this.positionSlots.summary(this.elapsed),
       patientClaims:this.casualtyCare.summary(),
-      scheduler:this.scheduler
+      scheduler:this.scheduler,
+      actionArbiter:this.actionArbiter?.summary?.()??[]
     });
   }
 
@@ -333,10 +346,14 @@ export class AIV2Runtime{
       game:this.game,
       snapshot:this.snapshot,
       services:{
+        decisionLog:this.decisionLog,
         attention:this.attention,
         communication:this.communication,
         personalKnowledge:this.personalKnowledge,
         teamKnowledge:this.teamKnowledge,
+        teamUnderstanding:this.teamUnderstanding,
+        relationships:this.relationships,
+        teamInteractions:this.teamInteractions,
         heardCommunications:this.heardCommunications,
         casualtyKnowledge:this.casualtyKnowledge,
         threatKnowledge:this.threatKnowledge,
