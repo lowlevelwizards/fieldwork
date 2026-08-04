@@ -43,7 +43,7 @@ jobs:
       - name: Apply Fieldwork 2.1 to current AI-2.0
         shell: bash
         env:
-          EXPECTED_SHA: ca36c31763bc9d1df5e349d764b2bb84ba0a14b2
+          EXPECTED_SHA: 4e29ffe2dcb526f7a2e01806d823c09e1bb8d5e7
         run: |
           set -euo pipefail
           git fetch origin AI-2.0
