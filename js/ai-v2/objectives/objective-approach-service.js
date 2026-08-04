@@ -32,7 +32,8 @@ export class ObjectiveApproachService{
     const roleSpacing=Math.max(60,Number(plan.roleSpacing)||105);
     const teamCenter=center(teamActors);
     const directions=[
-      {id:"north",x:0,y:-1},{id:"east",x:1,y:0},{id:"south",x:0,y:1},{id:"west",x:-1,y:0}
+      {id:"north",x:0,y:-1},{id:"east",x:1,y:0},{id:"south",x:0,y:1},{id:"west",x:-1,y:0},
+      ...[1,3,5,7,9,11,13,15].map(index=>{const angle=index*Math.PI/8;return{id:`radial_${index}`,x:Math.cos(angle),y:Math.sin(angle)};})
     ];
     const candidates=[];
 
@@ -40,16 +41,17 @@ export class ObjectiveApproachService{
       const perpendicular={x:-direction.y,y:direction.x};
       const stage={x:objective.x+direction.x*stagingDistance,y:objective.y+direction.y*stagingDistance};
       const rolePoints={
-        approach_lead:{x:stage.x-perpendicular.x*roleSpacing*.55,y:stage.y-perpendicular.y*roleSpacing*.55},
+        approach_lead:{x:stage.x,y:stage.y},
         objective_specialist:{x:objective.x+direction.x*interactionDistance,y:objective.y+direction.y*interactionDistance},
-        local_security:{x:stage.x+perpendicular.x*roleSpacing*.7,y:stage.y+perpendicular.y*roleSpacing*.7}
+        local_security:{x:stage.x+perpendicular.x*roleSpacing*.85,y:stage.y+perpendicular.y*roleSpacing*.85}
       };
-      const clear=Object.values(rolePoints).every(point=>isActorPositionClear(game,point.x,point.y,18));
-      if(!clear)continue;
+      if(!isActorPositionClear(game,rolePoints.objective_specialist.x,rolePoints.objective_specialist.y,18))continue;
+      if(!isActorPositionClear(game,rolePoints.local_security.x,rolePoints.local_security.y,18))continue;
       const travel=distance(teamCenter,stage);
       const spread=distance(rolePoints.approach_lead,rolePoints.local_security);
       const travelUtility=clamp(1-travel/Math.max(1,plan.maximumTravel??1400));
       const spacingUtility=clamp(spread/Math.max(1,roleSpacing*1.2));
+      const directness=clamp(1-distance(teamCenter,rolePoints.objective_specialist)/Math.max(1,plan.maximumTravel??1400));
       candidates.push({
         id:`${objective.id}:${direction.id}`,
         objectiveId:objective.id,
@@ -57,7 +59,7 @@ export class ObjectiveApproachService{
         objectivePoint:{x:objective.x,y:objective.y},
         vector:{x:direction.x,y:direction.y},
         rolePoints,
-        score:travelUtility*.78+spacingUtility*.22
+        score:travelUtility*.48+directness*.38+spacingUtility*.14
       });
     }
 
