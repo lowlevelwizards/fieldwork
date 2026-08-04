@@ -1,3 +1,14 @@
+## 2.7 — Continuous Tactical Deliberation
+
+- Added a shared actor tactical-picture service that combines personal visual contacts, recent memories, reported contacts, incoming-fire evidence, suppression, wounds, nearby cover, teammate spacing, mission agenda, and current procedural responsibility.
+- Added a continuous actor tactical-deliberation runtime beneath procedures and above physical execution. Actors can propose terrain-aware cover moves, preserve useful protected positions, and widen unsafe team spacing without rewriting the team mission.
+- Added bounded tactical commitments and minimum commitment windows so adaptive movement does not immediately oscillate back into procedure choreography.
+- Added a generic `TacticalReposition` atom that owns locomotion, attention, and stance through the existing authority arbiter.
+- Added explicit suppression states: steady, alert, pressured, pinned, and breaking. Pinned or breaking exposed actors can claim Immediate Survival authority for terrain-aware relocation.
+- Direct hostile fire is now gated by the shooter’s personal knowledge. Personally visible active threats permit aimed fire; recently seen positions permit only non-injuring suppression; lost contacts end precise firing.
+- Objective approach selection now weighs specialist cover, security cover, and fallback access, and exposes responsibility zones alongside legacy-compatible role points.
+- Added deterministic regression coverage for tactical-picture construction, survival-authority cover proposals, and perception-gated aimed versus suppressive fire.
+
 
 ## 2.6 — Adaptive Actor Tactics & Procedural Flexibility
 
