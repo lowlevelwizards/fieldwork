@@ -88,7 +88,7 @@ export class FireExecutor{
     }
     let actorIntersection=null;
     for(const candidate of game.actors??[]){
-      if(candidate.id===actor.id||protectedFriendly(candidate)||candidate.medical?.dead)continue;
+      if(candidate.id===actor.id||protectedFriendly(candidate)||candidate.medical?.dead||candidate.medical?.unconscious||candidate.medical?.condition==="critical")continue;
       const hit=segmentCircleHit(origin,intended,{x:candidate.x,y:candidate.y,radius:Math.max(10,(candidate.radius??18)*.72)});
       if(hit&&hit.t<nearest.t&&(!actorIntersection||hit.t<actorIntersection.hit.t))actorIntersection={candidate,hit};
     }
@@ -108,7 +108,7 @@ export class FireExecutor{
 
     let nearestThreat=null;
     for(const candidate of game.actors??[]){
-      if(protectedFriendly(candidate)||candidate.medical?.dead)continue;
+      if(protectedFriendly(candidate)||candidate.medical?.dead||candidate.medical?.unconscious||candidate.medical?.condition==="critical")continue;
       const miss=this.#pointSegmentDistance(candidate,origin,nearest.point);
       if(miss<=115)candidate.aiV2Suppression=clamp((candidate.aiV2Suppression??0)+18*(1-miss/115),0,100);
       if(miss>128)continue;
