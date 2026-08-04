@@ -134,14 +134,26 @@ export class AIV2Runtime{
       context:this.#context(this.elapsed)
     });
     this.scheduler.update(delta,{now:this.elapsed,context:this.#context(this.elapsed)});
+    // Live operations can complete a terminal procedure phase during the scheduler
+    // update. Capture it before response/procedure reevaluation can replace the
+    // governing procedure in the same frame. Behavior Lab keeps its historical
+    // deterministic ordering.
+    if(this.game?.livingSandbox?.liveMode)this.encounterOutcomes.update({
+      game:this.game,
+      teamProcedures:this.teamProcedures,
+      teamEncounters:this.teamEncounters,
+      heardCommunications:this.heardCommunications,
+      casualtyKnowledge:this.casualtyKnowledge,
+      now:this.elapsed
+    });
     this.personalKnowledge.update(delta,{now:this.elapsed,visibleByObserver:this.visibleByObserver});
     this.teamKnowledge.update(delta,{now:this.elapsed});
     this.threatKnowledge.update(delta,{now:this.elapsed});
     this.#ensureContactReports();
     this.#ensureContactUpdateReports();
     this.#ensureCasualtyReports();
-    this.teamEncounters.update({missions:this.teamMissions,teamKnowledge:this.teamKnowledge,casualtyKnowledge:this.casualtyKnowledge,heardCommunications:this.heardCommunications,now:this.elapsed});
-    this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,now:this.elapsed});
+    this.teamEncounters.update({game:this.game,missions:this.teamMissions,teamKnowledge:this.teamKnowledge,casualtyKnowledge:this.casualtyKnowledge,heardCommunications:this.heardCommunications,teamProcedures:this.teamProcedures,now:this.elapsed});
+    this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.teamAgenda.update({missions:this.teamMissions,teamResponses:this.teamResponses,objectives:this.objectives,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamAgenda,now:this.elapsed});
     this.roleActions.update({
@@ -176,7 +188,7 @@ export class AIV2Runtime{
       casualtyKnowledge:this.casualtyKnowledge,
       now:this.elapsed
     });
-    this.localAutonomy.update({game:this.game,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,now:this.elapsed});
+    this.localAutonomy.update({game:this.game,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,roleActions:this.roleActions,now:this.elapsed});
     this.actionArbiter?.resolve?.({now:this.elapsed,context:this.#context(this.elapsed)});
     this.#updateActorDiagnostics();
 

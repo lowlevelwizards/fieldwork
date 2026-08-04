@@ -42,7 +42,7 @@ export class FireExecutor{
     return actor.aiV2WeaponState;
   }
 
-  fireProtectiveShot({game,actor,targetPoint,shotIndex=0,spread=.055,eventKind="near_miss",eventConfidence=94,emitThreatEvent=false}={}){
+  fireProtectiveShot({game,actor,targetPoint,shotIndex=0,spread=.055,eventKind="near_miss",eventConfidence=94,emitThreatEvent=false,allowInjury=false,injuryScale=.55}={}){
     if(!game||!actor||!targetPoint)return{fired:false,reason:"missing_fire_context"};
     if(actor.medical?.dead||actor.medical?.unconscious)return{fired:false,reason:"actor_unavailable"};
     const weapon=this.ensureWeapon(actor);
@@ -77,11 +77,18 @@ export class FireExecutor{
       };
     }
 
-    let nearest={t:1,point:{...intended},obstacle:null};
+    let nearest={t:1,point:{...intended},obstacle:null,actor:null};
     for(const obstacle of game.map?.obstacles??[]){
       const hit=segmentCircleHit(origin,intended,{x:obstacle.x,y:obstacle.y,radius:(obstacle.radius??25)*.8});
-      if(hit&&hit.t<nearest.t)nearest={t:hit.t,point:{x:hit.x,y:hit.y},obstacle};
+      if(hit&&hit.t<nearest.t)nearest={t:hit.t,point:{x:hit.x,y:hit.y},obstacle,actor:null};
     }
+    let actorIntersection=null;
+    for(const candidate of game.actors??[]){
+      if(candidate.id===actor.id||candidate.teamId===actor.teamId||candidate.medical?.dead)continue;
+      const hit=segmentCircleHit(origin,intended,{x:candidate.x,y:candidate.y,radius:Math.max(10,(candidate.radius??18)*.72)});
+      if(hit&&hit.t<nearest.t&&(!actorIntersection||hit.t<actorIntersection.hit.t))actorIntersection={candidate,hit};
+    }
+    if(actorIntersection)nearest={t:actorIntersection.hit.t,point:{x:actorIntersection.hit.x,y:actorIntersection.hit.y},obstacle:null,actor:actorIntersection.candidate};
 
     actor.ammoInMagazine-=1;
     weapon.shotsFired=(weapon.shotsFired??0)+1;
@@ -102,6 +109,35 @@ export class FireExecutor{
       if(miss<=115)candidate.aiV2Suppression=clamp((candidate.aiV2Suppression??0)+18*(1-miss/115),0,100);
       if(miss>128)continue;
       if(!nearestThreat||miss<nearestThreat.miss)nearestThreat={candidate,miss};
+    }
+    if(nearest.actor)nearestThreat={candidate:nearest.actor,miss:0};
+
+    let wound=null;
+    if(nearest.actor&&allowInjury&&game.wounds){
+      const protection=clamp(nearest.actor.aiV2DefensivePosition?.status==="holding"?(nearest.actor.aiV2DefensivePosition?.protection??0):0,0,1);
+      const exposureFactor=1-protection*.78;
+      const injuryChance=clamp((Number(injuryScale)||0)*.48*exposureFactor,.02,.62);
+      const shotKey=`${actor.id}:${weapon.shotsFired}:${nearest.actor.id}`;
+      if(stableUnit(`${shotKey}:injury`)<injuryChance){
+        const severityRoll=stableUnit(`${shotKey}:severity`);
+        const regionRoll=stableUnit(`${shotKey}:region`);
+        const close=clamp(1-distance(origin,nearest.point)/this.maximumRange,0,1);
+        const severity=severityRoll<.5-close*.08?"minor":severityRoll<.86?"moderate":severityRoll<.975?"severe":"catastrophic";
+        const region=regionRoll<.08?"head":regionRoll<.48?"torso":regionRoll<.7?"arms":"legs";
+        const eventTime=game.aiV2?.elapsed??0;
+        wound=game.wounds.applyGunshot(nearest.actor,nearest.point,{
+          source:actor,
+          distance:distance(origin,nearest.point),
+          severity,
+          region,
+          deterministicRolls:{severity:severityRoll,escalation:stableUnit(`${shotKey}:escalation`),region:regionRoll},
+          createdAt:eventTime,
+          woundId:`ai_v2_wound_${actor.id}_${weapon.shotsFired}_${nearest.actor.id}`
+        });
+        if(wound){
+          game.aiV2?.decisionLog?.record?.({type:"live_ballistic_wound",time:eventTime,actorId:nearest.actor.id,teamId:nearest.actor.teamId,data:{sourceActorId:actor.id,sourceTeamId:actor.teamId,woundId:wound.id,region:wound.region,severity:wound.severity,protection,injuryChance,operationId:nearest.actor.operationId??null}});
+        }
+      }
     }
 
     let threatEventId=null;
@@ -130,6 +166,8 @@ export class FireExecutor{
       origin,
       end:{...nearest.point},
       obstacle:Boolean(nearest.obstacle),
+      hitActorId:nearest.actor?.id??null,
+      wound:wound?{id:wound.id,region:wound.region,severity:wound.severity}:null,
       threatEventId,
       nearMissActorId:nearestThreat?.candidate.id??null,
       nearMissDistance:nearestThreat?.miss??null,

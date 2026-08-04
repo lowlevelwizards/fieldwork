@@ -8,9 +8,10 @@ import { AI_V2_2_0P_PROCEDURES } from "./procedure-definitions-2.0p.js";
 import { AI_V2_2_0Q_PROCEDURES } from "./procedure-definitions-2.0q.js";
 import { AI_V2_2_0R_PROCEDURES } from "./procedure-definitions-2.0r.js";
 import { AI_V2_2_0V_PROCEDURES } from "./procedure-definitions-2.0v.js";
+import { AI_V2_2_2_PROCEDURES } from "./procedure-definitions-2.2.js";
 
 export function getProcedureDefinitionForResponse(responseId){
-  return AI_V2_2_0V_PROCEDURES[responseId]??AI_V2_2_0R_PROCEDURES[responseId]??AI_V2_2_0Q_PROCEDURES[responseId]??AI_V2_2_0P_PROCEDURES[responseId]??getBaseProcedureDefinitionForResponse(responseId);
+  return AI_V2_2_2_PROCEDURES[responseId]??AI_V2_2_0V_PROCEDURES[responseId]??AI_V2_2_0R_PROCEDURES[responseId]??AI_V2_2_0Q_PROCEDURES[responseId]??AI_V2_2_0P_PROCEDURES[responseId]??getBaseProcedureDefinitionForResponse(responseId);
 }
 
 export { getProcedurePhase, getProcedureTransition };
@@ -20,5 +21,6 @@ export const ALL_TEAM_PROCEDURE_DEFINITIONS=Object.freeze({
   ...AI_V2_2_0P_PROCEDURES,
   ...AI_V2_2_0Q_PROCEDURES,
   ...AI_V2_2_0R_PROCEDURES,
-  ...AI_V2_2_0V_PROCEDURES
+  ...AI_V2_2_0V_PROCEDURES,
+  ...AI_V2_2_2_PROCEDURES
 });

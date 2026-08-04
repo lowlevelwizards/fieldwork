@@ -27,7 +27,7 @@ export class PerformObjectiveWorkAction extends AIV2Action{
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     const role=services?.teamProcedures?.getActorRole?.(this.actorId);
     const objective=services?.objectives?.get?.(this.directive.objectiveId);
-    return Boolean(actor&&objective&&!actor.medical?.dead&&!actor.medical?.unconscious&&role?.procedureId===this.directive.procedureId&&role?.roleId===this.directive.roleId&&role?.phase?.id==="perform_objective_work"&&distance(actor,objective)<=Math.max(48,objective.interactionRadius??78));
+    return Boolean(actor&&objective&&!actor.medical?.dead&&!actor.medical?.unconscious&&role?.procedureId===this.directive.procedureId&&role?.roleId===this.directive.roleId&&role?.phase?.id===(this.directive.phaseId??"perform_objective_work")&&distance(actor,objective)<=Math.max(48,objective.interactionRadius??78));
   }
 
   start(now,context){
@@ -46,7 +46,7 @@ export class PerformObjectiveWorkAction extends AIV2Action{
     if(!this.claimed)return{status:"failed",reason:"objective_work_claim_rejected"};
     services.objectives.renewWork(this.directive.objectiveId,actor.id,{now});
     services.attention.turnToward(actor,this.directive.objectivePoint,delta,{pose:"work",turnRate:4});
-    const result=services.objectives.advanceWork({objectiveId:this.directive.objectiveId,actorId:actor.id,teamId:actor.teamId,delta,now});
+    const result=services.objectives.advanceWork({objectiveId:this.directive.objectiveId,actorId:actor.id,teamId:actor.teamId,delta,workRate:this.directive.workRate??1,now});
     if(!result.ok){
       services.objectives.releaseWork(this.directive.objectiveId,actor.id,{now,reason:"objective_work_failed"});
       return{status:"failed",reason:result.reason};
@@ -56,7 +56,7 @@ export class PerformObjectiveWorkAction extends AIV2Action{
     actor.aiV2Objective={status:result.completed?"operational":"working",objectiveId:this.directive.objectiveId,roleId:this.directive.roleId,progress:this.progress};
     if(!result.completed)return null;
     services.objectives.releaseWork(this.directive.objectiveId,actor.id,{now,reason:"objective_restored"});
-    services.teamProcedures.notifyEvent({teamId:actor.teamId,event:"objective_restored",now,data:{actorId:actor.id,objectiveId:this.directive.objectiveId,state:result.objective?.state}});
+    services.teamProcedures.notifyEvent({teamId:actor.teamId,event:this.directive.completionEvent??"objective_restored",now,data:{actorId:actor.id,objectiveId:this.directive.objectiveId,state:result.objective?.state}});
     actor.currentAction=this.directive.completedLabel??"Field objective complete";
     return{status:"completed",reason:"objective_restored",data:{objectiveId:this.directive.objectiveId,state:result.objective?.state}};
   }

@@ -37,8 +37,9 @@ function rankActors(actors,roleSpec){
   });
 }
 
-function assignRoles(definition,teamActors){
-  const available=teamActors.filter(capable);
+function assignRoles(definition,teamActors,{subjectId=null}={}){
+  const excludesSubject=["casualty_recovery","casualty_evacuation"].includes(definition?.id);
+  const available=teamActors.filter(actor=>capable(actor)&&(!excludesSubject||actor.id!==subjectId));
   const assigned=new Set();
   const roles=[];
   for(const roleSpec of definition.roles){
@@ -67,7 +68,7 @@ function assignmentsValid(record,actorsById,definition){
     assignedIds.add(role.actorId);
     const actor=actorsById.get(role.actorId);
     const roleSpec=definition?.roles?.find(candidate=>candidate.id===role.roleId)??null;
-    if(!capable(actor)||roleSpec?.eligible?.(actor)===false)return false;
+    if(!capable(actor)||(["casualty_recovery","casualty_evacuation"].includes(definition?.id)&&actor.id===record.subjectId)||roleSpec?.eligible?.(actor)===false)return false;
   }
   return true;
 }
@@ -101,7 +102,7 @@ export class TeamProcedureState{
       if(!assignmentsValid(existing,actorsById,definition)){
         const previousRoles=existing.roles.map(cloneRole);
         const previousCarrier=previousRoles.find(role=>role.roleId==="carrier")?.actorId??null;
-        existing.roles=assignRoles(definition,teamActors);
+        existing.roles=assignRoles(definition,teamActors,{subjectId:response.subjectId});
         const nextCarrier=existing.roles.find(role=>role.roleId==="carrier")?.actorId??null;
         if(existing.evacuation&&previousCarrier&&nextCarrier&&previousCarrier!==nextCarrier){
           existing.evacuation.carrierHandoffs=(existing.evacuation.carrierHandoffs??0)+1;
@@ -180,10 +181,11 @@ export class TeamProcedureState{
   summary(){return [...this.byTeam.values()].map(cloneProcedure);}
 
   #start({response,definition,teamActors,now}){
-    const roles=assignRoles(definition,teamActors);
+    const roles=assignRoles(definition,teamActors,{subjectId:response.subjectId});
     const record={
       teamId:response.teamId,
       missionId:response.missionId,
+      subjectId:response.subjectId??null,
       responseId:response.selected.id,
       responseLabel:response.selected.label,
       procedureId:definition.id,

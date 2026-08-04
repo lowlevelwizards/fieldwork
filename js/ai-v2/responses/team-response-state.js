@@ -1,6 +1,19 @@
 import { evaluateTeamResponses } from "./response-evaluator.js";
 
 const ACTIVE_ENCOUNTER_STATES=new Set(["relevant","potentially_incompatible"]);
+function procedureOwnsResponseCompletion(response,procedure){
+  if(!response?.selected?.id||!procedure||procedure.responseId!==response.selected.id)return false;
+  const phase=procedure.phase?.id;
+  switch(response.selected.id){
+    case"break_contact_under_fire":return procedure.procedureId==="protective_breakaway"&&phase!=="contact_broken";
+    case"recover_casualty":return procedure.procedureId==="casualty_recovery"&&!(["recovery_complete","reassess"].includes(phase));
+    case"evacuate_casualty":return procedure.procedureId==="casualty_evacuation"&&!(["safe_return","procedure_reassess"].includes(phase));
+    case"warn":return procedure.procedureId==="challenge_unknown_contact"&&phase==="issue_warning";
+    case"demonstrative_fire":return procedure.procedureId==="demonstrative_boundary_fire"&&phase==="fire_warning_shot";
+    default:return false;
+  }
+}
+
 
 function cloneCandidate(candidate){
   return candidate?{
@@ -25,12 +38,13 @@ export class TeamResponseState{
     this.byTeam=new Map();
   }
 
-  update({missions,teamEncounters,encounterOutcomes=null,now=0}={}){
+  update({missions,teamEncounters,encounterOutcomes=null,teamProcedures=null,now=0}={}){
     const seenTeams=new Set();
     for(const mission of missions?.summary?.()??[]){
       seenTeams.add(mission.teamId);
       const encounter=teamEncounters?.getBestTeamHypothesis?.(mission.teamId)??null;
       const existing=this.byTeam.get(mission.teamId)??null;
+      const activeProcedure=teamProcedures?.get?.(mission.teamId)??null;
       const outcome=encounterOutcomes?.getLatest?.(mission.teamId)??null;
       const missionResolved=outcome?.missionResolved??outcome?.resolved??false;
       if(missionResolved){
@@ -41,6 +55,12 @@ export class TeamResponseState{
           continue;
         }
         if(existing)this.#invalidate(existing,now,"encounter_outcome_resolved");
+        continue;
+      }
+      if(mission.liveOperation&&existing&&procedureOwnsResponseCompletion(existing,activeProcedure)){
+        existing.lastEvaluatedAt=now;
+        existing.heldReason=`${activeProcedure.label} retains governing authority until ${activeProcedure.phase?.label??"its causal completion condition"}.`;
+        this.#record("team_response_reaffirmed",existing,now,{heldReason:existing.heldReason,procedureId:activeProcedure.procedureId,phaseId:activeProcedure.phase?.id});
         continue;
       }
       if(!encounter||!ACTIVE_ENCOUNTER_STATES.has(encounter.state)){

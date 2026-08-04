@@ -8,6 +8,34 @@ function stableUnit(text){
   return((hash>>>0)%10000)/10000;
 }
 
+function buildCargoPackages(need,objective,seed){
+  if(need.kind!=="recover_supplies")return[];
+  const count=Math.max(1,Math.round(need.resourceAmount||3));
+  return Array.from({length:count},(_,index)=>{
+    const angle=(Math.PI*2*index/count)+stableUnit(`${seed}:${need.id}:${index}`)*.55;
+    const radius=34+(index%2)*18;
+    return{
+      id:`${need.id}_package_${index+1}`,resourceType:need.resourceType??"technical",units:1,weight:1,
+      status:"at_site",holderActorId:null,claimedByActorId:null,returnedByFactionId:null,
+      x:(objective?.x??0)+Math.cos(angle)*radius,y:(objective?.y??0)+Math.sin(angle)*radius,origin:{x:objective?.x??0,y:objective?.y??0}
+    };
+  });
+}
+
+function buildSurveyPoints(need,objective,seed){
+  if(need.kind!=="survey_route")return[];
+  const count=4;
+  const base=stableUnit(`${seed}:${need.id}:survey`)*Math.PI*2;
+  return Array.from({length:count},(_,index)=>{
+    const angle=base+(index-1.5)*.52;
+    const radius=170+index*92;
+    return{id:`${need.id}_survey_${index+1}`,label:`Survey point ${index+1}`,index,x:(objective?.x??0)+Math.cos(angle)*radius,y:(objective?.y??0)+Math.sin(angle)*radius,status:"pending",recordedByActorId:null,recordedAt:null};
+  });
+}
+
+function cloneCargo(item){return{...item,origin:item.origin?{...item.origin}:null};}
+function cloneSurveyPoint(item){return{...item};}
+
 function cloneCapabilities(capabilities={}){
   return Object.fromEntries(Object.entries(capabilities).map(([key,value])=>[key,clamp(value)]));
 }
@@ -20,6 +48,7 @@ function cloneRosterMember(member){
     equipment:[...(member.equipment??[])],
     unlockedAbilities:[...(member.unlockedAbilities??[])],
     traits:[...(member.traits??[])],
+    fieldHistory:(member.fieldHistory??[]).map(item=>({...item})),
     deployedActorId:member.deployedActorId??null,
     operationId:member.operationId??null,
     availableAt:member.availableAt===Infinity?Infinity:finite(member.availableAt,0)
@@ -41,6 +70,9 @@ function cloneNeed(need){
   return need?{
     ...need,
     capabilityNeeds:{...need.capabilityNeeds},
+    cargoPackages:(need.cargoPackages??[]).map(cloneCargo),
+    surveyPoints:(need.surveyPoints??[]).map(cloneSurveyPoint),
+    operationalMemory:(need.operationalMemory??[]).map(item=>({...item})),
     scoreBreakdown:need.scoreBreakdown?{...need.scoreBreakdown}:null
   }:null;
 }
@@ -55,6 +87,10 @@ function cloneOperation(operation){
     entryPoint:operation.entryPoint?{...operation.entryPoint}:null,
     capabilityNeeds:{...(operation.capabilityNeeds??{})},
     scoreBreakdown:{...(operation.scoreBreakdown??{})},
+    resourceCost:{...(operation.resourceCost??{})},
+    cargoPackages:(operation.cargoPackages??[]).map(cloneCargo),
+    surveyPoints:(operation.surveyPoints??[]).map(cloneSurveyPoint),
+    operationalMemory:(operation.operationalMemory??[]).map(item=>({...item})),
     rosterOutcome:(operation.rosterOutcome??[]).map(item=>({...item,wounds:(item.wounds??[]).map(wound=>({...wound}))}))
   }:null;
 }
@@ -67,6 +103,8 @@ function normalizedFaction(spec,index){
     priorities:Object.fromEntries(Object.entries(spec.priorities??{restore_infrastructure:.5}).map(([key,value])=>[key,clamp(value)])),
     interests:Object.fromEntries(Object.entries(spec.interests??{}).map(([key,value])=>[key,clamp(value)])),
     contactResolve:clamp(spec.contactResolve??.5),
+    riskTolerance:clamp(spec.riskTolerance??.55),
+    casualtyPriority:clamp(spec.casualtyPriority??.82),
     entryPoint:{x:finite(spec.entryPoint?.x,0),y:finite(spec.entryPoint?.y,0),facing:spec.entryPoint?.facing??"down"},
     score:finite(spec.score,0),
     resources:{medical:0,technical:0,food:0,fuel:0,...(spec.resources??{})},
@@ -88,6 +126,8 @@ function normalizedFaction(spec,index){
       equipment:[...(member.equipment??[])],
       unlockedAbilities:[...(member.unlockedAbilities??[])],
       traits:[...(member.traits??[])],
+      fieldHistory:(member.fieldHistory??[]).map(item=>({...item})),
+      capabilityImprovements:{...(member.capabilityImprovements??{})},
       operationId:null,
       deployedActorId:null,
       availableAt:0,
@@ -101,6 +141,20 @@ function roleCapabilitiesForNeed(need){
   if(need.kind==="recover_supplies")return{specialist:"carrying",lead:"navigation",support:"security"};
   if(need.kind==="survey_route")return{specialist:"observation",lead:"scouting",support:"security"};
   return{specialist:"technicalWork",lead:"navigation",support:"security"};
+}
+
+function specialtyForMember(member){
+  const preferred=/medic/i.test(member?.role??"")?"medical":/tech|repair|fixer|utility/i.test(member?.role??"")?"technicalWork":/carrier|handler/i.test(member?.role??"")?"carrying":/scout|pathfinder|surveyor|recon/i.test(member?.role??"")?"scouting":/security|guard/i.test(member?.role??"")?"security":null;
+  if(preferred)return preferred;
+  return Object.entries(member?.capabilities??{}).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))[0]?.[0]??"observation";
+}
+
+function deploymentUtility(member,key){
+  const capability=capabilityScore(member,key);
+  const fatiguePenalty=clamp(member?.fatigue??0)*.24;
+  const usagePenalty=Math.min(.22,(member?.operationCount??0)*.012);
+  const readinessBonus=Math.min(.08,Math.max(0,(member?.level??1)-1)*.025);
+  return capability-fatiguePenalty-usagePenalty+readinessBonus;
 }
 
 export class LivingSandboxState{
@@ -118,6 +172,7 @@ export class LivingSandboxState{
     this.teamSize=Math.max(1,Math.round(finite(config.teamSize,3)));
     this.maxActiveOperations=Math.max(1,Math.round(finite(config.maxActiveOperations,1)));
     this.turnover={...(config.turnover??{})};
+    this.contention={enabled:true,minimumPrimaryAge:3.5,chance:.72,...(config.contention??{})};
     this.factions=new Map((config.factions??[]).map((spec,index)=>[spec.id,normalizedFaction(spec,index)]));
     this.needs=new Map();
     this.operations=new Map();
@@ -161,6 +216,8 @@ export class LivingSandboxState{
             existing.operationId=null;
             existing.resolvedAt=null;
             existing.satisfiedAt=null;
+            existing.cargoPackages=buildCargoPackages(existing,objective,this.seed+Math.round(now));
+            existing.surveyPoints=buildSurveyPoints(existing,objective,this.seed+Math.round(now));
             this.#record("world_need_reopened",now,{needId:existing.id,objectiveId:objective.id,previousOperationId:existing.previousOperationId});
           }
         }
@@ -194,8 +251,13 @@ export class LivingSandboxState{
         lastChangedAt:now,
         satisfiedAt:null,
         resolvedAt:null,
-        scoreBreakdown:null
+        scoreBreakdown:null,
+        cargoPackages:[],
+        surveyPoints:[],
+        operationalMemory:[]
       };
+      need.cargoPackages=buildCargoPackages(need,objective,this.seed);
+      need.surveyPoints=buildSurveyPoints(need,objective,this.seed);
       this.needs.set(objective.id,need);
       this.#record("world_need_created",now,{needId:need.id,objectiveId:objective.id,kind:need.kind,urgency:need.urgency});
     }
@@ -210,7 +272,10 @@ export class LivingSandboxState{
       member.deployedActorId=null;
       member.availableAt=0;
       member.fatigue=Math.max(0,(member.fatigue??0)-.55);
-      if(member.healthStatus!=="dead")member.healthStatus="healthy";
+      if(member.healthStatus!=="dead"){
+        member.healthStatus="healthy";
+        member.wounds=[];
+      }
       this.#record("roster_member_available",now,{factionId:faction.id,rosterId:member.id});
     }
   }
@@ -218,7 +283,9 @@ export class LivingSandboxState{
   proposeDispatch({objectives=[],now=0}={}){
     this.updateBlockedNeeds({now});
     const active=[...this.operations.values()].filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status));
-    if(active.length>=this.maxActiveOperations)return null;
+    const contentionReserve=this.liveMode&&this.contention?.enabled?1:0;
+    const normalCapacity=Math.max(1,this.maxActiveOperations-contentionReserve);
+    if(active.length>=normalCapacity)return null;
     if(now<this.dispatchDelay||now-this.lastDispatchAt<this.minimumDispatchGap)return null;
 
     const objectiveById=new Map((objectives??[]).map(objective=>[objective.id,objective]));
@@ -263,7 +330,17 @@ export class LivingSandboxState{
           score=Object.values(terms).reduce((sum,value)=>sum+value,0);
           scoreBreakdown={...terms,total:score,travelDistance:Math.round(travelDistance),availableRoster:available.length};
         }
-        candidates.push({need,objective,faction,team,score,scoreBreakdown,capabilityFit});
+        const travelDistance=distance(faction.entryPoint,objective);
+        const resourceCost={
+          fuel:travelDistance>3600?1:0,
+          technical:need.kind==="restore_infrastructure"?1:0,
+          medical:0
+        };
+        const required=Object.values(resourceCost).reduce((sum,value)=>sum+value,0);
+        const covered=Object.entries(resourceCost).reduce((sum,[key,value])=>sum+Math.min(value,faction.resources[key]??0),0);
+        const resourceCoverage=required?covered/required:1;
+        if(this.liveMode){score+=(resourceCoverage-1)*.16;scoreBreakdown.resourceCoverage=resourceCoverage*.06;scoreBreakdown.resourceShortage=-(1-resourceCoverage)*.16;scoreBreakdown.total=score;}
+        candidates.push({need,objective,faction,team,score,scoreBreakdown,capabilityFit,resourceCost,resourceCoverage});
       }
     }
     candidates.sort((left,right)=>right.score-left.score||right.need.urgency-left.need.urgency||left.faction.priorityOrder-right.faction.priorityOrder||left.need.id.localeCompare(right.need.id));
@@ -296,6 +373,15 @@ export class LivingSandboxState{
       scoreValue:selected.need.scoreValue,
       resourceType:selected.need.resourceType,
       resourceAmount:selected.need.resourceAmount,
+      resourceCost:{...selected.resourceCost},
+      resourceCoverage:selected.resourceCoverage,
+      cargoPackages:(selected.need.cargoPackages??[]).map(cloneCargo),
+      surveyPoints:(selected.need.surveyPoints??[]).map(cloneSurveyPoint),
+      operationalMemory:(selected.need.operationalMemory??[]).map(item=>({...item})),
+      returnedResourceAmount:0,
+      abandonedResourceAmount:0,
+      casualtyCount:0,
+      deathCount:0,
       capabilityNeeds:{...selected.need.capabilityNeeds},
       capabilityFit:selected.capabilityFit,
       score:selected.score,
@@ -334,8 +420,80 @@ export class LivingSandboxState{
       member.dutyStatus="assigned";
       member.operationId=operationId;
     }
+    for(const [key,cost] of Object.entries(operation.resourceCost??{})){
+      const spent=Math.min(Math.max(0,cost),selected.faction.resources[key]??0);
+      selected.faction.resources[key]=(selected.faction.resources[key]??0)-spent;
+      if(spent>0)this.#record("faction_resource_spent",now,{factionId:selected.faction.id,operationId,resourceType:key,amount:spent,remaining:selected.faction.resources[key]});
+    }
     this.lastDispatchAt=now;
     this.#record("faction_operation_proposed",now,{operationId,factionId:operation.factionId,needId:operation.needId,objectiveId:operation.objectiveId,score:operation.score,scoreBreakdown:{...operation.scoreBreakdown}});
+    return cloneOperation(operation);
+  }
+
+  proposeContestedDispatch({objectives=[],now=0}={}){
+    if(!this.liveMode||!this.contention?.enabled)return null;
+    const active=[...this.operations.values()].filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status));
+    if(active.length>=this.maxActiveOperations)return null;
+    if(now-this.lastDispatchAt<this.minimumDispatchGap)return null;
+    const objectiveById=new Map((objectives??[]).map(objective=>[objective.id,objective]));
+    const primary=[...this.operations.values()]
+      .filter(operation=>operation.status==="deployed"&&!operation.contested&&operation.family==="infrastructure"&&!operation.contestedDispatchCreated&&now-(operation.deployedAt??now)>=Math.max(1,finite(this.contention.minimumPrimaryAge,3.5)))
+      .sort((a,b)=>(b.strategicValue??0)-(a.strategicValue??0)||(a.deployedAt??0)-(b.deployedAt??0))[0]??null;
+    if(!primary)return null;
+    const objective=objectiveById.get(primary.objectiveId);
+    if(!objective||objective.state===primary.desiredState){primary.contestedDispatchCreated=true;return null;}
+    const roll=stableUnit(`${this.seed}:${primary.id}:contention`);
+    if(roll>clamp(this.contention.chance??.72)){primary.contestedDispatchCreated=true;this.#record("faction_contention_declined",now,{operationId:primary.id,objectiveId:primary.objectiveId,roll});return null;}
+    const need=[...this.needs.values()].find(candidate=>candidate.id===primary.needId)??null;
+    if(!need)return null;
+    const candidates=[];
+    for(const faction of this.factions.values()){
+      if(faction.id===primary.factionId)continue;
+      if(active.some(operation=>operation.contested&&operation.primaryOperationId===primary.id&&operation.factionId===faction.id))continue;
+      const available=faction.roster.filter(member=>member.status==="available"&&member.healthStatus!=="dead");
+      if(available.length<this.teamSize)continue;
+      const team=this.#selectTeam(faction,need);
+      if(team.length<this.teamSize)continue;
+      const priority=clamp(faction.priorities[need.kind]??0);
+      const interest=clamp(faction.interests[need.interestKey]??.5);
+      const capabilityFit=this.#teamCapabilityFit(team,need.capabilityNeeds);
+      const travelCost=clamp(distance(faction.entryPoint,objective)/Math.hypot(7600,4200));
+      const conflictCost=(1-clamp(faction.riskTolerance??.5))*.14;
+      const variation=(stableUnit(`${this.seed}:${primary.id}:${faction.id}:rival`)-.5)*.04;
+      const score=priority*.2+interest*.23+need.urgency*.14+need.strategicValue*.17+capabilityFit*.14+(faction.riskTolerance??.5)*.16-travelCost*.24-conflictCost+variation;
+      candidates.push({faction,team,score,capabilityFit,travelCost});
+    }
+    candidates.sort((a,b)=>b.score-a.score||b.faction.riskTolerance-a.faction.riskTolerance||a.faction.priorityOrder-b.faction.priorityOrder);
+    const selected=candidates[0];
+    if(!selected){primary.contestedDispatchCreated=true;return null;}
+    const operationId=`sandbox_operation_${++this.operationSequence}`;
+    const resourceCost={fuel:distance(selected.faction.entryPoint,objective)>3600?1:0,technical:1,medical:0};
+    const operation={
+      id:operationId,kind:primary.kind,templateId:primary.templateId,family:primary.family,
+      label:`Contest access to ${primary.objectiveLabel}`,status:"proposed",
+      factionId:selected.faction.id,factionLabel:selected.faction.label,needId:primary.needId,
+      objectiveId:primary.objectiveId,objectiveLabel:primary.objectiveLabel,objectivePoint:{...primary.objectivePoint},desiredState:primary.desiredState,
+      urgency:primary.urgency,strategicValue:primary.strategicValue,scoreValue:0,resourceType:null,resourceAmount:0,
+      resourceCost,resourceCoverage:1,cargoPackages:[],surveyPoints:[],operationalMemory:[{type:"rival_operation_detected",at:now,operationId:primary.id,factionId:primary.factionId}],
+      returnedResourceAmount:0,abandonedResourceAmount:0,casualtyCount:0,deathCount:0,
+      capabilityNeeds:{...primary.capabilityNeeds},capabilityFit:selected.capabilityFit,score:selected.score,
+      scoreBreakdown:{contention:1,riskTolerance:selected.faction.riskTolerance,travelCost:-selected.travelCost*.24,total:selected.score},
+      contactResolve:Math.max(.84,selected.faction.contactResolve??.5),rosterIds:selected.team.map(member=>member.id),assignments:this.#assignResponsibilities(selected.team,need),
+      actorIds:[],teamId:null,entryPoint:{...selected.faction.entryPoint},proposedAt:now,deployedAt:null,objectiveCompletedAt:null,returnReadyAt:null,completedAt:null,
+      attemptNumber:1,result:null,violent:false,interruptedAt:null,interruptionReason:null,blockingOperationId:primary.id,outcomeId:null,rosterOutcome:[],
+      contested:true,contestedRole:"challenger",primaryOperationId:primary.id,contestedDispatchCreated:true
+    };
+    primary.contestedDispatchCreated=true;
+    primary.contestedByOperationId=operationId;
+    this.operations.set(operationId,operation);
+    for(const member of selected.team){member.status="assigned";member.dutyStatus="assigned";member.operationId=operationId;}
+    for(const [key,cost] of Object.entries(resourceCost)){
+      const spent=Math.min(Math.max(0,cost),selected.faction.resources[key]??0);
+      selected.faction.resources[key]=(selected.faction.resources[key]??0)-spent;
+      if(spent>0)this.#record("faction_resource_spent",now,{factionId:selected.faction.id,operationId,resourceType:key,amount:spent,remaining:selected.faction.resources[key]});
+    }
+    this.lastDispatchAt=now;
+    this.#record("faction_contested_operation_proposed",now,{operationId,primaryOperationId:primary.id,factionId:operation.factionId,defendingFactionId:primary.factionId,objectiveId:operation.objectiveId,score:operation.score});
     return cloneOperation(operation);
   }
 
@@ -381,8 +539,16 @@ export class LivingSandboxState{
     operation.blockingOperationId=blockingOperationId;
     operation.outcomeId=outcomeId;
     operation.returnReadyAt=now+this.interruptedReturnHold;
+    if(operation.contested&&operation.primaryOperationId){
+      const primary=this.operations.get(operation.primaryOperationId);
+      if(primary){
+        primary.contentionResolvedAt=now;
+        primary.contestedByOperationId=null;
+        primary.operationalMemory=[...(primary.operationalMemory??[]),{type:violent?"rival_broke_contact_under_fire":"rival_operation_withdrew",at:now,operationId:operation.id,factionId:operation.factionId}].slice(-12);
+      }
+    }
     const need=[...this.needs.values()].find(candidate=>candidate.id===operation.needId)??null;
-    if(need){
+    if(need&&!operation.contested){
       need.status="blocked";
       need.blockedAt=now;
       need.blockedByOperationId=blockingOperationId;
@@ -391,6 +557,27 @@ export class LivingSandboxState{
     }
     this.#record("faction_operation_interrupted",now,{operationId,teamId:operation.teamId,factionId:operation.factionId,needId:operation.needId,reason,result:operation.result,violent:operation.violent,blockingOperationId,outcomeId,returnReadyAt:operation.returnReadyAt});
     return true;
+  }
+
+  resolveContestedStandoffs({now=0}={}){
+    if(!this.liveMode||!this.contention?.enabled)return[];
+    const resolved=[];
+    const maximumDuration=Math.max(12,finite(this.contention.maximumStandoffDuration,64));
+    for(const challenger of this.operations.values()){
+      if(!challenger.contested||challenger.contestedRole!=="challenger"||challenger.status!=="deployed")continue;
+      const primary=this.operations.get(challenger.primaryOperationId);
+      if(!primary||primary.status!=="deployed"){
+        if(this.interruptOperation(challenger.id,{now,reason:"contested_primary_no_longer_active",blockingOperationId:primary?.id??null,result:"deferred_after_standoff",violent:false}))resolved.push(challenger.id);
+        continue;
+      }
+      if(now-(challenger.deployedAt??now)<maximumDuration)continue;
+      if(this.interruptOperation(challenger.id,{now,reason:"contested_worksite_standoff_expired",blockingOperationId:primary.id,result:"deferred_after_standoff",violent:false})){
+        primary.operationalMemory=[...(primary.operationalMemory??[]),{type:"rival_standoff_ended",at:now,operationId:challenger.id,factionId:challenger.factionId}].slice(-12);
+        this.#record("faction_contested_standoff_resolved",now,{operationId:challenger.id,primaryOperationId:primary.id,factionId:challenger.factionId,objectiveId:challenger.objectiveId,duration:now-(challenger.deployedAt??now)});
+        resolved.push(challenger.id);
+      }
+    }
+    return resolved;
   }
 
   updateBlockedNeeds({now=0}={}){
@@ -430,10 +617,26 @@ export class LivingSandboxState{
       const wounded=!dead&&Boolean((medical.wounds??[]).length||medical.condition&&medical.condition!=="healthy");
       member.wounds=(medical.wounds??[]).map(wound=>({...wound}));
       member.healthStatus=dead?"dead":wounded?"wounded":"healthy";
-      member.experience=(member.experience??0)+(operation.status==="returning"?18:10)+(operation.violent?5:0);
+      if(dead)operation.deathCount=(operation.deathCount??0)+1;
+      else if(wounded)operation.casualtyCount=(operation.casualtyCount??0)+1;
+      const returnedCargo=(operation.cargoPackages??[]).filter(item=>item.status==="returned"&&item.holderActorId===actor?.id).reduce((sum,item)=>sum+(item.units??1),0);
+      const recordedSurvey=(operation.surveyPoints??[]).filter(item=>item.recordedByActorId===actor?.id).length;
+      const responsibility=operation.assignments?.[index]?.responsibility??null;
+      const responsibilityBonus=operation.status==="returning"&&responsibility?4:0;
+      const experienceGain=(operation.status==="returning"?16:8)+(operation.violent?5:0)+returnedCargo*4+recordedSurvey*3+responsibilityBonus;
+      const previousLevel=member.level??1;
+      member.experience=(member.experience??0)+experienceGain;
       member.level=Math.max(1,1+Math.floor(member.experience/100));
+      if(member.level>previousLevel){
+        const specialty=specialtyForMember(member);
+        const gain=Math.min(.06,(member.level-previousLevel)*.025);
+        member.capabilities[specialty]=clamp((member.capabilities[specialty]??0)+gain);
+        member.capabilityImprovements={...(member.capabilityImprovements??{}),[specialty]:(member.capabilityImprovements?.[specialty]??0)+gain};
+        this.#record("roster_member_leveled",now,{factionId:faction.id,rosterId:member.id,level:member.level,specialty,capability:member.capabilities[specialty]});
+      }
       member.fatigue=clamp((member.fatigue??0)+(operation.status==="returning"?.32:.24)+(operation.violent?.12:0));
       if(operation.status==="returning")member.successfulReturns=(member.successfulReturns??0)+1;
+      let medicalSupportUsed=0;
       if(dead){
         member.status="dead";
         member.dutyStatus="dead";
@@ -441,11 +644,16 @@ export class LivingSandboxState{
         member.deathAt=now;
       }else{
         const severity=medical.condition==="critical"?3:medical.condition==="serious"||medical.condition==="unconscious"?2:wounded?1:0;
-        const recovery=this.recoveryDuration*(1+severity*(this.woundedRecoveryMultiplier-1));
+        let recovery=this.recoveryDuration*(1+severity*(this.woundedRecoveryMultiplier-1));
+        if(wounded&&(faction.resources.medical??0)>0){
+          faction.resources.medical-=1;medicalSupportUsed=1;recovery*=.68;
+          this.#record("medical_resource_used_for_recovery",now,{factionId:faction.id,rosterId:member.id,operationId:operation.id,recoveryDuration:recovery,remaining:faction.resources.medical});
+        }
         member.status=recovery>0?"recovering":"available";
         member.dutyStatus=member.status;
         member.availableAt=recovery>0?now+recovery:0;
       }
+      member.fieldHistory=[...(member.fieldHistory??[]),{operationId:operation.id,kind:operation.kind,result:operation.status==="returning"?"returned":operation.result??"interrupted",at:now,wounded,dead,experienceGain,returnedCargo,recordedSurvey,medicalSupportUsed}].slice(-20);
       member.operationId=null;
       member.deployedActorId=null;
       const outcome={rosterId:member.id,actorId:actor?.id??null,healthStatus:member.healthStatus,wounds:member.wounds.map(wound=>({...wound})),experience:member.experience,level:member.level,availableAt:member.availableAt};
@@ -463,10 +671,13 @@ export class LivingSandboxState{
     operation.result=interrupted?(operation.result??"deferred"):"completed";
     operation.completedAt=now;
     const need=[...this.needs.values()].find(candidate=>candidate.id===operation.needId)??null;
-    if(need){
+    if(need&&!operation.contested){
       if(interrupted){
         need.status="blocked";
         need.operationId=null;
+        need.cargoPackages=(operation.cargoPackages??[]).filter(item=>item.status!=="returned").map(item=>({...cloneCargo(item),status:item.status==="carried"?"dropped":item.status,holderActorId:null,claimedByActorId:null}));
+        need.surveyPoints=(operation.surveyPoints??[]).map(cloneSurveyPoint);
+        need.operationalMemory=[...(need.operationalMemory??[]),{type:operation.violent?"armed_contact":"interrupted_operation",at:now,operationId:operation.id,result:operation.result}].slice(-8);
         need.blockedAt=need.blockedAt??now;
         need.retryAfter=need.retryAfter??now+this.blockedRetryDelay;
       }else{
@@ -488,12 +699,103 @@ export class LivingSandboxState{
         member.availableAt=this.recoveryDuration>0?now+this.recoveryDuration:0;
       }
     }
-    if(!interrupted&&faction){
+    if(!interrupted&&faction&&!operation.contested){
       faction.score+=operation.scoreValue??50;
-      if(operation.resourceType&&operation.resourceAmount>0)faction.resources[operation.resourceType]=(faction.resources[operation.resourceType]??0)+operation.resourceAmount;
-      this.#record("faction_score_awarded",now,{factionId:faction.id,operationId:operation.id,points:operation.scoreValue??50,totalScore:faction.score,resourceType:operation.resourceType,resourceAmount:operation.resourceAmount});
+      const returnedAmount=operation.resourceType?Math.max(0,finite(operation.returnedResourceAmount,operation.resourceAmount)):0;
+      if(operation.resourceType&&returnedAmount>0)faction.resources[operation.resourceType]=(faction.resources[operation.resourceType]??0)+returnedAmount;
+      this.#record("faction_score_awarded",now,{factionId:faction.id,operationId:operation.id,points:operation.scoreValue??50,totalScore:faction.score,resourceType:operation.resourceType,resourceAmount:returnedAmount,abandonedResourceAmount:operation.abandonedResourceAmount??0});
     }
     this.#record(interrupted?"faction_operation_deferred":"faction_operation_completed",now,{operationId,factionId:operation.factionId,needId:operation.needId,objectiveId:operation.objectiveId,result:operation.result,violent:Boolean(operation.violent),blockingOperationId:operation.blockingOperationId,outcomeId:operation.outcomeId});
+    return true;
+  }
+
+  getOperationAssets(operationId){
+    const operation=this.operations.get(operationId);
+    return operation?{cargoPackages:(operation.cargoPackages??[]).map(cloneCargo),surveyPoints:(operation.surveyPoints??[]).map(cloneSurveyPoint)}:null;
+  }
+
+  claimCargo({operationId,actorId,packageId=null,now=0}={}){
+    const operation=this.operations.get(operationId);
+    if(!operation||!actorId)return null;
+    const item=(operation.cargoPackages??[]).find(candidate=>(!packageId||candidate.id===packageId)&&["at_site","dropped"].includes(candidate.status)&&(!candidate.claimedByActorId||candidate.claimedByActorId===actorId))??null;
+    if(!item)return null;
+    const newlyClaimed=item.claimedByActorId!==actorId;
+    item.claimedByActorId=actorId;item.claimedAt=item.claimedAt??now;
+    if(newlyClaimed)this.#record("cargo_package_claimed",now,{operationId,actorId,packageId:item.id});
+    return cloneCargo(item);
+  }
+
+  releaseCargoClaim({operationId,actorId,packageId,now=0,reason="released"}={}){
+    const operation=this.operations.get(operationId);
+    const item=operation?.cargoPackages?.find(candidate=>candidate.id===packageId);
+    if(!item||item.claimedByActorId!==actorId)return false;
+    item.claimedByActorId=null;item.claimedAt=null;
+    this.#record("cargo_package_claim_released",now,{operationId,actorId,packageId,reason});
+    return true;
+  }
+
+  pickupCargo({operationId,actorId,packageId,now=0}={}){
+    const operation=this.operations.get(operationId);
+    const item=operation?.cargoPackages?.find(candidate=>candidate.id===packageId);
+    if(!item||item.claimedByActorId!==actorId||!["at_site","dropped"].includes(item.status))return null;
+    item.status="carried";item.holderActorId=actorId;item.claimedByActorId=null;item.pickedUpAt=now;
+    this.#record("cargo_package_picked_up",now,{operationId,actorId,packageId,units:item.units,resourceType:item.resourceType});
+    return cloneCargo(item);
+  }
+
+  dropCargoForActor({operationId,actorId,x=0,y=0,now=0,reason="actor_incapable"}={}){
+    const operation=this.operations.get(operationId);
+    if(!operation)return[];
+    const dropped=[];
+    for(const item of operation.cargoPackages??[]){
+      if(item.holderActorId!==actorId||item.status!=="carried")continue;
+      item.status="dropped";item.holderActorId=null;item.claimedByActorId=null;item.x=x;item.y=y;item.droppedAt=now;item.dropReason=reason;dropped.push(cloneCargo(item));
+      this.#record("cargo_package_dropped",now,{operationId,actorId,packageId:item.id,reason,x,y});
+    }
+    return dropped;
+  }
+
+  cargoStatus(operationId){
+    const operation=this.operations.get(operationId);
+    const items=operation?.cargoPackages??[];
+    const count=status=>items.filter(item=>item.status===status).reduce((sum,item)=>sum+(item.units??1),0);
+    return{total:items.reduce((sum,item)=>sum+(item.units??1),0),atSite:count("at_site"),claimed:items.filter(item=>item.claimedByActorId).length,carried:count("carried"),dropped:count("dropped"),returned:count("returned"),items:items.map(cloneCargo)};
+  }
+
+  markCargoReturned({operationId,actors=[],factionId=null,now=0}={}){
+    const operation=this.operations.get(operationId);
+    if(!operation)return 0;
+    const liveIds=new Set(actors.filter(actor=>!actor.medical?.dead).map(actor=>actor.id));
+    let returned=0,abandoned=0;
+    for(const item of operation.cargoPackages??[]){
+      if(item.status==="carried"&&liveIds.has(item.holderActorId)){item.status="returned";item.returnedByFactionId=factionId;item.returnedAt=now;returned+=item.units??1;}
+      else if(item.status!=="returned")abandoned+=item.units??1;
+    }
+    operation.returnedResourceAmount=returned;operation.abandonedResourceAmount=abandoned;
+    this.#record("operation_cargo_reconciled",now,{operationId,factionId,returned,abandoned});
+    return returned;
+  }
+
+  recordSurveyPoint({operationId,pointId,actorId,now=0}={}){
+    const operation=this.operations.get(operationId);
+    const point=operation?.surveyPoints?.find(candidate=>candidate.id===pointId);
+    if(!point||point.status==="recorded")return null;
+    point.status="recorded";point.recordedByActorId=actorId;point.recordedAt=now;
+    const completed=operation.surveyPoints.filter(item=>item.status==="recorded").length;
+    const total=operation.surveyPoints.length;
+    this.#record("survey_point_recorded",now,{operationId,pointId,actorId,completed,total});
+    return{point:cloneSurveyPoint(point),completed,total,complete:completed>=total,nextPointIndex:Math.min(total-1,completed)};
+  }
+
+  surveyStatus(operationId){
+    const operation=this.operations.get(operationId);const items=operation?.surveyPoints??[];
+    const completed=items.filter(item=>item.status==="recorded").length;
+    return{completed,total:items.length,complete:items.length>0&&completed>=items.length,next:items.find(item=>item.status!=="recorded")??null,points:items.map(cloneSurveyPoint)};
+  }
+
+  recordOperationMemory(operationId,memory,{now=0}={}){
+    const operation=this.operations.get(operationId);if(!operation)return false;
+    operation.operationalMemory=[...(operation.operationalMemory??[]),{...memory,at:memory?.at??now}].slice(-12);
     return true;
   }
 
@@ -533,18 +835,18 @@ export class LivingSandboxState{
     if(available.length<this.teamSize)return[];
     const keys=roleCapabilitiesForNeed(need);
     const specialist=[...available].sort((a,b)=>
-      capabilityScore(b,keys.specialist)-capabilityScore(a,keys.specialist)||
-      capabilityScore(b,"technicalWork")-capabilityScore(a,"technicalWork")||a.id.localeCompare(b.id)
+      deploymentUtility(b,keys.specialist)-deploymentUtility(a,keys.specialist)||
+      deploymentUtility(b,"technicalWork")-deploymentUtility(a,"technicalWork")||a.id.localeCompare(b.id)
     )[0];
     const remaining=available.filter(member=>member!==specialist);
     const lead=[...remaining].sort((a,b)=>
-      (capabilityScore(b,keys.lead)+capabilityScore(b,"navigation")*.45+capabilityScore(b,"scouting")*.35)-
-      (capabilityScore(a,keys.lead)+capabilityScore(a,"navigation")*.45+capabilityScore(a,"scouting")*.35)||a.id.localeCompare(b.id)
+      (deploymentUtility(b,keys.lead)+deploymentUtility(b,"navigation")*.45+deploymentUtility(b,"scouting")*.35)-
+      (deploymentUtility(a,keys.lead)+deploymentUtility(a,"navigation")*.45+deploymentUtility(a,"scouting")*.35)||a.id.localeCompare(b.id)
     )[0];
     const securityPool=remaining.filter(member=>member!==lead);
     const security=[...securityPool].sort((a,b)=>
-      (capabilityScore(b,keys.support)+capabilityScore(b,"observation")*.45)-
-      (capabilityScore(a,keys.support)+capabilityScore(a,"observation")*.45)||a.id.localeCompare(b.id)
+      (deploymentUtility(b,keys.support)+deploymentUtility(b,"observation")*.45)-
+      (deploymentUtility(a,keys.support)+deploymentUtility(a,"observation")*.45)||a.id.localeCompare(b.id)
     )[0];
     const selected=[lead,specialist,security].filter(Boolean);
     for(const member of available)if(selected.length<this.teamSize&&!selected.includes(member))selected.push(member);

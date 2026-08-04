@@ -26,7 +26,7 @@ export class InspectObjectiveAction extends AIV2Action{
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     const role=services?.teamProcedures?.getActorRole?.(this.actorId);
     const objective=services?.objectives?.get?.(this.directive.objectiveId);
-    return Boolean(actor&&objective&&!actor.medical?.dead&&!actor.medical?.unconscious&&role?.procedureId===this.directive.procedureId&&role?.roleId===this.directive.roleId&&role?.phase?.id==="inspect_objective"&&distance(actor,objective)<=Math.max(48,objective.interactionRadius??78));
+    return Boolean(actor&&objective&&!actor.medical?.dead&&!actor.medical?.unconscious&&role?.procedureId===this.directive.procedureId&&role?.roleId===this.directive.roleId&&role?.phase?.id===(this.directive.phaseId??"inspect_objective")&&distance(actor,objective)<=Math.max(48,objective.interactionRadius??78));
   }
 
   start(now,context){
@@ -54,7 +54,7 @@ export class InspectObjectiveAction extends AIV2Action{
     const result=services.objectives.inspect({objectiveId:this.directive.objectiveId,actorId:actor.id,now});
     services.objectives.releaseWork(this.directive.objectiveId,actor.id,{now,reason:"inspection_complete"});
     if(!result.ok)return{status:"failed",reason:result.reason};
-    services.teamProcedures.notifyEvent({teamId:actor.teamId,event:"objective_inspected",now,data:{actorId:actor.id,objectiveId:this.directive.objectiveId,state:result.objective?.state}});
+    services.teamProcedures.notifyEvent({teamId:actor.teamId,event:this.directive.completionEvent??"objective_inspected",now,data:{actorId:actor.id,objectiveId:this.directive.objectiveId,state:result.objective?.state}});
     actor.currentAction="Objective inspected";
     return{status:"completed",reason:"objective_inspected",data:{objectiveId:this.directive.objectiveId}};
   }

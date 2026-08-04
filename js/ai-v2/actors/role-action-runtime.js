@@ -17,6 +17,9 @@ import { DemonstrativeFireAction } from "../actions/demonstrative-fire-action.js
 import { MoveToObjectivePositionAction } from "../actions/move-to-objective-position-action.js";
 import { InspectObjectiveAction } from "../actions/inspect-objective-action.js";
 import { PerformObjectiveWorkAction } from "../actions/perform-objective-work-action.js";
+import { CollectSupplyAction } from "../actions/collect-supply-action.js";
+import { RecordSurveyPointAction } from "../actions/record-survey-point-action.js";
+import { AssistObjectiveWorkAction } from "../actions/assist-objective-work-action.js";
 import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 import { buildRoleActionContext } from "./role-action-context.js";
 import { ActorActionEvaluator } from "./actor-action-evaluator.js";
@@ -32,12 +35,13 @@ import {
   evaluateObjectiveMissionActions,
   extendObjectiveMissionContext
 } from "./objective-mission-actions.js";
+import { evaluateLiveOperationActions, extendLiveOperationContext } from "./live-operation-actions.js";
 
 const ROLE_ACTION_TYPES=new Set([
   "ObserveSector","HoldReady","IssueWarning","WithdrawToRoute",
   "ApproachCasualty","ApproachEvacuationCasualty","AssessCasualty","DragCasualty","StabilizeCasualty",
   "SelectEvacuationRoute","AdvanceRouteSecurity","EvacuateCasualty","ReassessEvacuationCasualty","TransferCasualty",
-  "ProtectiveFire","DemonstrativeFire","MoveToObjectivePosition","InspectObjective","PerformObjectiveWork"
+  "ProtectiveFire","DemonstrativeFire","MoveToObjectivePosition","InspectObjective","PerformObjectiveWork","CollectSupply","RecordSurveyPoint","AssistObjectiveWork"
 ]);
 
 const ACTION_CONSTRUCTORS={
@@ -59,7 +63,10 @@ const ACTION_CONSTRUCTORS={
   DemonstrativeFire:directive=>new DemonstrativeFireAction({actorId:directive.actorId,directive:directive.directive}),
   MoveToObjectivePosition:directive=>new MoveToObjectivePositionAction({actorId:directive.actorId,directive:directive.directive}),
   InspectObjective:directive=>new InspectObjectiveAction({actorId:directive.actorId,directive:directive.directive}),
-  PerformObjectiveWork:directive=>new PerformObjectiveWorkAction({actorId:directive.actorId,directive:directive.directive})
+  PerformObjectiveWork:directive=>new PerformObjectiveWorkAction({actorId:directive.actorId,directive:directive.directive}),
+  CollectSupply:directive=>new CollectSupplyAction({actorId:directive.actorId,directive:directive.directive}),
+  RecordSurveyPoint:directive=>new RecordSurveyPointAction({actorId:directive.actorId,directive:directive.directive}),
+  AssistObjectiveWork:directive=>new AssistObjectiveWorkAction({actorId:directive.actorId,directive:directive.directive})
 };
 
 function authoredDirective(actor){
@@ -90,7 +97,14 @@ export class RoleActionRuntime{
         const baseContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,evacuationRoutes:context?.services?.evacuationRoutes,currentObserveAction:this.scheduler.getAction(actor.id,"ObserveSector")});
         const protectiveContext=extendProtectiveBreakawayContext(baseContext,{game,actor,role,procedure,mission});
         const demonstrativeContext=extendDemonstrativeFireContext(protectiveContext,{game,actor,role,procedure,mission});
-        const roleContext=extendObjectiveMissionContext(demonstrativeContext,{
+        const objectiveContext=extendObjectiveMissionContext(demonstrativeContext,{
+          game,actor,role,procedure,mission,now,
+          objectives:context?.services?.objectives,
+          objectiveApproaches:context?.services?.objectiveApproaches,
+          teamKnowledge,
+          teamAgenda:context?.services?.teamAgenda
+        });
+        const roleContext=extendLiveOperationContext(objectiveContext,{
           game,actor,role,procedure,mission,now,
           objectives:context?.services?.objectives,
           objectiveApproaches:context?.services?.objectiveApproaches,
@@ -101,7 +115,8 @@ export class RoleActionRuntime{
           ...this.evaluator.evaluate(roleContext),
           ...evaluateProtectiveBreakawayActions(roleContext),
           ...evaluateDemonstrativeFireActions(roleContext),
-          ...evaluateObjectiveMissionActions(roleContext)
+          ...evaluateObjectiveMissionActions(roleContext),
+          ...evaluateLiveOperationActions(roleContext)
         ].sort((a,b)=>b.score-a.score);
         const selected=candidates[0]??null;if(!selected)continue;
         desiredByActor.set(actor.id,{actor,role,procedure,mission,candidates,selected});
@@ -158,13 +173,14 @@ export class RoleActionRuntime{
 
   #cancelWithCleanup(actor,action,{now,context,reason}){
     this.scheduler.cancelAction(actor.id,action,{now,reason,context});
-    if(["WithdrawToRoute","ApproachCasualty","ApproachEvacuationCasualty","DragCasualty","AdvanceRouteSecurity","EvacuateCasualty","MoveToObjectivePosition"].includes(action.type))context?.services?.destinationClaims?.release?.(actor.id,{now,reason});
+    if(["WithdrawToRoute","ApproachCasualty","ApproachEvacuationCasualty","DragCasualty","AdvanceRouteSecurity","EvacuateCasualty","MoveToObjectivePosition","CollectSupply","AssistObjectiveWork"].includes(action.type))context?.services?.destinationClaims?.release?.(actor.id,{now,reason});
     if(["DragCasualty","EvacuateCasualty"].includes(action.type)){
       const patientId=action.directive?.casualtyId;const patient=context?.game?.actors?.find(candidate=>candidate.id===patientId);
       context?.services?.casualtyCare?.releasePatient?.(patientId,actor.id);context?.services?.casualtyCare?.releaseDrag?.({patient});
     }
     if(["StabilizeCasualty","ReassessEvacuationCasualty","TransferCasualty"].includes(action.type))context?.services?.casualtyCare?.releasePatient?.(action.directive?.casualtyId,actor.id);
     if(["InspectObjective","PerformObjectiveWork"].includes(action.type))context?.services?.objectives?.releaseWork?.(action.directive?.objectiveId,actor.id,{now,reason});
+    if(action.type==="AssistObjectiveWork")context?.services?.objectives?.releaseAssist?.(action.directive?.objectiveId,actor.id,{now,reason});
   }
 
   #releaseActor(actor,{now,context}){

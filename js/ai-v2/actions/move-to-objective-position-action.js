@@ -22,7 +22,7 @@ export class MoveToObjectivePositionAction extends AIV2Action{
   canContinue({game,services}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     const role=services?.teamProcedures?.getActorRole?.(this.actorId);
-    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&role?.procedureId===this.directive.procedureId&&role?.roleId===this.directive.roleId&&role?.phase?.id==="approach_objective");
+    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&role?.procedureId===this.directive.procedureId&&role?.roleId===this.directive.roleId&&role?.phase?.id===(this.directive.phaseId??"approach_objective"));
   }
 
   start(now,context){
@@ -60,8 +60,8 @@ export class MoveToObjectivePositionAction extends AIV2Action{
     if(!result.arrived)return null;
     services.destinationClaims.release(actor.id,{now,reason:"objective_position_reached"});
     services.locomotion.stop(actor);
-    services.teamProcedures.notifyEvent({teamId:actor.teamId,event:"objective_position_reached",now,data:{actorId:actor.id,roleId:this.directive.roleId,objectiveId:this.directive.objectiveId}});
+    services.teamProcedures.notifyEvent({teamId:actor.teamId,event:this.directive.arrivalEvent??"objective_position_reached",now,data:{actorId:actor.id,roleId:this.directive.roleId,objectiveId:this.directive.objectiveId,...(this.directive.arrivalData??{})}});
     actor.currentAction=`Positioned — ${this.directive.roleLabel}`;
-    return{status:"completed",reason:"objective_position_reached",data:{roleId:this.directive.roleId,objectiveId:this.directive.objectiveId}};
+    return{status:"completed",reason:this.directive.arrivalEvent??"objective_position_reached",data:{roleId:this.directive.roleId,objectiveId:this.directive.objectiveId,...(this.directive.arrivalData??{})}};
   }
 }

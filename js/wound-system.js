@@ -8,21 +8,22 @@ const SEVERITY={
   catastrophic:{bleeding:2.8,shock:58,pain:78}
 };
 
-function weightedSeverity(distance=400,region="torso"){
+function weightedSeverity(distance=400,region="torso",rolls=null){
   const close=clamp(1-distance/1050,0,1);
-  const roll=Math.random();
+  const roll=rolls?.severity??Math.random();
   let severity=roll<.16+close*.12?"severe":roll<.62?"moderate":"minor";
-  if(region==="head"&&Math.random()<.48)severity=severity==="minor"?"moderate":"catastrophic";
-  if(region==="torso"&&severity==="severe"&&Math.random()<.22)severity="catastrophic";
+  const escalation=rolls?.escalation??Math.random();
+  if(region==="head"&&escalation<.48)severity=severity==="minor"?"moderate":"catastrophic";
+  if(region==="torso"&&severity==="severe"&&escalation<.22)severity="catastrophic";
   return severity;
 }
 
-function hitRegion(target,impact){
+function hitRegion(target,impact,roll=null){
   const height=target.height??70;
   const top=target.y-height*.48;
   const ratio=clamp((impact.y-top)/height,0,1);
   if(ratio<.20)return "head";
-  if(ratio<.58)return Math.random()<.22?"arms":"torso";
+  if(ratio<.58)return (roll??Math.random())<.22?"arms":"torso";
   return "legs";
 }
 
@@ -43,18 +44,18 @@ export class WoundSystem{
     return target.medical;
   }
 
-  applyGunshot(target,impact,{source=null,distance=400,severity=null}={}){
+  applyGunshot(target,impact,{source=null,distance=400,severity=null,region=null,deterministicRolls=null,createdAt=null,woundId=null,silent=false}={}){
     if(!target)return null;
     const medical=this.ensure(target);
     if(medical.dead)return null;
-    const region=hitRegion(target,impact);
-    const woundSeverity=severity??weightedSeverity(distance,region);
+    const woundRegion=region??hitRegion(target,impact,deterministicRolls?.region);
+    const woundSeverity=severity??weightedSeverity(distance,woundRegion,deterministicRolls);
     const profile=SEVERITY[woundSeverity];
     const wound={
-      id:`wound_${Date.now()}_${Math.floor(Math.random()*9999)}`,
-      type:"gunshot",region,severity:woundSeverity,
+      id:woundId??`wound_${Date.now()}_${Math.floor(Math.random()*9999)}`,
+      type:"gunshot",region:woundRegion,severity:woundSeverity,
       bleedingRate:profile.bleeding,controlled:false,
-      createdAt:performance.now()/1000,sourceId:source?.id??null
+      createdAt:createdAt??performance.now()/1000,sourceId:source?.id??null
     };
     medical.wounds.push(wound);
     this.game.bloodDecals.push({
@@ -68,15 +69,15 @@ export class WoundSystem{
     medical.bleedingRate+=profile.bleeding;
     medical.shock=clamp(medical.shock+profile.shock,0,100);
     medical.pain=clamp(medical.pain+profile.pain,0,100);
-    medical.lastHitAt=performance.now()/1000;
-    target.lastWoundRegion=region;
+    medical.lastHitAt=createdAt??performance.now()/1000;
+    target.lastWoundRegion=woundRegion;
     target.lastWoundSeverity=woundSeverity;
     target.woundPulse=1;
-    this.recent.push({targetId:target.id,region,severity:woundSeverity,time:medical.lastHitAt});
+    this.recent.push({targetId:target.id,region:woundRegion,severity:woundSeverity,time:medical.lastHitAt});
     this.recent=this.recent.slice(-20);
     this.#derive(target,true);
     const name=target.id===this.game.operator.id?"Mara":target.name;
-    this.game.pushMessage(`${name}: ${woundSeverity} ${REGION_LABELS[region].toLowerCase()} wound`,2.2);
+    if(!silent)this.game.pushMessage(`${name}: ${woundSeverity} ${REGION_LABELS[woundRegion].toLowerCase()} wound`,2.2);
     return wound;
   }
 

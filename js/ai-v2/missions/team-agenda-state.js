@@ -6,14 +6,15 @@ function cloneRecord(record){return record?{...record,selected:cloneSelected(rec
 
 function missionAgenda({mission,objective,encounterResponse,now}){
   const complete=objective.state===(mission.objectivePlan.desiredState??"operational");
+  const liveIntent=mission.liveOperation?(mission.operationKind==="recover_supplies"?{id:"recover_supplies",active:"Recover Supplies",complete:"Cargo Secured",summary:"Inspect the cache, physically secure finite packages, and return only what is carried out."}:mission.operationKind==="survey_route"?{id:"survey_route",active:"Survey Route",complete:"Survey Complete",summary:"Move through multiple observation points and return with recorded route intelligence."}:{id:"service_infrastructure",active:"Service Infrastructure",complete:"Infrastructure Operational",summary:"Diagnose, service, verify, and secure the assigned infrastructure."}):null;
   const selected={
-    id:"restore_objective",
-    label:complete?"Hold Restored Objective":"Restore Objective",
-    summary:complete?"Maintain a stable worksite around the completed objective.":"Organize an approach, inspect the objective, and complete the required field work.",
+    id:liveIntent?.id??"restore_objective",
+    label:complete?(liveIntent?.complete??"Hold Restored Objective"):(liveIntent?.active??"Restore Objective"),
+    summary:complete?"Maintain a stable return-ready posture around the completed objective.":(liveIntent?.summary??"Organize an approach, inspect the objective, and complete the required field work."),
     score:1,
     reason:complete
-      ?`${objective.label} is operational; retain a coherent worksite posture while the mission remains assigned.`
-      :`${objective.label} remains ${objective.state}; the team has an unresolved mission obligation.`,
+      ?`${objective.label} reached ${mission.objectivePlan.desiredState??"its desired state"}; preserve the result and prepare to return.`
+      :`${objective.label} remains ${objective.state}; the team has an unresolved ${mission.operationKind??"objective"} obligation.`,
     contributions:[]
   };
   const supporting=encounterResponse&&SUPPORTING_RESPONSE_IDS.has(encounterResponse.selected?.id)?{

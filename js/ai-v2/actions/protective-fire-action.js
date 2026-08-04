@@ -82,7 +82,9 @@ export class ProtectiveFireAction extends AIV2Action{
         spread:this.directive.spread??.052,
         eventKind:"protective_fire_near_miss",
         eventConfidence:94,
-        emitThreatEvent:Boolean(this.directive.emitThreatEvent)
+        emitThreatEvent:Boolean(this.directive.emitThreatEvent),
+        allowInjury:Boolean(this.directive.allowInjury),
+        injuryScale:this.directive.injuryScale??.55
       })??{fired:false,reason:"fire_executor_missing"};
       if(result.fired){
         this.localShots+=1;

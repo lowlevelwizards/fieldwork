@@ -74,14 +74,27 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
   }
   const warningAge=outgoingWarning?Math.max(0,now-(outgoingWarning.issuedAt??now)):0;
   const complianceDuration=mission.boundary?.complianceDuration??2.4;
+  const stationaryRefusal=Boolean(mission.liveOperation&&report.activity==="stationary"&&warningAge>=complianceDuration+3.5);
   const warningIgnored=Boolean(
     outgoingWarning&&!stale&&!outgoingWarning.enforcementUsed&&spatial.inside&&
-    (["approaching","repositioning"].includes(report.activity)||(report.activity==="lost"&&age<=3.5))&&
+    (["approaching","repositioning"].includes(report.activity)||(report.activity==="lost"&&age<=3.5)||stationaryRefusal)&&
     warningAge>=complianceDuration
   );
+  const physicalHostileEvidence=Boolean(
+    report.intentHypothesis?.id==="hostile"&&
+    (report.activity==="firing"||report.classification==="armed_contact")
+  );
+  if(physicalHostileEvidence&&!stale){
+    // A relayed physical incoming-fire event is more decision-relevant than
+    // an older, higher-confidence visual contact. It still remains anonymous:
+    // this elevates the threat evidence, not identity or faction knowledge.
+    state=ENCOUNTER_STATES.POTENTIALLY_INCOMPATIBLE;
+    relevanceScore=Math.max(relevanceScore,.98);
+    reason=`Physical incoming-fire evidence establishes an immediate hostile threat direction without revealing the shooter's identity or faction.`;
+  }
   if(outgoingWarning&&!stale){
     reason=`${reason} The team has issued a boundary warning and is awaiting an observable response.`;
-    if(warningIgnored)reason=`${reason} The contact remains inside the boundary and continues moving after the compliance window.`;
+    if(warningIgnored)reason=`${reason} The contact remains inside the boundary after the compliance window and has not yielded the worksite.`;
   }
 
   return{
@@ -110,6 +123,7 @@ export function assessEncounterHypothesis({mission,report,heardWarning=null,outg
     estimatedSpeed:report.estimatedSpeed??0,
     intent:report.intentHypothesis?.id??"unknown",
     intentHypothesis:report.intentHypothesis?{...report.intentHypothesis}:null,
+    physicalHostileEvidence,
     warningHeard:Boolean(heardWarning),
     heardWarning:heardWarning?{...heardWarning,targetPoint:heardWarning.targetPoint?{...heardWarning.targetPoint}:null,approximateSourcePosition:heardWarning.approximateSourcePosition?{...heardWarning.approximateSourcePosition}:null,recipientIds:[...(heardWarning.recipientIds??[])]}:null,
     warningIssued:Boolean(outgoingWarning),

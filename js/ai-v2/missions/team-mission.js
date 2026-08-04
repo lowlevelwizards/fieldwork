@@ -156,6 +156,11 @@ function normalizeObjectivePlan(plan){
   return{
     id:plan.id??"objective_mission_plan",
     objectiveId:plan.objectiveId,
+    operationKind:plan.operationKind??null,
+    family:plan.family??null,
+    cargoPackages:(plan.cargoPackages??[]).map(item=>({...item,origin:item.origin?{...item.origin}:null})),
+    surveyPoints:(plan.surveyPoints??[]).map(item=>({...item})),
+    resourceCost:{...(plan.resourceCost??{})},
     desiredState:plan.desiredState??"operational",
     securityFocusDistance:Math.max(120,finite(plan.securityFocusDistance,320)),
     approachPolicy:{
@@ -188,7 +193,7 @@ function normalizeContactPolicy(policy=null){
 
 function normalizeFirePolicy(policy=null){
   if(!policy)return null;
-  return{emitThreatEvents:Boolean(policy.emitThreatEvents)};
+  return{emitThreatEvents:Boolean(policy.emitThreatEvents),allowInjury:Boolean(policy.allowInjury),injuryScale:clamp(policy.injuryScale??.55,0,1)};
 }
 
 function normalizeDecisionContext(context={}){
@@ -232,6 +237,9 @@ function normalizeMission(team){
     id:authored.id??`v2_mission_${team.id}`,
     teamId:team.id,
     problemKind:authored.problemKind??"external_contact",
+    liveOperation:Boolean(authored.liveOperation),
+    operationId:authored.operationId??null,
+    operationKind:authored.operationKind??authored.objectivePlan?.operationKind??null,
     factionId:team.factionId??null,
     title:authored.title??team.mission??"Authored team mission",
     objective:authored.objective??team.mission??"Complete the assigned mission",
@@ -292,7 +300,7 @@ export class TeamMissionStore{
         rearSecuritySector:mission.evacuationPlan.rearSecuritySector?{...mission.evacuationPlan.rearSecuritySector}:null
       }:null,
       defensivePlan:mission.defensivePlan?{...mission.defensivePlan}:null,
-      objectivePlan:mission.objectivePlan?{...mission.objectivePlan,approachPolicy:{...mission.objectivePlan.approachPolicy}}:null,
+      objectivePlan:mission.objectivePlan?{...mission.objectivePlan,approachPolicy:{...mission.objectivePlan.approachPolicy},cargoPackages:mission.objectivePlan.cargoPackages.map(item=>({...item,origin:item.origin?{...item.origin}:null})),surveyPoints:mission.objectivePlan.surveyPoints.map(item=>({...item})),resourceCost:{...mission.objectivePlan.resourceCost}}:null,
       contactPolicy:mission.contactPolicy?{...mission.contactPolicy,report:{...mission.contactPolicy.report}}:null,
       firePolicy:mission.firePolicy?{...mission.firePolicy}:null,
       decisionContext:{...mission.decisionContext},

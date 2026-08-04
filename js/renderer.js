@@ -24,6 +24,7 @@ export class Renderer{
       this.#drawRoad(ctx,game.map.road);
       this.#drawBloodDecals(ctx,game);
       this.#drawBrush(ctx,game.map.brush);
+      this.#drawLiveOperationAssets(ctx,game);
       this.#drawAIV2ObservationWorld(ctx,game);
     }else{
       this.#drawRoad(ctx,game.map.road);
@@ -335,6 +336,58 @@ export class Renderer{
  }
 
 
+
+ #drawLiveOperationAssets(ctx,game){
+  if(game.scenarioMode!=="live"||!game.livingSandbox)return;
+  const summary=game.livingSandbox.summary?.();if(!summary)return;
+  const activeStatuses=new Set(["proposed","deployed","returning","interrupted"]);
+  const operations=summary.operations.filter(operation=>activeStatuses.has(operation.status)||(operation.cargoPackages??[]).some(item=>item.status==="dropped"));
+  if(!operations.length)return;
+  const factionAccent={northline:"#8fae83",commune:"#d6bb68",freelancers:"#df8c4e"};
+  const resourceAccent={medical:"#c96f69",technical:"#83a98a",food:"#d3b260",fuel:"#b88b55"};
+  ctx.save();
+  try{
+   for(const operation of operations){
+    const accent=factionAccent[operation.factionId]??"#d7c379";
+    if(operation.contestedByOperationId){
+     const rival=summary.operations.find(item=>item.id===operation.contestedByOperationId);
+     if(rival){
+      ctx.strokeStyle="rgba(220,103,66,.38)";ctx.lineWidth=3;ctx.setLineDash([16,10]);
+      ctx.beginPath();ctx.arc(operation.objectivePoint.x,operation.objectivePoint.y,430,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle="rgba(20,26,22,.86)";ctx.beginPath();ctx.roundRect(operation.objectivePoint.x-78,operation.objectivePoint.y-486,156,22,10);ctx.fill();
+      ctx.fillStyle="#df805a";ctx.font="850 7px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("CONTESTED ACTIVE WORKSITE",operation.objectivePoint.x,operation.objectivePoint.y-475);
+     }
+    }
+    const survey=operation.surveyPoints??[];
+    if(survey.length){
+     ctx.strokeStyle=`${accent}66`;ctx.lineWidth=3;ctx.setLineDash([12,9]);ctx.beginPath();
+     for(let index=0;index<survey.length;index+=1){const point=survey[index];if(index===0)ctx.moveTo(point.x,point.y);else ctx.lineTo(point.x,point.y);}ctx.stroke();ctx.setLineDash([]);
+     for(const point of survey){
+      const recorded=point.status==="recorded";
+      ctx.fillStyle=recorded?accent:"rgba(18,27,22,.88)";ctx.strokeStyle=accent;ctx.lineWidth=2.2;
+      ctx.beginPath();ctx.arc(point.x,point.y,recorded?10:15,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle="rgba(18,27,22,.86)";ctx.beginPath();ctx.roundRect(point.x-43,point.y+21,86,18,9);ctx.fill();
+      ctx.fillStyle=accent;ctx.font="800 6.5px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(`${point.index+1}/${survey.length} ${recorded?"RECORDED":"SURVEY"}`,point.x,point.y+30);
+     }
+    }
+    for(const item of operation.cargoPackages??[]){
+     if(item.status==="returned")continue;
+     const holder=item.holderActorId?game.actors.find(actor=>actor.id===item.holderActorId):null;
+     const x=holder?holder.x+22:item.x,y=holder?holder.y-43:item.y;
+     if(!Number.isFinite(x)||!Number.isFinite(y))continue;
+     const itemAccent=resourceAccent[item.resourceType]??accent;
+     if(item.status==="dropped"){
+      ctx.strokeStyle="rgba(226,112,75,.72)";ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.beginPath();ctx.arc(x,y,25,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+     }
+     ctx.fillStyle="rgba(18,24,21,.32)";ctx.beginPath();ctx.ellipse(x+4,y+12,19,7,0,0,Math.PI*2);ctx.fill();
+     ctx.fillStyle=itemAccent;ctx.beginPath();ctx.roundRect(x-15,y-12,30,24,5);ctx.fill();
+     ctx.strokeStyle="rgba(26,34,29,.78)";ctx.lineWidth=2;ctx.stroke();
+     ctx.fillStyle="#202721";ctx.font="900 8px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(String(item.units??1),x,y);
+     if(!holder){ctx.fillStyle="rgba(18,27,22,.86)";ctx.beginPath();ctx.roundRect(x-38,y+18,76,17,8);ctx.fill();ctx.fillStyle=itemAccent;ctx.font="800 6px system-ui";ctx.fillText(`${String(item.resourceType??"cargo").toUpperCase()} · ${String(item.status).toUpperCase()}`,x,y+26.5);}
+    }
+   }
+  }finally{ctx.restore();}
+ }
 
  #drawAIV2ObservationWorld(ctx,game){
   if(game.aiRuntimeMode!=="v2")return;

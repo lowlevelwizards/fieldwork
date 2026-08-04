@@ -22,6 +22,7 @@ export class ObjectiveStateStore{
     this.decisionLog=decisionLog;
     this.entities=new Map();
     this.claims=new Map();
+    this.assistants=new Map();
   }
 
   syncFromGame(game){
@@ -33,6 +34,7 @@ export class ObjectiveStateStore{
     }
     for(const id of [...this.entities.keys()])if(!live.has(id))this.entities.delete(id);
     for(const [objectiveId] of [...this.claims])if(!live.has(objectiveId))this.claims.delete(objectiveId);
+    for(const [objectiveId] of [...this.assistants])if(!live.has(objectiveId))this.assistants.delete(objectiveId);
   }
 
   get(objectiveId){return cloneObjective(this.entities.get(objectiveId)??null);}
@@ -80,7 +82,7 @@ export class ObjectiveStateStore{
     return{ok:true,completed:true,objective:cloneObjective(objective)};
   }
 
-  advanceWork({objectiveId,actorId,teamId=null,delta=0,now=0}={}){
+  advanceWork({objectiveId,actorId,teamId=null,delta=0,workRate=1,now=0}={}){
     const objective=this.entities.get(objectiveId);
     const claim=this.claims.get(objectiveId);
     if(!objective||claim?.actorId!==actorId)return{ok:false,reason:"objective_work_not_owned"};
@@ -92,7 +94,9 @@ export class ObjectiveStateStore{
     if(![inspectionState,workingState].includes(objective.state))return{ok:false,reason:"objective_not_ready_for_work"};
     const duration=Math.max(.25,Number(requirements.workDuration)||4);
     objective.state=workingState;
-    objective.progress=clamp((objective.progress??0)+Math.max(0,delta)/duration);
+    const assistants=[...(this.assistants.get(objectiveId)?.values()??[])].filter(item=>item.renewedAt>=now-1.2);
+    const assistBonus=Math.min(.7,assistants.length*.28);
+    objective.progress=clamp((objective.progress??0)+Math.max(0,delta)*Math.max(.2,Number(workRate)||1)*(1+assistBonus)/duration);
     objective.lastChangedAt=now;
     if(objective.progress>=1){
       objective.progress=1;
@@ -103,6 +107,35 @@ export class ObjectiveStateStore{
     }
     return{ok:true,completed:false,objective:cloneObjective(objective)};
   }
+
+  claimAssist({objectiveId,actorId,teamId=null,now=0}={}){
+    if(!this.entities.has(objectiveId)||!actorId)return false;
+    if(!this.assistants.has(objectiveId))this.assistants.set(objectiveId,new Map());
+    this.assistants.get(objectiveId).set(actorId,{objectiveId,actorId,teamId,claimedAt:now,renewedAt:now});
+    this.#record("objective_assistance_started",now,{objectiveId,actorId,teamId});
+    return true;
+  }
+
+  renewAssist(objectiveId,actorId,{now=0}={}){
+    const record=this.assistants.get(objectiveId)?.get(actorId);if(!record)return false;record.renewedAt=now;return true;
+  }
+
+  releaseAssist(objectiveId,actorId,{now=0,reason="released"}={}){
+    const group=this.assistants.get(objectiveId);if(!group?.has(actorId))return false;group.delete(actorId);if(!group.size)this.assistants.delete(objectiveId);
+    this.#record("objective_assistance_ended",now,{objectiveId,actorId,reason});return true;
+  }
+
+  setExternalProgress({objectiveId,progress,state=null,desiredState=null,teamId=null,now=0,reason="operation_progress"}={}){
+    const objective=this.entities.get(objectiveId);if(!objective)return null;
+    objective.progress=clamp(progress??objective.progress??0);
+    if(state)objective.state=state;
+    if(desiredState&&objective.progress>=1){objective.progress=1;objective.state=desiredState;objective.completedByTeamId=teamId;}
+    objective.lastChangedAt=now;
+    this.#record("objective_external_progress",now,{objectiveId,teamId,progress:objective.progress,state:objective.state,reason});
+    return cloneObjective(objective);
+  }
+
+  assistanceSummary(){return[...this.assistants.values()].flatMap(group=>[...group.values()].map(item=>({...item})));}
 
   claimSummary(){return[...this.claims.values()].map(claim=>({...claim}));}
   summary(){return[...this.entities.values()].map(cloneObjective);}

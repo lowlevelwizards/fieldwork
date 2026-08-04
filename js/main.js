@@ -8,7 +8,7 @@ import { validateItemLocations } from "./item-locations.js";
 import { renderItemThumbnail } from "./presentation/item-renderer.js";
 import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js";
 
-const BUILD_ID="2.1";
+const BUILD_ID="2.2";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -67,7 +67,7 @@ function startGame(scenario="operations"){
   const objective=$("#objective-card");
   if(scenario==="live"){
     const fixture=game.sandboxFixture;
-    objective.querySelector(".objective-kicker").textContent="FIELDWORK 2.1 LIVE SANDBOX";
+    objective.querySelector(".objective-kicker").textContent="FIELDWORK 2.2 LIVING CONSEQUENCES";
     objective.querySelector("strong").textContent=fixture.label;
     objective.querySelector("span:last-child").textContent=fixture.question;
     $("#live-sandbox-panel").hidden=false;
@@ -283,6 +283,44 @@ const combatInput=new CombatInputController({
 
 
 function liveElement(tag,className,text){const node=document.createElement(tag);if(className)node.className=className;if(text!=null)node.textContent=text;return node;}
+function readableEvent(entry,summary){
+ const data=entry.data??{};
+ const faction=summary.factions.find(item=>item.id===data.factionId)?.label??data.factionId??null;
+ const operation=summary.operations.find(item=>item.id===data.operationId);
+ const actor=game.actors.find(item=>item.id===data.actorId);
+ const subject=actor?.name??operation?.objectiveLabel??data.rosterId??data.packageId??data.pointId??"";
+ const labels={
+  faction_contested_operation_proposed:"Rival operation committed",
+  live_ballistic_wound:"Operator wounded by live fire",
+  cargo_package_dropped:"Cargo dropped in the field",
+  cargo_package_picked_up:"Cargo package secured",
+  operation_cargo_reconciled:"Returned cargo reconciled",
+  survey_point_recorded:"Route intelligence recorded",
+  roster_member_returned:"Operator returned",
+  roster_member_died:"Operator killed — permanently lost",
+  roster_member_leveled:"Operator advanced a level",
+  faction_operation_interrupted:"Operation interrupted",
+  faction_operation_deferred:"Operation deferred",
+  faction_operation_completed:"Operation completed",
+  live_world_objective_changed:"World condition changed",
+  world_need_reopened:"World need reopened"
+ };
+ const label=labels[entry.type]??entry.type.replaceAll("_"," ");
+ return`${label}${faction?` · ${faction}`:""}${subject?` · ${subject}`:""}`;
+}
+function operationDetail(operation){
+ const procedure=operation.teamId?game.aiV2?.teamProcedures?.get?.(operation.teamId):null;
+ const cargo=game.livingSandbox?.cargoStatus?.(operation.id);
+ const survey=game.livingSandbox?.surveyStatus?.(operation.id);
+ const parts=[operation.status,procedure?.phase?.label??game.aiV2?.teamAgenda?.get?.(operation.teamId)?.selected?.label??"assembling"];
+ if(operation.contested)parts.push("challenger");
+ if(operation.contestedByOperationId)parts.push("contested worksite");
+ if(cargo?.total)parts.push(`${cargo.carried+ cargo.returned}/${cargo.total} units secured${cargo.dropped?` · ${cargo.dropped} dropped`:""}`);
+ if(survey?.total)parts.push(`${survey.completed}/${survey.total} points recorded`);
+ if(operation.casualtyCount)parts.push(`${operation.casualtyCount} casualty${operation.casualtyCount===1?"":"ies"}`);
+ if(operation.deathCount)parts.push(`${operation.deathCount} dead`);
+ return parts.filter(Boolean).join(" · ");
+}
 function updateLiveDashboard(force=false){
  if(game.scenarioMode!=="live")return;
  if(!force&&game.clockMinutes-lastLiveDashboardAt<.02)return;
@@ -290,33 +328,57 @@ function updateLiveDashboard(force=false){
  const summary=game.livingSandbox?.summary?.();if(!summary)return;
  const factions=$("#live-factions");factions.replaceChildren(...summary.factions.map(faction=>{
   const card=liveElement("article","live-faction");
-  const resources=Object.entries(faction.resources??{}).filter(([,value])=>value>0).map(([key,value])=>`${key.slice(0,3)} ${value}`).join(" · ")||"no returned supplies";
-  card.append(liveElement("strong",null,faction.label),liveElement("b",null,String(faction.score)),liveElement("small",null,`${faction.available} ready · ${faction.deployed} out · ${faction.recovering} recovering · ${faction.dead} dead`),liveElement("small","live-resources",resources));
+  const resources=Object.entries(faction.resources??{}).map(([key,value])=>`${key.slice(0,3)} ${Math.round(value*10)/10}`).join(" · ");
+  const veterans=faction.roster.filter(member=>member.level>1).length;
+  card.append(
+   liveElement("strong",null,faction.label),
+   liveElement("b",null,String(faction.score)),
+   liveElement("small",null,`${faction.available} ready · ${faction.deployed} out · ${faction.recovering} recovering`),
+   liveElement("small",faction.dead?"live-danger":"",`${faction.wounded} wounded · ${faction.dead} dead · ${veterans} veteran${veterans===1?"":"s"}`),
+   liveElement("small","live-resources",resources)
+  );
   return card;
  }));
  const operations=$("#live-operations");
  const active=summary.operations.filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status));
- operations.replaceChildren(...active.slice(-6).map(operation=>{
-  const agenda=game.aiV2?.teamAgenda?.get?.(operation.teamId);
-  const row=liveElement("article","live-operation");
-  row.append(liveElement("strong",null,`${operation.factionLabel} · ${operation.label}`),liveElement("small",null,`${operation.status} · ${agenda?.selected?.label??"assembling"} · score ${Math.round(operation.score*100)}`));
+ operations.replaceChildren(...active.slice(-8).map(operation=>{
+  const row=liveElement("article",`live-operation live-operation--${operation.kind.replaceAll("_","-")}${operation.contested?" live-operation--contested":""}`);
+  row.append(
+   liveElement("strong",null,`${operation.factionLabel} · ${operation.label}`),
+   liveElement("small",null,operationDetail(operation)),
+   liveElement("small","live-operation-meta",`fit ${Math.round(operation.capabilityFit*100)} · value ${Math.round(operation.strategicValue*100)} · attempt ${operation.attemptNumber}`)
+  );
   return row;
  }));
  if(!active.length)operations.append(liveElement("div","live-event","No active operations; factions are evaluating open needs."));
  const candidates=$("#live-candidates");
- candidates.replaceChildren(...(summary.candidates??[]).slice(0,4).map(candidate=>{
+ candidates.replaceChildren(...(summary.candidates??[]).slice(0,5).map(candidate=>{
   const terms=candidate.scoreBreakdown??{};
   const row=liveElement("article","live-operation live-candidate");
   row.append(
    liveElement("strong",null,`${candidate.factionLabel} → ${candidate.objectiveLabel}`),
-   liveElement("small",null,`${candidate.kind.replaceAll("_"," ")} · score ${Math.round(candidate.score*100)} · interest +${Math.round((terms.interest??0)*100)} · priority +${Math.round((terms.priority??0)*100)} · fit +${Math.round((terms.capabilityFit??0)*100)} · travel ${Math.round((terms.travelCost??0)*100)}`)
+   liveElement("small",null,`${candidate.kind.replaceAll("_"," ")} · score ${Math.round(candidate.score*100)} · interest +${Math.round((terms.interest??0)*100)} · priority +${Math.round((terms.priority??0)*100)} · fit +${Math.round((terms.capabilityFit??0)*100)} · scarcity ${Math.round((terms.rosterScarcity??0)*100)}`)
   );
   return row;
  }));
- if(!(summary.candidates??[]).length)candidates.append(liveElement("div","live-event","No dispatch candidate currently has an available roster and open need."));
+ if(!(summary.candidates??[]).length)candidates.append(liveElement("div","live-event","No dispatch candidate currently has an available roster, resources, and open need."));
+ const roster=$("#live-roster");
+ const notable=summary.factions.flatMap(faction=>faction.roster.map(member=>({...member,factionLabel:faction.label})))
+  .filter(member=>member.level>1||member.healthStatus!=="healthy"||member.status==="recovering"||member.operationCount>=3)
+  .sort((left,right)=>(right.level-left.level)||(right.experience-left.experience)||left.name.localeCompare(right.name)).slice(0,8);
+ roster.replaceChildren(...notable.map(member=>{
+  const row=liveElement("article",`live-roster-row${member.healthStatus==="dead"?" live-roster-row--dead":member.healthStatus==="wounded"?" live-roster-row--wounded":""}`);
+  row.append(
+   liveElement("strong",null,`${member.name} · L${member.level}`),
+   liveElement("small",null,`${member.factionLabel} · ${member.role} · ${member.status} · ${member.operationCount} ops · ${member.successfulReturns} returns`),
+   liveElement("small","live-roster-history",`${member.experience} XP${member.wounds?.length?` · ${member.wounds.length} persistent wound${member.wounds.length===1?"":"s"}`:""}`)
+  );
+  return row;
+ }));
+ if(!notable.length)roster.append(liveElement("div","live-event","The first generation of operators is still building campaign history."));
  const authority=$("#live-authority");
  const traces=game.aiV2?.actionArbiter?.summary?.()??[];
- const visible=traces.filter(trace=>trace.active.length||trace.granted.length).slice(-5);
+ const visible=traces.filter(trace=>trace.active.length||trace.granted.length).slice(-6);
  authority.replaceChildren(...visible.map(trace=>{
   const actor=game.actors.find(candidate=>candidate.id===trace.actorId);
   const role=game.aiV2?.teamProcedures?.getActorRole?.(trace.actorId);
@@ -326,14 +388,17 @@ function updateLiveDashboard(force=false){
   const rejected=trace.rejected[0];
   const row=liveElement("article","live-authority-row");
   row.append(
-   liveElement("strong",null,actor?.name??trace.actorId),
+   liveElement("strong",null,`${actor?.name??trace.actorId}${actor?.persistentLevel?` · L${actor.persistentLevel}`:""}`),
    liveElement("small",null,`${operation?.label??"Operation"} → ${agenda?.selected?.label??"Mission"} → ${role?.roleLabel??"Field Operator"} → ${action}`),
    rejected?liveElement("small","live-rejected",`rejected ${rejected.actionType}: ${rejected.resultReason}`):document.createTextNode("")
   );
   return row;
  }));
  const events=$("#live-events");
- events.replaceChildren(...summary.history.slice(-6).reverse().map(entry=>liveElement("div","live-event",entry.type.replaceAll("_"," ")+ (entry.data?.factionId?` · ${entry.data.factionId}`:""))));
+ const interesting=new Set(["faction_contested_operation_proposed","live_ballistic_wound","cargo_package_dropped","cargo_package_picked_up","operation_cargo_reconciled","survey_point_recorded","roster_member_returned","roster_member_died","roster_member_leveled","faction_operation_interrupted","faction_operation_deferred","faction_operation_completed","live_world_objective_changed","world_need_reopened"]);
+ const feed=summary.history.filter(entry=>interesting.has(entry.type)).slice(-9).reverse();
+ events.replaceChildren(...feed.map(entry=>liveElement("div",`live-event live-event--${entry.type}`,readableEvent(entry,summary))));
+ if(!feed.length)events.append(liveElement("div","live-event","The live campaign is beginning to write its first field history."));
 }
 function restartLive(){
  game=new ContinuousGameState({scenario:"live",aiRuntime:"v2"});

@@ -274,17 +274,19 @@ export class CombatSandboxDirector{
  }
  #compileLivingMission(operation,objective){
   const exit=operation.entryPoint;
-  const worksiteBoundary=objective.sandboxNeed?.worksiteBoundary??(this.livingState?.liveMode&&objective.sandboxNeed?.family==="infrastructure"?{
+  const isContestedChallenger=Boolean(operation.contested&&operation.contestedRole==="challenger");
+  const worksiteBoundary=isContestedChallenger?null:(objective.sandboxNeed?.worksiteBoundary??(this.livingState?.liveMode&&objective.sandboxNeed?.family==="infrastructure"?{
    id:`${objective.id}_active_worksite`,label:`${objective.name??operation.objectiveLabel} active worksite`,radius:430,falloff:170,
    policy:"Unknown armed personnel approaching active technical work should be warned clear before escalation.",
    condition:"A credible approaching contact has entered the active worksite.",warningType:"keep_clear",warningMessage:"Keep clear of the active worksite.",
-   minimumConfidence:24,requireActivityUpdate:true,allowedActivities:["approaching","repositioning","observing"],voiceRange:820,coneDegrees:110,warningDuration:1.1,awaitDuration:8,complianceDuration:2.4,
+   minimumConfidence:24,requireActivityUpdate:false,allowedActivities:["approaching","repositioning","observing","stationary"],voiceRange:820,coneDegrees:110,warningDuration:1.1,awaitDuration:8,complianceDuration:2.4,
    enforcement:{enabled:true,responseId:"demonstrative_fire",offsetDistance:96,maximumRounds:1}
-  }:null);
-  const pressesWarning=(operation.contactResolve??.5)>=.82;
+  }:null));
+  const pressesWarning=isContestedChallenger||(operation.contactResolve??.5)>=.82;
   const language=operationLanguage(operation,objective);
   return{
    id:operation.id,
+   liveOperation:Boolean(this.livingState?.liveMode),
    operationId:operation.id,
    operationKind:operation.kind,
    problemKind:"baseline_objective",
@@ -293,8 +295,8 @@ export class CombatSandboxDirector{
    immediateTask:language.immediateTask,
    successCondition:language.successCondition,
    abortCondition:language.abortCondition,
-   staleAfter:9,
-   forgetAfter:22,
+   staleAfter:this.livingState?.liveMode?36:9,
+   forgetAfter:this.livingState?.liveMode?78:22,
    concernArea:{type:"circle",label:`${objective.name??operation.objectiveLabel} worksite`,x:objective.x,y:objective.y,radius:560,falloff:240},
    interference:worksiteBoundary?{
     kind:"active_worksite_intrusion",
@@ -304,7 +306,7 @@ export class CombatSandboxDirector{
    boundary:worksiteBoundary?{
     ...worksiteBoundary,
     area:{type:"circle",label:worksiteBoundary.label??`${objective.name??operation.objectiveLabel} worksite`,x:objective.x,y:objective.y,radius:worksiteBoundary.radius??460,falloff:worksiteBoundary.falloff??180},
-    allowedActivities:[...(worksiteBoundary.allowedActivities??["approaching","repositioning","observing"])]
+    allowedActivities:[...(worksiteBoundary.allowedActivities??["approaching","repositioning","observing","stationary"])]
    }:null,
    defensivePlan:worksiteBoundary?{
     id:`${operation.id}_defensive_plan`,
@@ -323,9 +325,16 @@ export class CombatSandboxDirector{
     id:`${operation.id}_objective_plan`,
     objectiveId:objective.id,
     objectiveKind:operation.kind,
+    operationKind:operation.kind,
+    family:operation.family,
+    cargoPackages:(operation.cargoPackages??[]).map(item=>({...item,origin:item.origin?{...item.origin}:null})),
+    surveyPoints:(operation.surveyPoints??[]).map(item=>({...item})),
+    resourceCost:{...(operation.resourceCost??{})},
     desiredState:operation.desiredState,
     securityFocusDistance:330,
-    approachPolicy:{maximumTravel:1500,stagingDistance:250,interactionDistance:68,roleSpacing:108,speedMultiplier:.74,arrivalRadius:11,claimSpacing:72}
+    approachPolicy:isContestedChallenger
+      ?{maximumTravel:1700,stagingDistance:390,interactionDistance:265,roleSpacing:126,speedMultiplier:.74,arrivalRadius:13,claimSpacing:82}
+      :{maximumTravel:1500,stagingDistance:250,interactionDistance:68,roleSpacing:108,speedMultiplier:.74,arrivalRadius:11,claimSpacing:72}
    },
    withdrawalPlan:{
     id:`${operation.id}_return_route`,
@@ -335,6 +344,21 @@ export class CombatSandboxDirector{
     speedMultiplier:.68,
     arrivalRadius:14,
     claimSpacing:70
+   },
+   recoveryPlan:{
+    id:`${operation.id}_casualty_recovery`,label:"nearest protected operation position",
+    recoveryPoint:{x:operation.entryPoint.x+(objective.x-operation.entryPoint.x)*.72,y:operation.entryPoint.y+(objective.y-operation.entryPoint.y)*.72},
+    securitySector:{label:"Active operation approach",x:objective.x,y:objective.y,maximumRange:900,fieldOfViewDegrees:100},
+    interactionRange:82,observationRange:760,reportRange:620,approachSpeedMultiplier:.8,dragSpeedMultiplier:.46,arrivalRadius:13,claimSpacing:62,stabilizationDuration:2.8
+   },
+   evacuationPlan:{
+    id:`${operation.id}_safe_return`,label:`${operation.factionLabel} medical return route`,
+    routeOptions:[{id:`${operation.id}_direct_return`,label:"direct protected return",protection:.68,cohesion:.86,waypoints:[
+      {id:`${operation.id}_medical_intermediate`,label:"operation fallback point",kind:"intermediate",x:operation.entryPoint.x+(objective.x-operation.entryPoint.x)*.38,y:operation.entryPoint.y+(objective.y-operation.entryPoint.y)*.38,staminaCost:.48},
+      {id:`${operation.id}_medical_extraction`,label:"faction entry",kind:"extraction",x:operation.entryPoint.x,y:operation.entryPoint.y,staminaCost:.34}
+    ]}],
+    rearSecuritySector:{label:"Operation contact direction",x:objective.x,y:objective.y,maximumRange:980,fieldOfViewDegrees:96},
+    interactionRange:82,reportRange:620,routeSecuritySpeedMultiplier:.78,transportSpeedMultiplier:.42,arrivalRadius:14,claimSpacing:68,routeAssessmentDuration:.7,reassessmentDuration:1.1,transferDuration:1.2,minimumTransportStamina:.18,originalMissionStatus:"operation_suspended_for_casualty_evacuation"
    },
    decisionContext:{
     missionValue:.92,
@@ -355,7 +379,7 @@ export class CombatSandboxDirector{
     exitLabel:`${operation.factionLabel} entry route`
    },
    contactPolicy:{passiveVision:true,maximumRange:820,fieldOfViewDegrees:118,report:{method:"local_voice",range:620,minimumConfidence:22,reason:"Share credible ambient contact and meaningful activity while the operation continues"}},
-   firePolicy:{emitThreatEvents:true},
+   firePolicy:{emitThreatEvents:true,allowInjury:Boolean(this.livingState?.liveMode),injuryScale:.58},
    responsePolicy:{minimumHold:.75,reassessEvery:.45,switchMargin:.01},
    responseBias:worksiteBoundary
     ?{warn:.3,demonstrative_fire:.35,hold_defensively:.35,break_contact_under_fire:-.35,monitor_departure:.12,heighten_watch:-.12,continue_observation:-.08,withdraw_silently:.08}
@@ -390,7 +414,16 @@ export class CombatSandboxDirector{
     task:`Deploying for ${operation.label}`,
     mission:operation.label,
     sandboxStatic:false,
-    aiV2Capabilities:{...member.capabilities}
+    aiV2Capabilities:{
+     ...member.capabilities,
+     medicalCare:member.capabilities?.medical??0,
+     patientTransport:Math.max(.25,member.capabilities?.carrying??.4),
+     transportStamina:Math.max(.25,1-(member.fatigue??0)),
+     routeAssessment:Math.max(member.capabilities?.navigation??0,member.capabilities?.scouting??0),
+     rearSecurity:Math.max(member.capabilities?.security??0,member.capabilities?.observation??0)
+    },
+    aiV2CasualtyAssignment:{observe:true,maximumRange:760,fieldOfViewDegrees:180,report:{method:"local_voice",range:620,minimumConfidence:48,reason:"Report a serious teammate casualty so the operation can reassess and preserve the roster"}},
+    aiV2MedicalSupplies:(member.capabilities?.medical??0)>.72?{pressure_dressing:2,tourniquet:1,bandage:2,iv_fluids:1}:{pressure_dressing:1,bandage:1}
    },this.fixture);
    const clear=projectOutsideObstacles(this.game,actor.x,actor.y,actor.radius);
    actor.x=clear.x;actor.y=clear.y;actor.groundY=actor.y+34;
@@ -445,6 +478,22 @@ export class CombatSandboxDirector{
     :`${operation.factionLabel} defers ${operation.objectiveLabel} after withdrawing from the active worksite.`,3.2);
   }
  }
+ #updateLivingConsequences(objectives){
+  for(const operation of this.livingState?.activeOperations?.()??[]){
+   if(operation.status!=="deployed")continue;
+   const actors=this.game.actors.filter(actor=>operation.actorIds.includes(actor.id));
+   for(const actor of actors){
+    if(actor.medical?.dead||actor.medical?.unconscious){
+     const dropped=this.livingState.dropCargoForActor({operationId:operation.id,actorId:actor.id,x:actor.x,y:actor.y,now:this.elapsed,reason:actor.medical?.dead?"operator_killed":"operator_incapacitated"});
+     if(dropped.length){actor.aiV2Cargo=[];actor.backpackLoadRatio=.3;const objective=objectives.find(item=>item.id===operation.objectiveId);const status=this.livingState.cargoStatus(operation.id);if(objective)this.game.aiV2?.objectives?.setExternalProgress?.({objectiveId:objective.id,progress:status.total?(status.carried+status.returned)/status.total:0,state:status.dropped?"partial":objective.state,now:this.elapsed,reason:"cargo_dropped_after_casualty"});}
+    }
+   }
+   const procedure=this.game.aiV2?.teamProcedures?.get?.(operation.teamId);
+   if(procedure?.procedureId==="casualty_evacuation"&&procedure.phase?.id==="safe_return")this.livingState.interruptOperation(operation.id,{now:this.elapsed,reason:"casualty_evacuated_from_operation",result:"returned_after_casualty",violent:Boolean(operation.violent)});
+   const capable=actors.filter(actor=>!actor.medical?.dead&&!actor.medical?.unconscious&&actor.medical?.condition!=="critical");
+   if(capable.length===0)this.livingState.interruptOperation(operation.id,{now:this.elapsed,reason:"team_no_longer_field_capable",result:"failed_after_casualties",violent:true});
+  }
+ }
  #beginLivingReturn(operation){
   if(!this.livingState?.beginReturn(operation.id,{now:this.elapsed}))return;
   const team=this.teams.find(candidate=>candidate.id===operation.teamId);
@@ -462,6 +511,7 @@ export class CombatSandboxDirector{
   for(const actorId of operation.actorIds)this.game.aiV2?.scheduler?.cancelActor?.(actorId,{now:this.elapsed,reason:interrupted?"operation_deferred":"operation_returned"});
   const actorSet=new Set(operation.actorIds);
   const returningActors=this.game.actors.filter(actor=>actorSet.has(actor.id));
+  this.livingState?.markCargoReturned?.({operationId:operation.id,actors:returningActors,factionId:operation.factionId,now:this.elapsed});
   this.livingState?.reconcileReturn?.(operation.id,{actors:returningActors,now:this.elapsed});
   this.game.actors=this.game.actors.filter(actor=>!actorSet.has(actor.id));
   this.teams=this.teams.filter(team=>team.id!==operation.teamId);
@@ -477,7 +527,9 @@ export class CombatSandboxDirector{
   this.livingState.updateRecovery({now:this.elapsed});
   this.#updateWorldTurnover(objectives);
   this.livingState.syncObjectives(objectives,{now:this.elapsed});
+  this.livingState.resolveContestedStandoffs?.({now:this.elapsed});
   this.#consumeLivingOperationOutcomes();
+  this.#updateLivingConsequences(objectives);
 
   for(const operation of this.livingState.activeOperations()){
    if(operation.status!=="deployed")continue;
@@ -486,7 +538,7 @@ export class CombatSandboxDirector{
   }
   for(const operation of this.livingState.readyReturns({now:this.elapsed}))this.#completeLivingReturn(operation);
 
-  const proposal=this.livingState.proposeDispatch({objectives,now:this.elapsed});
+  const proposal=this.livingState.proposeContestedDispatch({objectives,now:this.elapsed})??this.livingState.proposeDispatch({objectives,now:this.elapsed});
   if(proposal&&!this.#deployLivingOperation(proposal)){
    this.game.pushMessage(`Unable to assemble ${proposal.factionLabel} operation.`,2.4);
   }
