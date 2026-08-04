@@ -4,8 +4,10 @@ import { AI_V2_2_0P_RESPONSE_OPTIONS } from "./response-options-2.0p.js";
 import { AI_V2_2_0Q_RESPONSE_OPTIONS } from "./response-options-2.0q.js";
 import { AI_V2_2_0V_RESPONSE_OPTIONS } from "./response-options-2.0v.js";
 import { AI_V2_2_4_RESPONSE_OPTIONS } from "./response-options-2.4.js";
+import { AI_V2_2_5_RESPONSE_OPTIONS } from "./response-options-2.5.js";
 
 const ALL_RESPONSE_OPTIONS=Object.freeze([
+  ...AI_V2_2_5_RESPONSE_OPTIONS,
   ...AI_V2_2_4_RESPONSE_OPTIONS,
   ...AI_V2_2_0V_RESPONSE_OPTIONS,
   ...AI_V2_2_0Q_RESPONSE_OPTIONS,
