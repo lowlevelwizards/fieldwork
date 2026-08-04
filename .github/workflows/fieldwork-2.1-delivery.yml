@@ -1,20 +1,26 @@
 name: Fieldwork 2.1 atomic delivery
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/2.1-live-sandbox-staging
+      - AI-2.0
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
 
 jobs:
   deliver:
+    if: github.head_ref == 'agent/2.1-live-sandbox-staging'
     runs-on: ubuntu-latest
     steps:
       - name: Check out staging payload
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Reconstruct verified patch
@@ -52,4 +58,4 @@ jobs:
       - name: Remove staging branch
         if: success()
         shell: bash
-        run: git push origin --delete agent/2.1-live-sandbox-staging
+        run: git push origin --delete agent/2.1-live-sandbox-staging || true
