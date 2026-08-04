@@ -55,10 +55,10 @@ refreshContinueButton();
 
 const camera=new Camera();let game=new ContinuousGameState({scenario:"operations",aiRuntime:selectedAIRuntime(),sandboxFixture:selectedSandboxFixture()});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
 const sandboxButton=$("#sandbox-button"),liveSandboxButton=$("#live-sandbox-button"),continueCampaignButton=$("#continue-campaign-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
-let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null,simulationPaused=false,simulationSpeed=1,lastLiveDashboardAt=-Infinity,lastCampaignAutosaveAt=-Infinity,spectatorTeamIndex=-1,spectatorStoryIndex=-1,spectatorDragging=false,spectatorPointer=null;
+let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null,simulationPaused=false,simulationSpeed=1,lastLiveDashboardAt=-Infinity,lastCampaignAutosaveAt=-Infinity,spectatorTeamIndex=-1,spectatorStoryIndex=-1,spectatorDragging=false,spectatorPointer=null,spectatorPointers=new Map(),spectatorPinchDistance=0;
 function resizeAndCenter(reason="viewport"){
   renderer.resize();
-  if(game.scenarioMode==="live"){camera.setSpectatorMode(true);camera.fitBounds(game.map?.worldBounds??{width:7600,height:4200});}
+  if(game.scenarioMode==="live"){game.operator.aiSpectatorHidden=true;game.operator.lockedByInteraction=true;camera.setSpectatorMode(true);camera.fitBounds(game.map?.worldBounds??{width:7600,height:4200});}
   else{camera.setSpectatorMode(false);camera.lockTo(game.operator);}
   console.info("Viewport synchronized",{build:BUILD_ID,reason,operator:{x:game.operator.x,y:game.operator.y},camera:{x:camera.x,y:camera.y,width:camera.width,height:camera.height}});
 }
@@ -75,7 +75,7 @@ function startGame(scenario="operations",campaignSnapshot=null){
   const objective=$("#objective-card");
   if(scenario==="live"){
     const fixture=game.sandboxFixture;
-    objective.querySelector(".objective-kicker").textContent="FIELDWORK 2.4 TEAM UNDERSTANDING";
+    objective.querySelector(".objective-kicker").textContent="FIELDWORK 2.5 CONTACT RESOLUTION";
     camera.setSpectatorMode(true);
     objective.querySelector("strong").textContent=fixture.label;
     objective.querySelector("span:last-child").textContent=fixture.question;
@@ -519,9 +519,9 @@ $("#live-next-team")?.addEventListener("click",cycleLiveTeam);
 $("#live-next-story")?.addEventListener("click",cycleLiveStory);
 $("#live-operations")?.addEventListener("click",event=>{const row=event.target.closest?.("[data-team-id]");if(row?.dataset.teamId)focusLiveTeam(row.dataset.teamId);});
 $("#live-interactions")?.addEventListener("click",event=>{const row=event.target.closest?.("[data-team-id]");if(row?.dataset.teamId)focusLiveTeam(row.dataset.teamId);});
-canvas.addEventListener("pointerdown",event=>{if(game.scenarioMode!=="live")return;spectatorDragging=true;spectatorPointer={x:event.clientX,y:event.clientY};canvas.setPointerCapture?.(event.pointerId);});
-canvas.addEventListener("pointermove",event=>{if(!spectatorDragging||game.scenarioMode!=="live"||!spectatorPointer)return;camera.panByScreen(event.clientX-spectatorPointer.x,event.clientY-spectatorPointer.y);spectatorPointer={x:event.clientX,y:event.clientY};});
-const endSpectatorDrag=()=>{spectatorDragging=false;spectatorPointer=null;};canvas.addEventListener("pointerup",endSpectatorDrag);canvas.addEventListener("pointercancel",endSpectatorDrag);
+canvas.addEventListener("pointerdown",event=>{if(game.scenarioMode!=="live")return;spectatorPointers.set(event.pointerId,{x:event.clientX,y:event.clientY});spectatorDragging=true;spectatorPointer={x:event.clientX,y:event.clientY};canvas.setPointerCapture?.(event.pointerId);});
+canvas.addEventListener("pointermove",event=>{if(game.scenarioMode!=="live"||!spectatorPointers.has(event.pointerId))return;const previous=spectatorPointers.get(event.pointerId);spectatorPointers.set(event.pointerId,{x:event.clientX,y:event.clientY});const points=[...spectatorPointers.values()];if(points.length===1){camera.panByScreen(event.clientX-previous.x,event.clientY-previous.y);spectatorPointer={x:event.clientX,y:event.clientY};spectatorPinchDistance=0;}else if(points.length===2){const d=Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y);const rect=canvas.getBoundingClientRect(),cx=(points[0].x+points[1].x)/2-rect.left,cy=(points[0].y+points[1].y)/2-rect.top;if(spectatorPinchDistance>0)camera.zoomAt(d/spectatorPinchDistance,cx,cy);spectatorPinchDistance=d;}});
+const endSpectatorDrag=event=>{spectatorPointers.delete(event.pointerId);if(spectatorPointers.size<2)spectatorPinchDistance=0;if(!spectatorPointers.size){spectatorDragging=false;spectatorPointer=null;}};canvas.addEventListener("pointerup",endSpectatorDrag);canvas.addEventListener("pointercancel",endSpectatorDrag);
 canvas.addEventListener("wheel",event=>{if(game.scenarioMode!=="live")return;event.preventDefault();const rect=canvas.getBoundingClientRect();camera.zoomAt(event.deltaY<0?1.14:.88,event.clientX-rect.left,event.clientY-rect.top);},{passive:false});
 $("#live-panel-toggle")?.addEventListener("click",()=>{$("#live-sandbox-panel").classList.toggle("live-sandbox-panel--collapsed");});
 $("#backpack-button").addEventListener("click",event=>{event.preventDefault();event.stopPropagation();inventoryOpen?closeInventory():openInventory();});

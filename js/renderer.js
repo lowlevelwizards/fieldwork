@@ -296,6 +296,7 @@ export class Renderer{
   }
 
   game.operator.backpackLoadRatio=game.inventory.getUsedPips()/game.backpack.capacityPips;
+  if(game.scenarioMode==="live"&&game.operator.aiSpectatorHidden)return;
   const carried=game.getHeldItem();
   entries.push({
     y:game.operator.y+game.operator.radius,

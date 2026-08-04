@@ -15,6 +15,7 @@ export class Camera {
     this.height=this.screenHeight;
     this.spectatorMode=false;
     this.spectatorTarget=null;
+    this.worldBounds={x:0,y:0,width:MAP_WIDTH,height:MAP_HEIGHT};
   }
 
   resize(width,height) {
@@ -163,9 +164,10 @@ export class Camera {
   }
 
   #clamp() {
-    const maxX=Math.max(0,MAP_WIDTH-this.width);
-    const maxY=Math.max(0,MAP_HEIGHT-this.height);
-    this.x=Number.isFinite(this.x)?clamp(this.x,0,maxX):0;
-    this.y=Number.isFinite(this.y)?clamp(this.y,0,maxY):0;
+    const minX=this.worldBounds.x,minY=this.worldBounds.y;
+    const maxX=Math.max(minX,minX+this.worldBounds.width-this.width);
+    const maxY=Math.max(minY,minY+this.worldBounds.height-this.height);
+    this.x=Number.isFinite(this.x)?clamp(this.x,minX,maxX):minX;
+    this.y=Number.isFinite(this.y)?clamp(this.y,minY,maxY):minY;
   }
 }
