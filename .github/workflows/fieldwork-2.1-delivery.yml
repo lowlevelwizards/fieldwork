@@ -21,20 +21,24 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Reconstruct verified patch
+      - name: Reconstruct verified patch from exact Git blobs
         shell: bash
         run: |
           set -euo pipefail
-          test "$(wc -c < .delivery/fieldwork-2.1.part-00)" = "18000"
-          test "$(wc -c < .delivery/fieldwork-2.1.part-01)" = "10488"
-          test "$(sha256sum .delivery/fieldwork-2.1.part-00 | cut -d' ' -f1)" = "6e1eb7279fce898299c6c494a02192402356116e10fb9b6432c387d857d228b2"
-          test "$(sha256sum .delivery/fieldwork-2.1.part-01 | cut -d' ' -f1)" = "ae5810d3d5f3b02d947af75e7badc6904c141d896ded998894fe598c5ea0b239"
-          cat .delivery/fieldwork-2.1.part-00 .delivery/fieldwork-2.1.part-01 > /tmp/fieldwork-2.1.patch.xz.b64
-          test "$(sha256sum /tmp/fieldwork-2.1.patch.xz.b64 | cut -d' ' -f1)" = "46a9d423449629dc698f6fb968bc1bf2061537b6db8b28c682d387947a0d1fb3"
-          base64 --decode /tmp/fieldwork-2.1.patch.xz.b64 > /tmp/fieldwork-2.1.patch.xz
-          xz --test /tmp/fieldwork-2.1.patch.xz
-          xz --decompress --stdout /tmp/fieldwork-2.1.patch.xz > /tmp/fieldwork-2.1.patch
-          test -s /tmp/fieldwork-2.1.patch
+          git cat-file blob b5da9a342eeec68f0e301f505d0b16153516ccb6 > /tmp/part-00
+          git cat-file blob f39e22fb50b2d4555eb0303140ebc07e23441a29 > /tmp/part-01
+          cat /tmp/part-00 /tmp/part-01 > /tmp/fieldwork-2.1.patch.xz.b64
+          python - <<'PY'
+          import base64, hashlib, lzma
+          from pathlib import Path
+          encoded=Path('/tmp/fieldwork-2.1.patch.xz.b64').read_bytes()
+          assert len(encoded)==28488, len(encoded)
+          assert hashlib.sha256(encoded).hexdigest()=='46a9d423449629dc698f6fb968bc1bf2061537b6db8b28c682d387947a0d1fb3'
+          compressed=base64.b64decode(encoded,validate=True)
+          patch=lzma.decompress(compressed)
+          assert patch
+          Path('/tmp/fieldwork-2.1.patch').write_bytes(patch)
+          PY
 
       - name: Apply Fieldwork 2.1 to current AI-2.0
         shell: bash
