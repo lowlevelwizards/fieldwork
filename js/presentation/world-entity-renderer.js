@@ -237,6 +237,31 @@ function drawProp(ctx,e){
   }
 }
 
+
+function drawObjectiveBadge(ctx,e){
+  if(!e.aiObjective||e.propType==="field_relay")return;
+  const centerX=e.x+(e.width??40)/2;
+  const label=String(e.name??"FIELD OBJECTIVE").toUpperCase();
+  const state=String(e.state??"unknown").replaceAll("_"," ").toUpperCase();
+  ctx.save();
+  ctx.fillStyle="rgba(18,27,22,.9)";
+  ctx.beginPath();
+  ctx.roundRect(centerX-72,e.y-44,144,29,9);
+  ctx.fill();
+  ctx.strokeStyle=e.state===(e.objectiveRequirements?.desiredState??"operational")?"#8bc884":"#ddb65d";
+  ctx.lineWidth=1.5;
+  ctx.stroke();
+  ctx.fillStyle="#eee8d0";
+  ctx.font="800 7px system-ui";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.fillText(label.slice(0,24),centerX,e.y-35);
+  ctx.fillStyle="rgba(238,232,208,.68)";
+  ctx.font="700 6px system-ui";
+  ctx.fillText(state,centerX,e.y-24);
+  ctx.restore();
+}
+
 function drawItem(ctx,e){
   if(!e.revealed)return;
   shadow(ctx,e.x+e.width/2+3,e.groundY+3,Math.max(8,e.width*.48),5);
@@ -252,6 +277,6 @@ export function drawWorldEntity(ctx,entity,{targeted=false}={}){
   if(targeted)drawHighlight(ctx,entity);
   if(entity.type==="door")drawDoor(ctx,entity);
   else if(entity.type==="container")drawContainer(ctx,entity);
-  else if(entity.type==="prop")drawProp(ctx,entity);
+  else if(entity.type==="prop"){drawProp(ctx,entity);drawObjectiveBadge(ctx,entity);}
   else if(entity.type==="item")drawItem(ctx,entity);
 }

@@ -18,7 +18,9 @@ export class PerformObjectiveWorkAction extends AIV2Action{
   canStart({game,services}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     const objective=services?.objectives?.get?.(this.directive.objectiveId);
-    return Boolean(actor&&objective&&!actor.medical?.dead&&!actor.medical?.unconscious&&["repairable","being_restored"].includes(objective.state)&&distance(actor,objective)<=Math.max(48,objective.interactionRadius??78));
+    const inspectionState=objective?.requirements?.inspectionState??"repairable";
+    const workingState=objective?.requirements?.workingState??"being_restored";
+    return Boolean(actor&&objective&&!actor.medical?.dead&&!actor.medical?.unconscious&&[inspectionState,workingState].includes(objective.state)&&distance(actor,objective)<=Math.max(48,objective.interactionRadius??78));
   }
 
   canContinue({game,services}={}){
@@ -33,7 +35,7 @@ export class PerformObjectiveWorkAction extends AIV2Action{
     const actor=context.game.actors.find(candidate=>candidate.id===this.actorId);
     this.claimed=Boolean(context.services.objectives.claimWork({objectiveId:this.directive.objectiveId,actorId:this.actorId,teamId:actor?.teamId,purpose:"restore",now})?.ok);
     if(actor){
-      actor.currentAction=this.claimed?"Restoring field objective":"Objective work blocked";
+      actor.currentAction=this.claimed?`${this.directive.workLabel??"Working field objective"}`:"Objective work blocked";
       actor.aiV2Objective={status:this.claimed?"working":"blocked",objectiveId:this.directive.objectiveId,roleId:this.directive.roleId,progress:0};
     }
   }
@@ -50,12 +52,12 @@ export class PerformObjectiveWorkAction extends AIV2Action{
       return{status:"failed",reason:result.reason};
     }
     this.progress=result.objective?.progress??this.progress;
-    actor.currentAction="Restoring field objective";
+    actor.currentAction=this.directive.workLabel??"Working field objective";
     actor.aiV2Objective={status:result.completed?"operational":"working",objectiveId:this.directive.objectiveId,roleId:this.directive.roleId,progress:this.progress};
     if(!result.completed)return null;
     services.objectives.releaseWork(this.directive.objectiveId,actor.id,{now,reason:"objective_restored"});
     services.teamProcedures.notifyEvent({teamId:actor.teamId,event:"objective_restored",now,data:{actorId:actor.id,objectiveId:this.directive.objectiveId,state:result.objective?.state}});
-    actor.currentAction="Field objective operational";
+    actor.currentAction=this.directive.completedLabel??"Field objective complete";
     return{status:"completed",reason:"objective_restored",data:{objectiveId:this.directive.objectiveId,state:result.objective?.state}};
   }
 }

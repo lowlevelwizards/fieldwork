@@ -96,30 +96,56 @@ export function moveActorToward(actor,target,delta,{
   actor.vx=nx*speed;actor.vy=ny*speed;
   let nextX=actor.x+nx*step,nextY=actor.y+ny*step;
   if(game&&!isActorPositionClear(game,nextX,nextY,actor.radius??18)){
-    // Keep the same steering side briefly so obstacle avoidance cannot
-    // alternate left/right every frame and create visible jitter.
-    const now=performance.now()/1000;
-    if(!actor.obstacleSteerSign||now>(actor.obstacleSteerUntil??0)){
-      const left={x:actor.x-ny*step,y:actor.y+nx*step};
-      const right={x:actor.x+ny*step,y:actor.y-nx*step};
-      const leftClear=isActorPositionClear(game,left.x,left.y,actor.radius??18);
-      const rightClear=isActorPositionClear(game,right.x,right.y,actor.radius??18);
-      actor.obstacleSteerSign=leftClear&&!rightClear?-1:rightClear&&!leftClear?1:(actor.id?.length??0)%2?-1:1;
-      actor.obstacleSteerUntil=now+1.1;
-    }
-    const sign=actor.obstacleSteerSign;
-    const side={x:actor.x+ny*step*sign,y:actor.y-nx*step*sign};
-    if(isActorPositionClear(game,side.x,side.y,actor.radius??18)){
-      nextX=side.x;nextY=side.y;
-      actor.vx=(nextX-actor.x)/Math.max(delta,.001);
-      actor.vy=(nextY-actor.y)/Math.max(delta,.001);
-    }else{
-      stopActor(actor);
-      actor.obstacleSteerUntil=now+.35;
-      return false;
+    // Follow the edge of the obstacle in simulation time. A pure sideways
+    // step can remain inside a large circle forever, so combine tangent
+    // motion with a small outward component and prefer the clear candidate
+    // that still makes progress toward the destination.
+    actor.obstacleSteerRemaining=Math.max(0,(actor.obstacleSteerRemaining??0)-Math.max(0,delta));
+    const blocking=(game.map?.obstacles??[])
+      .filter(obstacle=>{
+        const minimum=(actor.radius??18)+(obstacle.radius??0)+4;
+        return (nextX-obstacle.x)**2+(nextY-obstacle.y)**2<minimum**2;
+      })
+      .sort((left,right)=>Math.hypot(actor.x-left.x,actor.y-left.y)-Math.hypot(actor.x-right.x,actor.y-right.y))[0]??null;
+    if(blocking){
+      let rx=actor.x-blocking.x,ry=actor.y-blocking.y;
+      const radialLength=Math.hypot(rx,ry);
+      if(radialLength<=.001){rx=-nx;ry=-ny;}else{rx/=radialLength;ry/=radialLength;}
+      const candidates=[-1,1].map(sign=>{
+        const tx=-ry*sign,ty=rx*sign;
+        const candidate={
+          sign,
+          x:actor.x+tx*step+rx*step*.42,
+          y:actor.y+ty*step+ry*step*.42
+        };
+        candidate.clear=isActorPositionClear(game,candidate.x,candidate.y,actor.radius??18);
+        candidate.remaining=Math.hypot(safeTarget.x-candidate.x,safeTarget.y-candidate.y);
+        return candidate;
+      });
+      const preferred=actor.obstacleSteerSign&&actor.obstacleSteerRemaining>0
+        ?candidates.find(candidate=>candidate.sign===actor.obstacleSteerSign&&candidate.clear)
+        :null;
+      const selected=preferred??candidates.filter(candidate=>candidate.clear).sort((a,b)=>a.remaining-b.remaining)[0]??null;
+      if(selected){
+        actor.obstacleSteerSign=selected.sign;
+        actor.obstacleSteerRemaining=Math.max(actor.obstacleSteerRemaining,.8);
+        nextX=selected.x;nextY=selected.y;
+        actor.vx=(nextX-actor.x)/Math.max(delta,.001);
+        actor.vy=(nextY-actor.y)/Math.max(delta,.001);
+      }else{
+        const projected=projectOutsideObstacles(game,actor.x,actor.y,actor.radius??18,7);
+        if(Math.hypot(projected.x-actor.x,projected.y-actor.y)>.01){
+          nextX=projected.x;nextY=projected.y;
+        }else{
+          stopActor(actor);
+          actor.obstacleSteerRemaining=.2;
+          return false;
+        }
+      }
     }
   }else{
     actor.obstacleSteerSign=null;
+    actor.obstacleSteerRemaining=0;
   }
   actor.x=nextX;actor.y=nextY;
   actor.walkingPhase=(actor.walkingPhase??0)+delta*(medicalSpeedCap(actor)<.3?2.1:8);

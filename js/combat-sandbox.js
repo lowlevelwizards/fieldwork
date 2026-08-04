@@ -13,23 +13,27 @@ import { applyBehaviorLab2UOverlay } from "../data/behavior-lab-2.0u.js";
 import { applyBehaviorLab2VOverlay } from "../data/behavior-lab-2.0v.js";
 import { LivingSandboxState } from "./ai-v2/sandbox/living-sandbox-state.js";
 import { sandboxMap } from "../data/behavior-lab-map.js";
+import { LIVE_SANDBOX_FIXTURE, LIVE_SANDBOX_FIXTURE_ID, liveSandboxMap } from "../data/live-sandbox-2.1.js";
 
 export const SANDBOX_FIXTURE_IDS=Object.freeze({
  ...BASE_SANDBOX_FIXTURE_IDS,
- OBJECTIVE_INITIATIVE:OBJECTIVE_INITIATIVE_FIXTURE_ID
+ OBJECTIVE_INITIATIVE:OBJECTIVE_INITIATIVE_FIXTURE_ID,
+ LIVE_SANDBOX:LIVE_SANDBOX_FIXTURE_ID
 });
-export { sandboxMap };
+export { sandboxMap, liveSandboxMap, LIVE_SANDBOX_FIXTURE_ID };
 
 function applyCurrentOverlays(fixture){return applyBehaviorLab2QOverlay(applyBehaviorLab2POverlay(fixture));}
 const CURRENT_OBJECTIVE_INITIATIVE_FIXTURE=applyBehaviorLab2VOverlay(applyBehaviorLab2UOverlay(applyBehaviorLab2SOverlay(OBJECTIVE_INITIATIVE_FIXTURE)));
 
 export const SANDBOX_FIXTURES=Object.freeze({
   ...Object.fromEntries(Object.entries(BASE_SANDBOX_FIXTURES).map(([id,fixture])=>[id,applyCurrentOverlays(fixture)])),
-  [OBJECTIVE_INITIATIVE_FIXTURE_ID]:CURRENT_OBJECTIVE_INITIATIVE_FIXTURE
+  [OBJECTIVE_INITIATIVE_FIXTURE_ID]:CURRENT_OBJECTIVE_INITIATIVE_FIXTURE,
+  [LIVE_SANDBOX_FIXTURE_ID]:LIVE_SANDBOX_FIXTURE
 });
 
 export function getSandboxFixture(id){
   if(id===OBJECTIVE_INITIATIVE_FIXTURE_ID)return CURRENT_OBJECTIVE_INITIATIVE_FIXTURE;
+  if(id===LIVE_SANDBOX_FIXTURE_ID)return LIVE_SANDBOX_FIXTURE;
   return SANDBOX_FIXTURES[id]??applyCurrentOverlays(getBaseSandboxFixture(id));
 }
 
@@ -51,6 +55,9 @@ function actorFromSpec(faction,teamId,index,spec,fixture){
   teamId,
   factionId:faction,
   operationId:spec.operationId??`behavior_lab_${fixture.id}`,
+  rosterId:spec.rosterId??null,
+  persistentLevel:spec.persistentLevel??1,
+  persistentExperience:spec.persistentExperience??0,
   kitId:spec.kitId??KITS[faction][index%KITS[faction].length],
   x:spec.x,
   y:spec.y,
@@ -101,7 +108,7 @@ function objectiveFromSpec(spec){
  return{
   id:spec.id,
   type:"prop",
-  propType:"field_relay",
+  propType:spec.propType??"field_relay",
   objectiveKind:spec.objectiveKind??"restore_relay",
   name:spec.name??"Field Objective",
   x:spec.x,
@@ -120,7 +127,8 @@ function objectiveFromSpec(spec){
   objectiveRequirements:{...(spec.requirements??{})},
   sandboxNeed:spec.sandboxNeed?{
    ...spec.sandboxNeed,
-   capabilityNeeds:{...(spec.sandboxNeed.capabilityNeeds??{})}
+   capabilityNeeds:{...(spec.sandboxNeed.capabilityNeeds??{})},
+   worksiteBoundary:spec.sandboxNeed.worksiteBoundary?{...spec.sandboxNeed.worksiteBoundary}:null
   }:null,
   completedByTeamId:null,
   lastChangedAt:0
@@ -164,6 +172,32 @@ function cloneMission(teamSpec){
  }:null;
 }
 
+
+function operationLanguage(operation,objective){
+ const label=objective.name??operation.objectiveLabel;
+ if(operation.kind==="recover_supplies")return{
+  objective:`Recover finite supplies from ${label} and return them to faction custody.`,
+  immediateTask:`Approach, inspect, collect, secure, and return from ${label}.`,
+  successCondition:`${label} is depleted and the team returns with the recovered supplies.`,
+  abortCondition:"No capable supply handler or physically usable approach remains.",
+  workLabel:`Collecting supplies at ${label}`
+ };
+ if(operation.kind==="survey_route")return{
+  objective:`Verify the current route condition at ${label} and return usable intelligence.`,
+  immediateTask:`Approach, inspect, survey, secure, and return from ${label}.`,
+  successCondition:`${label} is verified and the team can return with current route intelligence.`,
+  abortCondition:"No capable observer or physically usable survey position remains.",
+  workLabel:`Surveying ${label}`
+ };
+ return{
+  objective:`Restore ${label} because the current world state requires functioning infrastructure.`,
+  immediateTask:`Approach, inspect, service, secure, and return from ${label}.`,
+  successCondition:`${label} is operational and the team can return to faction availability.`,
+  abortCondition:"No capable technical specialist or physically usable approach remains.",
+  workLabel:`Servicing ${label}`
+ };
+}
+
 export class CombatSandboxDirector{
  constructor(game,{fixtureId=SANDBOX_FIXTURE_IDS.OPEN_CONTACT}={}){
   this.game=game;
@@ -175,8 +209,12 @@ export class CombatSandboxDirector{
   this.initialized=false;
   this.stimulusEmitted=false;
   this.processedLivingOutcomeIds=new Set();
+  this.nextTurnoverAt=Infinity;
+  this.turnoverSequence=0;
   this.fixture=getSandboxFixture(fixtureId);
   this.livingState=this.fixture.livingSandbox?new LivingSandboxState({config:this.fixture.livingSandbox}):null;
+  const turnover=this.fixture.livingSandbox?.turnover;
+  if(turnover?.enabled)this.nextTurnoverAt=turnover.minimumInterval??45;
  }
  getOperation(id){return this.livingState?.getOperation(id)??null;}
  claim(){return false;}
@@ -236,16 +274,25 @@ export class CombatSandboxDirector{
  }
  #compileLivingMission(operation,objective){
   const exit=operation.entryPoint;
-  const worksiteBoundary=objective.sandboxNeed?.worksiteBoundary??null;
+  const worksiteBoundary=objective.sandboxNeed?.worksiteBoundary??(this.livingState?.liveMode&&objective.sandboxNeed?.family==="infrastructure"?{
+   id:`${objective.id}_active_worksite`,label:`${objective.name??operation.objectiveLabel} active worksite`,radius:430,falloff:170,
+   policy:"Unknown armed personnel approaching active technical work should be warned clear before escalation.",
+   condition:"A credible approaching contact has entered the active worksite.",warningType:"keep_clear",warningMessage:"Keep clear of the active worksite.",
+   minimumConfidence:24,requireActivityUpdate:true,allowedActivities:["approaching","repositioning","observing"],voiceRange:820,coneDegrees:110,warningDuration:1.1,awaitDuration:8,complianceDuration:2.4,
+   enforcement:{enabled:true,responseId:"demonstrative_fire",offsetDistance:96,maximumRounds:1}
+  }:null);
   const pressesWarning=(operation.contactResolve??.5)>=.82;
+  const language=operationLanguage(operation,objective);
   return{
    id:operation.id,
+   operationId:operation.id,
+   operationKind:operation.kind,
    problemKind:"baseline_objective",
    title:operation.label,
-   objective:`Restore ${objective.name??operation.objectiveLabel} because the current world state requires functioning route infrastructure.`,
-   immediateTask:`Approach, inspect, restore, and secure ${objective.name??operation.objectiveLabel}.`,
-   successCondition:`${objective.name??operation.objectiveLabel} is operational and the team can return to faction availability.`,
-   abortCondition:"No capable technical specialist or physically usable approach remains.",
+   objective:language.objective,
+   immediateTask:language.immediateTask,
+   successCondition:language.successCondition,
+   abortCondition:language.abortCondition,
    staleAfter:9,
    forgetAfter:22,
    concernArea:{type:"circle",label:`${objective.name??operation.objectiveLabel} worksite`,x:objective.x,y:objective.y,radius:560,falloff:240},
@@ -275,6 +322,7 @@ export class CombatSandboxDirector{
    objectivePlan:{
     id:`${operation.id}_objective_plan`,
     objectiveId:objective.id,
+    objectiveKind:operation.kind,
     desiredState:operation.desiredState,
     securityFocusDistance:330,
     approachPolicy:{maximumTravel:1500,stagingDistance:250,interactionDistance:68,roleSpacing:108,speedMultiplier:.74,arrivalRadius:11,claimSpacing:72}
@@ -302,7 +350,7 @@ export class CombatSandboxDirector{
     securityOrientation:.72,
     stealthOrientation:.28,
     mobilityOrientation:.76,
-    careOrientation:.52,
+    careOrientation:operation.kind==="recover_supplies"?.68:.52,
     positionLabel:`${objective.name??operation.objectiveLabel} worksite`,
     exitLabel:`${operation.factionLabel} entry route`
    },
@@ -333,6 +381,9 @@ export class CombatSandboxDirector{
     role:member.role,
     kitId:member.kitId,
     operationId:operation.id,
+    rosterId:member.id,
+    persistentLevel:member.level??1,
+    persistentExperience:member.experience??0,
     x:operation.entryPoint.x+offsets[index%offsets.length],
     y:operation.entryPoint.y+Math.abs(offsets[index%offsets.length])*.12,
     facing:operation.entryPoint.facing,
@@ -352,7 +403,7 @@ export class CombatSandboxDirector{
    factionId:operation.factionId,
    memberIds:actorIds,
    mission:operation.label,
-   task:`Restore ${objective.name??operation.objectiveLabel}`,
+   task:operationLanguage(operation,objective).immediateTask,
    fixtureId:this.fixture.id,
    operationId:operation.id,
    operationStatus:"deployed",
@@ -410,6 +461,8 @@ export class CombatSandboxDirector{
   const interrupted=operation.status==="interrupted";
   for(const actorId of operation.actorIds)this.game.aiV2?.scheduler?.cancelActor?.(actorId,{now:this.elapsed,reason:interrupted?"operation_deferred":"operation_returned"});
   const actorSet=new Set(operation.actorIds);
+  const returningActors=this.game.actors.filter(actor=>actorSet.has(actor.id));
+  this.livingState?.reconcileReturn?.(operation.id,{actors:returningActors,now:this.elapsed});
   this.game.actors=this.game.actors.filter(actor=>!actorSet.has(actor.id));
   this.teams=this.teams.filter(team=>team.id!==operation.teamId);
   this.livingState?.completeReturn(operation.id,{now:this.elapsed});
@@ -422,6 +475,7 @@ export class CombatSandboxDirector{
   const objectives=this.game.entities.filter(entity=>entity.aiObjective);
   this.livingState.decisionLog??=this.game.aiV2?.decisionLog??null;
   this.livingState.updateRecovery({now:this.elapsed});
+  this.#updateWorldTurnover(objectives);
   this.livingState.syncObjectives(objectives,{now:this.elapsed});
   this.#consumeLivingOperationOutcomes();
 
@@ -437,6 +491,32 @@ export class CombatSandboxDirector{
    this.game.pushMessage(`Unable to assemble ${proposal.factionLabel} operation.`,2.4);
   }
  }
+
+ #updateWorldTurnover(objectives){
+  const turnover=this.fixture.livingSandbox?.turnover;
+  if(!this.livingState?.liveMode||!turnover?.enabled||this.elapsed<this.nextTurnoverAt)return;
+  const activeObjectiveIds=new Set(this.livingState.activeOperations().map(operation=>operation.objectiveId));
+  const candidates=objectives.filter(objective=>{
+   const desired=objective.sandboxNeed?.desiredState??objective.objectiveRequirements?.desiredState??"operational";
+   return objective.state===desired&&!activeObjectiveIds.has(objective.id);
+  });
+  if(!candidates.length){this.nextTurnoverAt=this.elapsed+8;return;}
+  candidates.sort((a,b)=>(a.lastChangedAt??0)-(b.lastChangedAt??0)||String(a.id).localeCompare(String(b.id)));
+  const index=(this.livingState.seed+this.turnoverSequence*7)%candidates.length;
+  const objective=candidates[index];
+  const family=objective.sandboxNeed?.family??"infrastructure";
+  objective.state=family==="supply"?"stocked":family==="survey"?"stale":"degraded";
+  objective.progress=0;
+  objective.completedByTeamId=null;
+  objective.lastChangedAt=this.elapsed;
+  this.turnoverSequence+=1;
+  const minimum=turnover.minimumInterval??42,maximum=Math.max(minimum,turnover.maximumInterval??68);
+  const unit=((this.livingState.seed+this.turnoverSequence*37)%1000)/1000;
+  this.nextTurnoverAt=this.elapsed+minimum+(maximum-minimum)*unit;
+  this.game.pushMessage(`${objective.name} changed state and created new field work.`,3);
+  this.game.aiV2?.decisionLog?.record?.({type:"live_world_objective_changed",time:this.elapsed,data:{objectiveId:objective.id,state:objective.state,nextTurnoverAt:this.nextTurnoverAt}});
+ }
+
  #seedCriticalCasualty(actor){
   const medical=this.game.wounds.ensure(actor);
   medical.blood=82;

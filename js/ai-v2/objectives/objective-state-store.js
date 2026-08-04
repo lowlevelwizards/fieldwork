@@ -71,8 +71,9 @@ export class ObjectiveStateStore{
     const objective=this.entities.get(objectiveId);
     const claim=this.claims.get(objectiveId);
     if(!objective||claim?.actorId!==actorId)return{ok:false,reason:"objective_inspection_not_owned"};
-    if(objective.state==="operational")return{ok:true,completed:true,objective:cloneObjective(objective)};
-    objective.state="repairable";
+    const desiredState=objective.objectiveRequirements?.desiredState??"operational";
+    if(objective.state===desiredState)return{ok:true,completed:true,objective:cloneObjective(objective)};
+    objective.state=objective.objectiveRequirements?.inspectionState??"repairable";
     objective.progress=Math.max(0,objective.progress??0);
     objective.lastChangedAt=now;
     this.#record("objective_inspected",now,{objectiveId,actorId,state:objective.state});
@@ -83,15 +84,19 @@ export class ObjectiveStateStore{
     const objective=this.entities.get(objectiveId);
     const claim=this.claims.get(objectiveId);
     if(!objective||claim?.actorId!==actorId)return{ok:false,reason:"objective_work_not_owned"};
-    if(objective.state==="operational")return{ok:true,completed:true,objective:cloneObjective(objective)};
-    if(!["repairable","being_restored"].includes(objective.state))return{ok:false,reason:"objective_not_ready_for_work"};
-    const duration=Math.max(.25,Number(objective.objectiveRequirements?.workDuration)||4);
-    objective.state="being_restored";
+    const requirements=objective.objectiveRequirements??{};
+    const desiredState=requirements.desiredState??"operational";
+    const inspectionState=requirements.inspectionState??"repairable";
+    const workingState=requirements.workingState??"being_restored";
+    if(objective.state===desiredState)return{ok:true,completed:true,objective:cloneObjective(objective)};
+    if(![inspectionState,workingState].includes(objective.state))return{ok:false,reason:"objective_not_ready_for_work"};
+    const duration=Math.max(.25,Number(requirements.workDuration)||4);
+    objective.state=workingState;
     objective.progress=clamp((objective.progress??0)+Math.max(0,delta)/duration);
     objective.lastChangedAt=now;
     if(objective.progress>=1){
       objective.progress=1;
-      objective.state="operational";
+      objective.state=desiredState;
       objective.completedByTeamId=teamId;
       this.#record("objective_completed",now,{objectiveId,actorId,teamId,state:objective.state});
       return{ok:true,completed:true,objective:cloneObjective(objective)};

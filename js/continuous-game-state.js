@@ -6,7 +6,7 @@ import { CombatSystem } from "./combat.js";
 import { AICombatSystem } from "./ai-combat.js";
 import { WoundSystem } from "./wound-system.js";
 import { MedicalSystem } from "./medical-system.js";
-import { CombatSandboxDirector, sandboxMap, getSandboxFixture, SANDBOX_FIXTURE_IDS } from "./combat-sandbox.js";
+import { CombatSandboxDirector, sandboxMap, liveSandboxMap, getSandboxFixture, SANDBOX_FIXTURE_IDS, LIVE_SANDBOX_FIXTURE_ID } from "./combat-sandbox.js";
 import { TacticalFrontSystem } from "./tactical-front.js";
 import { TeamResponseSystem } from "./team-response.js";
 import { CoverStateSystem } from "./cover-state.js";
@@ -24,12 +24,12 @@ export class ContinuousGameState extends GameState {
     this.scenarioMode=scenario;
     this.aiRuntimeMode=aiRuntime===AI_RUNTIME_MODES.V2?AI_RUNTIME_MODES.V2:AI_RUNTIME_MODES.LEGACY;
     this.aiRuntimeLabel=this.aiRuntimeMode===AI_RUNTIME_MODES.V2?"AI V2 — Adaptive Causal Runtime":"Legacy 1.2H";
-    if(scenario==="sandbox"){
-      const fixture=getSandboxFixture(sandboxFixture);
-      this.map=sandboxMap;
+    if(scenario==="sandbox"||scenario==="live"){
+      const fixture=getSandboxFixture(scenario==="live"?LIVE_SANDBOX_FIXTURE_ID:sandboxFixture);
+      this.map=scenario==="live"?liveSandboxMap:sandboxMap;
       this.sandboxFixtureId=fixture.id;
       this.sandboxFixture=fixture;
-      const sandboxSupplies=this.entities
+      const sandboxSupplies=scenario==="sandbox"?this.entities
         .filter(entity=>entity.type==="item"&&entity.definitionId==="bandage")
         .slice(0,2)
         .map((entity,index)=>({
@@ -43,7 +43,7 @@ export class ContinuousGameState extends GameState {
           visibility:"visible",
           revealed:true,
           state:"world"
-        }));
+        })):[];
       this.entities=sandboxSupplies;
       this.actors=[];
       this.wildlife=[];
@@ -51,10 +51,10 @@ export class ContinuousGameState extends GameState {
       this.clockMinutes=13*60+20;this.weather="Clear";
       this.incident.state="resolved";this.incident.bandageUsed=true;this.incident.workerSheltered=true;this.incident.waterUsed=true;this.incident.radioRestored=true;
       this.operations=new CombatSandboxDirector(this,{fixtureId:fixture.id});
-      this.objectiveText=`Behavior Lab ${fixture.index} · ${fixture.label}`;
+      this.objectiveText=scenario==="live"?"Live Sandbox · Persistent faction operations":`Behavior Lab ${fixture.index} · ${fixture.label}`;
     }
     this.excursion = new ContinuousExcursionController(this);
-    if(scenario==="sandbox"){
+    if(scenario==="sandbox"||scenario==="live"){
       this.excursion.state="completed";
       this.excursion.trailEntered=true;
     }

@@ -8,7 +8,7 @@ import { validateItemLocations } from "./item-locations.js";
 import { renderItemThumbnail } from "./presentation/item-renderer.js";
 import { SANDBOX_FIXTURES, SANDBOX_FIXTURE_IDS, getSandboxFixture } from "./combat-sandbox.js";
 
-const BUILD_ID="2.0P";
+const BUILD_ID="2.1";
 const $=s=>document.querySelector(s),titleScreen=$("#title-screen"),gameScreen=$("#game-screen"),beginButton=$("#begin-button"),canvas=$("#game-canvas"),inventoryOverlay=$("#inventory-overlay"),inspectOverlay=$("#inspect-overlay"),inventoryList=$("#inventory-list"),reportOverlay=$("#report-overlay"),operationsOverlay=$("#operations-overlay"),aiRuntimeSelect=$("#ai-runtime-select"),aiRuntimeDescription=$("#ai-runtime-description"),sandboxFixtureSelect=$("#sandbox-fixture-select"),sandboxFixtureDescription=$("#sandbox-fixture-description");
 const declaredBuild=document.querySelector('meta[name="fieldwork-build"]')?.content??"missing";
 document.documentElement.dataset.build=BUILD_ID;
@@ -47,8 +47,8 @@ function updateSandboxFixtureDescription(){
 updateSandboxFixtureDescription();
 
 const camera=new Camera();let game=new ContinuousGameState({scenario:"operations",aiRuntime:selectedAIRuntime(),sandboxFixture:selectedSandboxFixture()});const renderer=new Renderer(canvas,camera),input=new InputController({joystickBase:$("#joystick-base"),joystickKnob:$("#joystick-knob")});
-const sandboxButton=$("#sandbox-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
-let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null;
+const sandboxButton=$("#sandbox-button"),liveSandboxButton=$("#live-sandbox-button"),aimButton=$("#aim-button"),fireButton=$("#fire-button"),ammoCount=$("#ammo-count"),aimMode=$("#aim-mode"),reloadFill=$("#reload-progress-fill"),combatControls=$("#combat-controls"),interactButton=$("#interact-button"),searchStatus=$("#search-status"),searchLabel=$("#search-label"),searchFill=$("#search-progress-fill");
+let started=false,inventoryOpen=false,operationsOpen=false,worldTextOpen=false,dialogueOpen=false,lastTime=performance.now(),fpsAccumulator=0,fpsFrames=0,fpsValue=0,objectiveTimer=null,simulationPaused=false,simulationSpeed=1,lastLiveDashboardAt=-Infinity;
 function resizeAndCenter(reason="viewport"){
   renderer.resize();
   camera.lockTo(game.operator);
@@ -56,7 +56,7 @@ function resizeAndCenter(reason="viewport"){
 }
 function startGame(scenario="operations"){
   if(started)return;
-  const aiRuntime=selectedAIRuntime();
+  const aiRuntime=scenario==="live"?"v2":selectedAIRuntime();
   writeStoredAIRuntime(aiRuntime);
   game=new ContinuousGameState({scenario,aiRuntime,sandboxFixture:selectedSandboxFixture()});
   titleScreen.classList.remove("screen--active");
@@ -65,7 +65,14 @@ function startGame(scenario="operations"){
   requestAnimationFrame(()=>requestAnimationFrame(()=>resizeAndCenter("game start")));
   lastTime=performance.now();
   const objective=$("#objective-card");
-  if(scenario==="sandbox"){
+  if(scenario==="live"){
+    const fixture=game.sandboxFixture;
+    objective.querySelector(".objective-kicker").textContent="FIELDWORK 2.1 LIVE SANDBOX";
+    objective.querySelector("strong").textContent=fixture.label;
+    objective.querySelector("span:last-child").textContent=fixture.question;
+    $("#live-sandbox-panel").hidden=false;
+    $("#operations-button")?.setAttribute("hidden","");
+  }else if(scenario==="sandbox"){
     const fixture=game.sandboxFixture;
     objective.querySelector(".objective-kicker").textContent=`BEHAVIOR LAB ${fixture.index}`;
     objective.querySelector("strong").textContent=fixture.label;
@@ -146,7 +153,13 @@ function openWorldText(request){if(!request)return;worldTextOpen=true;game.opera
 function closeInspect(){inspectOverlay.hidden=true;worldTextOpen=false;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function openDialogue(request){if(!request)return;dialogueOpen=true;game.operator.lockedByInteraction=true;$("#dialogue-role").textContent=request.actor.role;$("#dialogue-name").textContent=request.actor.name;$("#dialogue-text").textContent=request.text;$("#dialogue-overlay").hidden=false;game.dialogueRequest=null;}function closeDialogue(){dialogueOpen=false;$("#dialogue-overlay").hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
 function openReport(report){if(!report)return;$("#report-title").textContent=report.title;const lines=$("#report-lines");lines.replaceChildren(...report.lines.map(text=>{const p=document.createElement("p");p.textContent=text;return p;}));reportOverlay.hidden=false;game.operator.lockedByInteraction=true;game.excursion.reportRequest=null;}function closeReport(){reportOverlay.hidden=true;if(!modalOpen())game.operator.lockedByInteraction=false;}
-function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.scenarioMode==="sandbox"){const fixture=game.sandboxFixture;strong.textContent=fixture.label;copy.textContent=game.aiRuntimeMode==="v2"
+function updateObjective(){const strong=$("#objective-card strong"),copy=$("#objective-card span:last-child"),selected=game.operations.selectedOperation;if(game.scenarioMode==="live"){
+ const summary=game.livingSandbox?.summary?.();
+ const active=summary?.operations?.filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status))??[];
+ strong.textContent=`${active.length} active operation${active.length===1?"":"s"} · ${summary?.needs?.filter(need=>need.status==="open").length??0} open needs`;
+ copy.textContent="Operation says why. Agenda says what. Procedure says who. Operators choose how. The scheduler alone makes it physical.";
+ return;
+}if(game.scenarioMode==="sandbox"){const fixture=game.sandboxFixture;strong.textContent=fixture.label;copy.textContent=game.aiRuntimeMode==="v2"
   ?fixture.id===SANDBOX_FIXTURE_IDS.OPEN_CONTACT
     ?`${fixture.question} Personal threat evidence now drives immediate initiative, urgent reporting, bounded protective fire, and staged movement to safety.`
     :fixture.id===SANDBOX_FIXTURE_IDS.OBSERVATION
@@ -268,7 +281,70 @@ const combatInput=new CombatInputController({
 });
 
 
-function frame(now){const delta=Math.min((now-lastTime)/1000,.033);lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.update(game,delta);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;$("#weather-icon").textContent=game.isNight?.()?"☾":game.weather==="Rain"||game.weather==="Heavy Rain"?"☂":game.weather==="Cloudy"?"☁":game.weather==="Fog"?"≋":"☀";updateObjective();updateCompass();updateCombatUI();updateMedicalUI();if(!$("#debug-panel").hidden)updateDebug(delta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
+
+function liveElement(tag,className,text){const node=document.createElement(tag);if(className)node.className=className;if(text!=null)node.textContent=text;return node;}
+function updateLiveDashboard(force=false){
+ if(game.scenarioMode!=="live")return;
+ if(!force&&game.clockMinutes-lastLiveDashboardAt<.02)return;
+ lastLiveDashboardAt=game.clockMinutes;
+ const summary=game.livingSandbox?.summary?.();if(!summary)return;
+ const factions=$("#live-factions");factions.replaceChildren(...summary.factions.map(faction=>{
+  const card=liveElement("article","live-faction");
+  const resources=Object.entries(faction.resources??{}).filter(([,value])=>value>0).map(([key,value])=>`${key.slice(0,3)} ${value}`).join(" · ")||"no returned supplies";
+  card.append(liveElement("strong",null,faction.label),liveElement("b",null,String(faction.score)),liveElement("small",null,`${faction.available} ready · ${faction.deployed} out · ${faction.recovering} recovering · ${faction.dead} dead`),liveElement("small","live-resources",resources));
+  return card;
+ }));
+ const operations=$("#live-operations");
+ const active=summary.operations.filter(operation=>["proposed","deployed","returning","interrupted"].includes(operation.status));
+ operations.replaceChildren(...active.slice(-6).map(operation=>{
+  const agenda=game.aiV2?.teamAgenda?.get?.(operation.teamId);
+  const row=liveElement("article","live-operation");
+  row.append(liveElement("strong",null,`${operation.factionLabel} · ${operation.label}`),liveElement("small",null,`${operation.status} · ${agenda?.selected?.label??"assembling"} · score ${Math.round(operation.score*100)}`));
+  return row;
+ }));
+ if(!active.length)operations.append(liveElement("div","live-event","No active operations; factions are evaluating open needs."));
+ const candidates=$("#live-candidates");
+ candidates.replaceChildren(...(summary.candidates??[]).slice(0,4).map(candidate=>{
+  const terms=candidate.scoreBreakdown??{};
+  const row=liveElement("article","live-operation live-candidate");
+  row.append(
+   liveElement("strong",null,`${candidate.factionLabel} → ${candidate.objectiveLabel}`),
+   liveElement("small",null,`${candidate.kind.replaceAll("_"," ")} · score ${Math.round(candidate.score*100)} · interest +${Math.round((terms.interest??0)*100)} · priority +${Math.round((terms.priority??0)*100)} · fit +${Math.round((terms.capabilityFit??0)*100)} · travel ${Math.round((terms.travelCost??0)*100)}`)
+  );
+  return row;
+ }));
+ if(!(summary.candidates??[]).length)candidates.append(liveElement("div","live-event","No dispatch candidate currently has an available roster and open need."));
+ const authority=$("#live-authority");
+ const traces=game.aiV2?.actionArbiter?.summary?.()??[];
+ const visible=traces.filter(trace=>trace.active.length||trace.granted.length).slice(-5);
+ authority.replaceChildren(...visible.map(trace=>{
+  const actor=game.actors.find(candidate=>candidate.id===trace.actorId);
+  const role=game.aiV2?.teamProcedures?.getActorRole?.(trace.actorId);
+  const agenda=actor?game.aiV2?.teamAgenda?.get?.(actor.teamId):null;
+  const operation=actor?.operationId?summary.operations.find(candidate=>candidate.id===actor.operationId):null;
+  const action=trace.active.map(item=>item.actionType).join(" + ")||trace.granted[0]?.actionType||"waiting";
+  const rejected=trace.rejected[0];
+  const row=liveElement("article","live-authority-row");
+  row.append(
+   liveElement("strong",null,actor?.name??trace.actorId),
+   liveElement("small",null,`${operation?.label??"Operation"} → ${agenda?.selected?.label??"Mission"} → ${role?.roleLabel??"Field Operator"} → ${action}`),
+   rejected?liveElement("small","live-rejected",`rejected ${rejected.actionType}: ${rejected.resultReason}`):document.createTextNode("")
+  );
+  return row;
+ }));
+ const events=$("#live-events");
+ events.replaceChildren(...summary.history.slice(-6).reverse().map(entry=>liveElement("div","live-event",entry.type.replaceAll("_"," ")+ (entry.data?.factionId?` · ${entry.data.factionId}`:""))));
+}
+function restartLive(){
+ game=new ContinuousGameState({scenario:"live",aiRuntime:"v2"});
+ simulationPaused=false;simulationSpeed=1;
+ document.querySelectorAll(".live-speed").forEach(button=>button.classList.toggle("live-speed--active",button.dataset.speed==="1"));
+ $("#live-pause").textContent="PAUSE";
+ requestAnimationFrame(()=>resizeAndCenter("live sandbox restart"));
+ updateLiveDashboard(true);
+}
+
+function frame(now){const realDelta=Math.min((now-lastTime)/1000,.033);const delta=simulationPaused?0:realDelta*simulationSpeed;lastTime=now;if(started){try{game.routeReviewRequest=false;game.update(delta,inventoryOpen||operationsOpen?{x:0,y:0}:input.getMoveVector());camera.update(game,realDelta);updateInteractionUI();if(game.worldTextRequest&&!worldTextOpen)openWorldText(game.worldTextRequest);if(game.dialogueRequest&&!dialogueOpen)openDialogue(game.dialogueRequest);if(game.assessmentRequest&&!dialogueOpen){openDialogue({actor:game.assessmentRequest.actor,text:game.assessmentRequest.text});game.assessmentRequest=null;}if(game.excursion.reportRequest&&reportOverlay.hidden)openReport(game.excursion.reportRequest);$("#world-time").textContent=game.getTimeLabel();$("#world-phase").textContent=`${game.getDayPhase()} · ${game.weather}${game.isNight?.()?` · ${game.moonPhaseName}`:""}`;$("#weather-icon").textContent=game.isNight?.()?"☾":game.weather==="Rain"||game.weather==="Heavy Rain"?"☂":game.weather==="Cloudy"?"☁":game.weather==="Fog"?"≋":"☀";updateObjective();updateCompass();updateCombatUI();updateMedicalUI();updateLiveDashboard();if(!$("#debug-panel").hidden)updateDebug(realDelta);}catch(error){console.error("Fieldwork simulation frame failed",error);}try{renderer.render(game);}catch(error){console.error("Fieldwork render frame failed",error);}}requestAnimationFrame(frame);}
 function recoverPosition(source){const before={x:game.operator.x,y:game.operator.y};game.resetPosition();camera.snapTo(game.operator);console.info("Fieldwork position recovery",{build:BUILD_ID,source,before,after:{x:game.operator.x,y:game.operator.y}});}
 
 
@@ -285,7 +361,11 @@ sandboxFixtureSelect.addEventListener("change",()=>{
   writeStoredSandboxFixture(selectedSandboxFixture());
   updateSandboxFixtureDescription();
 });
-beginButton.addEventListener("click",()=>startGame("operations"));sandboxButton.addEventListener("click",()=>startGame("sandbox"));
+beginButton.addEventListener("click",()=>startGame("operations"));sandboxButton.addEventListener("click",()=>startGame("sandbox"));liveSandboxButton.addEventListener("click",()=>startGame("live"));
+$("#live-pause")?.addEventListener("click",()=>{simulationPaused=!simulationPaused;$("#live-pause").textContent=simulationPaused?"RESUME":"PAUSE";});
+document.querySelectorAll(".live-speed").forEach(button=>button.addEventListener("click",()=>{simulationSpeed=Number(button.dataset.speed)||1;simulationPaused=false;$("#live-pause").textContent="PAUSE";document.querySelectorAll(".live-speed").forEach(candidate=>candidate.classList.toggle("live-speed--active",candidate===button));}));
+$("#live-restart")?.addEventListener("click",restartLive);
+$("#live-panel-toggle")?.addEventListener("click",()=>{$("#live-sandbox-panel").classList.toggle("live-sandbox-panel--collapsed");});
 $("#backpack-button").addEventListener("click",event=>{event.preventDefault();event.stopPropagation();inventoryOpen?closeInventory():openInventory();});
 $("#inventory-close").addEventListener("click",closeInventory);
 $("#operations-close").addEventListener("click",closeOperations);

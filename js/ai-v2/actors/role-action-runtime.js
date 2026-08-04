@@ -17,6 +17,7 @@ import { DemonstrativeFireAction } from "../actions/demonstrative-fire-action.js
 import { MoveToObjectivePositionAction } from "../actions/move-to-objective-position-action.js";
 import { InspectObjectiveAction } from "../actions/inspect-objective-action.js";
 import { PerformObjectiveWorkAction } from "../actions/perform-objective-work-action.js";
+import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 import { buildRoleActionContext } from "./role-action-context.js";
 import { ActorActionEvaluator } from "./actor-action-evaluator.js";
 import {
@@ -74,8 +75,8 @@ function roleAction(action){return action?.metadata?.provenance?.owner==="role_a
 function sameProvenance(a,b){return (!a&&!b)||(a?.procedureId===b?.procedureId&&a?.phaseId===b?.phaseId&&a?.roleId===b?.roleId&&a?.owner===b?.owner);}
 
 export class RoleActionRuntime{
-  constructor({scheduler,decisionLog=null,evaluator=new ActorActionEvaluator()}={}){
-    this.scheduler=scheduler;this.decisionLog=decisionLog;this.evaluator=evaluator;this.assignments=new Map();
+  constructor({scheduler,decisionLog=null,evaluator=new ActorActionEvaluator(),arbiter=null}={}){
+    this.scheduler=scheduler;this.decisionLog=decisionLog;this.evaluator=evaluator;this.arbiter=arbiter;this.assignments=new Map();
   }
 
   update({game,teamProcedures,teamMissions,teamKnowledge,teamEncounters,casualtyKnowledge,now=0,context={}}={}){
@@ -136,8 +137,23 @@ export class RoleActionRuntime{
     if(existing)return;
     const create=ACTION_CONSTRUCTORS[selected.type];if(!create)return;
     const action=create({actorId:actor.id,directive:selected.directive});
-    const result=this.scheduler.start(action,{now,context});
-    if(result.ok)this.#record("role_action_started",actor,selected,now,{actionId:action.id,roleId:role.roleId,procedureId:procedure.procedureId});
+    const agenda=context?.services?.teamAgenda?.get?.(actor.teamId)??null;
+    const authorityTier=agenda?.source==="encounter"
+      ?ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE
+      :ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY;
+    const authorityLabel=agenda?.source==="encounter"?"Governing team response":"Governing mission responsibility";
+    const onGranted=result=>this.#record("role_action_started",actor,selected,now,{actionId:result.action?.id??action.id,roleId:role.roleId,procedureId:procedure.procedureId});
+    if(this.arbiter)this.arbiter.submit({
+      actorId:actor.id,action,score:selected.score,urgency:agenda?.source==="encounter"?.9:.55,
+      authorityTier,authorityLabel,reason:selected.reason,source:"role_action_runtime",
+      operationId:actor.operationId??null,missionId:procedure.missionId??null,
+      governingIntentId:agenda?.intentId??null,supportingIntentId:agenda?.supporting?.intentId??null,
+      procedureId:procedure.procedureId,roleId:role.roleId,onGranted
+    });
+    else{
+      const result=this.scheduler.start(action,{now,context});
+      if(result.ok)onGranted(result);
+    }
   }
 
   #cancelWithCleanup(actor,action,{now,context,reason}){

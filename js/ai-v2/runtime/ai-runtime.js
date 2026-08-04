@@ -5,6 +5,7 @@ import { ReportContactUpdateAction } from "../actions/report-contact-update-acti
 import { ReportCasualtyAction } from "../actions/report-casualty-action.js";
 import { ActorInitiativeRuntime } from "../actors/actor-initiative-runtime.js";
 import { RoleActionRuntime } from "../actors/role-action-runtime.js";
+import { LocalAutonomyRuntime } from "../actors/local-autonomy-runtime.js";
 import { RolePositionRuntime } from "../actors/role-position-runtime.js";
 import { DefensivePositionRuntime } from "../actors/defensive-position-runtime.js";
 import { CommunicationExecutor } from "../communication/communication-executor.js";
@@ -24,6 +25,7 @@ import { CasualtyKnowledgeStore } from "../knowledge/casualty-knowledge.js";
 import { ThreatKnowledgeStore } from "../knowledge/threat-knowledge.js";
 import { TeamMissionStore } from "../missions/team-mission.js";
 import { TeamAgendaState } from "../missions/team-agenda-state.js";
+import { ActorActionArbiter, ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 import { ObjectiveStateStore } from "../objectives/objective-state-store.js";
 import { ObjectiveApproachService } from "../objectives/objective-approach-service.js";
 import { TeamProcedureState } from "../procedures/team-procedure-state.js";
@@ -71,6 +73,7 @@ export class AIV2Runtime{
     this.decisionLog=new DecisionLog({limit:1400});
     this.invariants=new InvariantMonitor({decisionLog:this.decisionLog});
     this.scheduler=new ActionScheduler({decisionLog:this.decisionLog});
+    this.actionArbiter=game?.scenarioMode==="live"?new ActorActionArbiter({scheduler:this.scheduler,decisionLog:this.decisionLog}):null;
     this.personalKnowledge=new PersonalKnowledgeStore({decisionLog:this.decisionLog});
     this.teamKnowledge=new TeamKnowledgeStore({decisionLog:this.decisionLog});
     this.heardCommunications=new HeardCommunicationStore({decisionLog:this.decisionLog});
@@ -85,8 +88,9 @@ export class AIV2Runtime{
     this.objectives=new ObjectiveStateStore({decisionLog:this.decisionLog});
     this.objectiveApproaches=new ObjectiveApproachService({decisionLog:this.decisionLog});
     this.ambientPerception=new AmbientPerceptionRuntime({decisionLog:this.decisionLog});
-    this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog});
-    this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog});
+    this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog,arbiter:this.actionArbiter});
+    this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog,arbiter:this.actionArbiter});
+    this.localAutonomy=new LocalAutonomyRuntime({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
     this.directionalCover=new DirectionalCoverService();
     this.evacuationRoutes=new EvacuationRouteService({decisionLog:this.decisionLog});
@@ -112,6 +116,7 @@ export class AIV2Runtime{
     this.visibleByObserver=new Map();
     this.objectives.syncFromGame(this.game);
     this.teamMissions.syncFromGame(this.game);
+    this.actionArbiter?.beginFrame?.({now:this.elapsed});
     this.#consumeThreatEvents();
     this.#updateCasualtyObservations(delta);
     this.#ensureAuthoredObservationActions();
@@ -171,6 +176,8 @@ export class AIV2Runtime{
       casualtyKnowledge:this.casualtyKnowledge,
       now:this.elapsed
     });
+    this.localAutonomy.update({game:this.game,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,now:this.elapsed});
+    this.actionArbiter?.resolve?.({now:this.elapsed,context:this.#context(this.elapsed)});
     this.#updateActorDiagnostics();
 
     this.snapshotAccumulator+=delta;
@@ -324,6 +331,9 @@ export class AIV2Runtime{
         encounterOutcomes:this.encounterOutcomes,
         teamResponses:this.teamResponses,
         teamAgenda:this.teamAgenda,
+        actionArbiter:this.actionArbiter,
+        localAutonomy:this.localAutonomy,
+        authorityTiers:ACTION_AUTHORITY_TIERS,
         ambientPerception:this.ambientPerception,
         teamProcedures:this.teamProcedures,
         objectives:this.objectives,

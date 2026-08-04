@@ -27,7 +27,9 @@ export function extendObjectiveMissionContext(baseContext,{game,actor,role,proce
       distanceToObjective:distance(actor,objective),
       interactionRadius:objective.interactionRadius??78,
       inspectDuration:objective.requirements?.inspectDuration??1.2,
-      desiredState:mission.objectivePlan?.desiredState??"operational"
+      desiredState:mission.objectivePlan?.desiredState??"operational",
+      workVerb:objective.requirements?.workVerb??"restoring",
+      completedVerb:objective.requirements?.completedVerb??"operational"
     }
   };
 }
@@ -67,11 +69,11 @@ export function evaluateObjectiveMissionActions(context){
   }
 
   if(phaseId==="inspect_objective"&&role.roleId==="objective_specialist"&&procedure.permissions?.inspect){
-    return[{type:"InspectObjective",score:1,reason:"The Objective Specialist must inspect the relay from physical interaction range before restoration work begins.",directive:{...common,reason:`${role.label}: inspect ${objectiveMission.objective.label}`,duration:objectiveMission.inspectDuration}}];
+    return[{type:"InspectObjective",score:1,reason:"The Objective Specialist must physically inspect the assigned site before finite work begins.",directive:{...common,reason:`${role.label}: inspect ${objectiveMission.objective.label}`,duration:objectiveMission.inspectDuration}}];
   }
 
   if(phaseId==="perform_objective_work"&&role.roleId==="objective_specialist"&&procedure.permissions?.work){
-    return[{type:"PerformObjectiveWork",score:1,reason:"The Objective Specialist owns the finite technical work required to change the relay's world state.",directive:{...common,reason:`${role.label}: restore ${objectiveMission.objective.label}`}}];
+    return[{type:"PerformObjectiveWork",score:1,reason:"The Objective Specialist owns the finite work required to change the objective's persistent world state.",directive:{...common,reason:`${role.label}: ${objectiveMission.workVerb} ${objectiveMission.objective.label}`,workLabel:`${objectiveMission.workVerb[0]?.toUpperCase()??"W"}${objectiveMission.workVerb.slice(1)} ${objectiveMission.objective.label}`,completedLabel:`${objectiveMission.objective.label} ${objectiveMission.completedVerb}`}}];
   }
 
   if(["inspect_objective","perform_objective_work","objective_operational"].includes(phaseId)){
