@@ -13,8 +13,9 @@ function suppressionState(value){
 function clonePoint(point){return point?{x:point.x,y:point.y}:null;}
 
 export class ActorTacticalPictureService{
-  constructor({directionalCover,decisionLog=null}={}){
+  constructor({directionalCover,firingEdges=null,decisionLog=null}={}){
     this.directionalCover=directionalCover;
+    this.firingEdges=firingEdges;
     this.decisionLog=decisionLog;
     this.byActor=new Map();
   }
@@ -42,6 +43,13 @@ export class ActorTacticalPictureService{
       const agenda=teamAgenda?.get?.(actor.teamId)??null;
       const currentCover=threatPoint?this.#currentCover(game,actor,threatPoint):null;
       const suppression=suppressionState(actor.aiV2Suppression);
+      const magazineSize=Math.max(1,Number(actor.magazineSize??20));
+      const ammoInMagazine=Math.max(0,Number(actor.ammoInMagazine??magazineSize));
+      const weaponReadiness={magazineSize,ammoInMagazine,ammoFraction:ammoInMagazine/magazineSize,reloadRequired:ammoInMagazine<=0,reloadAdvised:ammoInMagazine<=Math.max(2,Math.floor(magazineSize*.18)),reloading:Boolean(actor.reloading),effectiveRange:Number(actor.aiV2EffectiveRange??760)};
+      const currentSlot=actor.aiV2DefensivePosition?.slot??coverSearch?.best??null;
+      const firingEdge=threatPoint&&currentSlot?this.firingEdges?.evaluate?.({game,actor,slot:currentSlot,threatPoint,friendlies:teamActors})??null:null;
+      const teamCenter=teamActors.length?{x:teamActors.reduce((sum,item)=>sum+item.x,0)/teamActors.length,y:teamActors.reduce((sum,item)=>sum+item.y,0)/teamActors.length}:null;
+      const maximumTeamSeparation=teamCenter?Math.max(...teamActors.map(item=>distance(item,teamCenter)),0):0;
       const picture={
         actorId:actor.id,teamId:actor.teamId,updatedAt:now,
         visibleThreats:visibleThreats.map(contact=>({...contact,approximatePosition:clonePoint(contact.approximatePosition)})),
@@ -54,6 +62,9 @@ export class ActorTacticalPictureService{
         woundState:assessment?{...assessment}:null,
         selfAidNeed:treatmentNeed?{...treatmentNeed}:null,
         currentCover,
+        weaponReadiness,
+        firingEdge:firingEdge?{best:firingEdge.best?{...firingEdge.best,point:clonePoint(firingEdge.best.point),returnPoint:clonePoint(firingEdge.best.returnPoint)}:null,candidates:firingEdge.candidates.map(item=>({...item,point:clonePoint(item.point),returnPoint:clonePoint(item.returnPoint)}))}:null,
+        teamCohesion:{center:clonePoint(teamCenter),maximumSeparation:maximumTeamSeparation,memberCount:teamActors.length},
         bestCover:coverSearch?.best?{...coverSearch.best,point:clonePoint(coverSearch.best.point),utility:{...coverSearch.best.utility}}:null,
         nearestFriendly:nearestFriendly?{actorId:nearestFriendly.id,distance:distance(actor,nearestFriendly),point:{x:nearestFriendly.x,y:nearestFriendly.y}}:null,
         responsibility:role?{roleId:role.roleId,label:role.label,procedureId:role.procedureId,phaseId:role.phase?.id??null}:null,

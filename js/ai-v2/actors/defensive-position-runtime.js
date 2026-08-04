@@ -78,7 +78,8 @@ export class DefensivePositionRuntime{
         const slot=cloneSlot(search.best);
         const claimed=this.positionSlots.claim({actorId:actor.id,slot,now,duration:8,purpose:`${role.roleId}_defensive_position`});
         if(!claimed.ok)continue;
-        this.#startMove({actor,role,procedure,mission,policy,slot,now,context});
+        const moveResult=this.#startMove({actor,role,procedure,mission,policy,slot,now,context});
+        if(!moveResult?.ok)continue;
         const record={
           actorId:actor.id,
           teamId:actor.teamId,
@@ -133,6 +134,7 @@ export class DefensivePositionRuntime{
     const action=new MoveToPositionSlotAction({actorId:actor.id,directive});
     const result=this.scheduler.start(action,{now,context});
     if(!result.ok)this.positionSlots.releaseActor(actor.id,{now,reason:"defensive_move_rejected"});
+    return result;
   }
 
   #startHold({actor,role,procedure,mission,slot,now,context}){

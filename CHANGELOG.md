@@ -173,3 +173,10 @@
 - Prevented stationary contacts from generating repeated update-report spam.
 - Preserved the absence of warnings, hostility, target selection, aiming, and firing in AI V2.
 - Preserved Legacy 1.2H as a separate runtime.
+
+## AI 2.8 — Tactical Commitments & Usable Cover
+- Added durable actor tactical commitments without granting them direct physical authority.
+- Expanded tactical pictures with weapon readiness, reload state, team cohesion, and firing-edge context.
+- Added usable-cover edge evaluation and finite reload actions.
+- Added bounded personally perceived cover-fire proposals under governing encounter authority.
+- Fixed false duplicate defensive-position selection records from rejected scheduler starts.
