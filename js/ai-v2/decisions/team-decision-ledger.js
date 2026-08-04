@@ -176,6 +176,11 @@ export function buildTeamDecisionLedger({mission,encounter,outcome=null}={}){
     interactionProtocol:encounter.interactionProtocol??null,
     relationship:encounter.relationship??"unknown",
     operationHypothesis:encounter.operationHypothesis?{...encounter.operationHypothesis}:null,
+    contactResolutionRequired:encounter.contactResolution?.materiallyRelevant?1:0,
+    routeConflict:encounter.contactResolution?.routeConflict?1:0,
+    objectiveConflict:encounter.contactResolution?.objectiveConflict?1:0,
+    mutualAwareness:encounter.contactResolution?.mutualAwareness?1:0,
+    contactSeparation:Math.max(0,Number(encounter.contactResolution?.separation)||0),
     responseBias:{...(mission.responseBias??{})}
   };
 }
