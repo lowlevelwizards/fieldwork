@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   deliver:
@@ -31,16 +32,17 @@ jobs:
           base64 --decode /tmp/fieldwork-2.1.patch.xz.b64 | xz --decompress > /tmp/fieldwork-2.1.patch
           test -s /tmp/fieldwork-2.1.patch
 
-      - name: Verify target and apply Fieldwork 2.1
+      - name: Apply Fieldwork 2.1 to current AI-2.0
         shell: bash
         env:
-          BASE_SHA: cc489224c454dea3305a0d31b16691dfd22e0152
+          EXPECTED_SHA: ca36c31763bc9d1df5e349d764b2bb84ba0a14b2
         run: |
           set -euo pipefail
           git fetch origin AI-2.0
-          test "$(git rev-parse origin/AI-2.0)" = "$BASE_SHA"
-          git reset --hard "$BASE_SHA"
+          test "$(git rev-parse origin/AI-2.0)" = "$EXPECTED_SHA"
+          git reset --hard origin/AI-2.0
           git apply --index --whitespace=nowarn /tmp/fieldwork-2.1.patch
+          if [ -f .github/workflows/fieldwork-2.1-ingest.yml ]; then git rm .github/workflows/fieldwork-2.1-ingest.yml; fi
           test -n "$(git diff --cached --name-only)"
 
       - name: Validate repository
@@ -54,6 +56,20 @@ jobs:
           git config user.email "noreply@openai.com"
           git commit -m "Fieldwork 2.1 — Authority-Constrained Live Sandbox" -m "Add the dedicated live sandbox, explicit actor action arbitration, three persistent faction rosters, twelve changing objectives, scored operation selection, continuous operation turnover, campaign progression fields, live controls and authority diagnostics, plus long-running invariants."
           git push origin HEAD:AI-2.0
+
+      - name: Remove temporary workflow from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B cleanup origin/main
+          if [ -f .github/workflows/fieldwork-2.1-ingest.yml ]; then
+            git rm .github/workflows/fieldwork-2.1-ingest.yml
+            git config user.name "OpenAI"
+            git config user.email "noreply@openai.com"
+            git commit -m "Remove temporary Fieldwork 2.1 ingest workflow"
+            git push origin HEAD:main
+          fi
 
       - name: Remove staging branch
         if: success()
