@@ -1,3 +1,13 @@
+## AI 3.1A–B — Behavioral Truth & Concurrent Team Concerns
+
+- Added `BehavioralTruthMonitor` for long-running measurement of pacing reversals, action churn, stationary threat exposure, actor overlap, close-team nonreaction, static contact, casualty attendance, and concern timelines.
+- Added deterministic 20-second truth fixtures for casualty recovery and live mission/contact concurrency.
+- Added `npm run behavior:report` with compact and full JSON output for repeatable before/after behavior comparisons.
+- Added a non-authoritative `TeamConcernBoard` that preserves mission, contact, casualty, and safe-return concerns simultaneously.
+- Added direct physical casualty and incoming-fire concern projection so urgent obligations do not depend on winning the legacy single-response slot.
+- Added stable concern lifecycle, evidence, desired effects, staffing needs, legacy agenda/response/procedure projection, debug visibility, and decision-log events.
+- Preserved all existing physical authority and execution paths; 3.1A–B establishes measurement and intent data for the upcoming unified actor brain rather than silently changing behavior.
+
 ## 2.7 — Continuous Tactical Deliberation
 
 - Added a shared actor tactical-picture service that combines personal visual contacts, recent memories, reported contacts, incoming-fire evidence, suppression, wounds, nearby cover, teammate spacing, mission agenda, and current procedural responsibility.

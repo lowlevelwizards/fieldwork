@@ -13,7 +13,7 @@ export function getAIV2DebugSummary(runtime){
     const issuingWarnings=scheduler.byType.IssueWarning??0;
     const activityUpdates=runtime.teamKnowledge.activityReportCount();
     const activeEncounterCount=runtime.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${recovery} recovering casualty · ${evacuation} evacuating · ${reporting} reporting · ${issuingWarnings} warning · ${runtime.heardCommunications.count()} heard warning(s) · ${runtime.casualtyKnowledge.count()} casualty record(s) · ${runtime.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${runtime.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${runtime.teamResponses.count()} response(s) · ${runtime.teamProcedures.count()} procedure(s) · ${runtime.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${runtime.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${recovery} recovering casualty · ${evacuation} evacuating · ${reporting} reporting · ${issuingWarnings} warning · ${runtime.heardCommunications.count()} heard warning(s) · ${runtime.casualtyKnowledge.count()} casualty record(s) · ${runtime.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${runtime.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${runtime.teamResponses.count()} response(s) · ${runtime.teamConcerns?.count?.()??0} concurrent concern(s) · ${runtime.teamProcedures.count()} procedure(s) · ${runtime.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${runtime.invariants.current.length} invariant issue(s)`;
   }
 
 export function getAIV2DebugDetails(runtime){
@@ -78,12 +78,17 @@ export function getAIV2DebugDetails(runtime){
       const actor=runtime.game.actors.find(candidate=>candidate.id===entry.observerId);
       return `${actor?.name??entry.observerId}: ${stateLabel(contact.track.currentActivity)} · ${stateLabel(contact.track.intentHypothesis?.id)} · revision ${contact.track.activityRevision}`;
     })).join(" · ")||"none — no meaningful activity change observed";
+    const concerns=(runtime.teamConcerns?.summary?.()??[]).map(entry=>{
+      const faction=runtime.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
+      const active=entry.concerns.filter(concern=>concern.status==="active");
+      return `${faction}: ${active.map(concern=>`${stateLabel(concern.kind)} ${Math.round(concern.importance*100)} · ${stateLabel(concern.desiredEffect)}`).join(", ")||"no active concerns"}`;
+    }).join(" · ")||"none — concern projection not available";
     const outcomes=runtime.encounterOutcomes.summary().flatMap(entry=>entry.outcomes.map(outcome=>{
       const faction=runtime.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
       const followUp=outcome.followUp?` · follow-up ${stateLabel(outcome.followUp)}`:"";
       return `${faction}: ${outcome.label} · ${stateLabel(outcome.status)}${followUp} · ${outcome.summary}`;
     })).join(" · ")||"none — no encounter outcome remembered";
-    return{assignment:actionAssignments,personalKnowledge:contacts,activity,communication,teamKnowledge:shared,encounter:encounters,response:responses,procedure:procedures,position:positions,outcome:outcomes};
+    return{assignment:actionAssignments,personalKnowledge:contacts,activity,communication,teamKnowledge:shared,encounter:encounters,response:responses,concerns,procedure:procedures,position:positions,outcome:outcomes};
   }
 
 export function updateAIV2ActorDiagnostics(runtime){
@@ -116,12 +121,14 @@ export function updateAIV2ActorDiagnostics(runtime){
       const sourceActor=received?runtime.game.actors.find(candidate=>candidate.id===received.sourceActorId):null;
       const heardWarning=runtime.heardCommunications.getLatestForActor(actor.id);
       const encounterOutcome=runtime.encounterOutcomes.getLatest(actor.teamId);
+      const teamConcerns=runtime.teamConcerns?.getActive?.(actor.teamId)??[];
       if(!observeAction)actor.aiV2Observation=null;
       if(!holdAction)actor.aiV2HoldReady=null;
       actor.aiV2Debug={
         mission:teamMission?.title??assignment?.mission??actor.squadMission??null,
         missionObjective:teamMission?.objective??assignment?.mission??null,
         missionSuccessCondition:teamMission?.successCondition??null,
+        teamConcerns:teamConcerns.map(concern=>({id:concern.id,kind:concern.kind,subjectId:concern.subjectId,importance:concern.importance,urgency:concern.urgency,desiredEffect:concern.desiredEffect,status:concern.status})),
         task:roleAction?.reason??assignment?.task??teamMission?.immediateTask??actor.currentTask??null,
         procedure:teamProcedure?.label??assignment?.procedure??null,
         procedurePhase:teamProcedure?.phase?.label??assignment?.phase??null,
@@ -232,7 +239,7 @@ export function updateAIV2ActorDiagnostics(runtime){
           evacuation:teamProcedure.evacuation?{...teamProcedure.evacuation,waypoints:(teamProcedure.evacuation.waypoints??[]).map(waypoint=>({...waypoint})),carrierHistory:[...(teamProcedure.evacuation.carrierHistory??[])]}:null
         }:null,
         encounterOutcome:encounterOutcome?{...encounterOutcome,facts:[...encounterOutcome.facts],evidence:[...encounterOutcome.evidence]}:null,
-        runtimeStage:"adaptive_evacuation_safe_return"
+        runtimeStage:"3.1_concurrent_concern_projection"
       };
     }
   }

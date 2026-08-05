@@ -16,9 +16,11 @@ import { DefensivePositionRuntime } from "../actors/defensive-position-runtime.j
 import { ContactResolutionRuntime } from "../actors/contact-resolution-runtime.js";
 import { CommunicationExecutor } from "../communication/communication-executor.js";
 import { DecisionLog } from "../diagnostics/decision-log.js";
+import { BehavioralTruthMonitor } from "../diagnostics/behavioral-truth-monitor.js";
 import { InvariantMonitor } from "../diagnostics/invariant-monitor.js";
 import { getAIV2DebugDetails, getAIV2DebugSummary, updateAIV2ActorDiagnostics } from "../diagnostics/ai-debug-projection.js";
 import { TeamEncounterMemory } from "../encounters/team-encounter-memory.js";
+import { TeamConcernBoard } from "../decisions/team-concern-board.js";
 import { EncounterOutcomeMemory } from "../encounters/encounter-outcome-memory.js";
 import { AttentionExecutor } from "../execution/attention-executor.js";
 import { LocomotionExecutor } from "../execution/locomotion-executor.js";
@@ -98,6 +100,7 @@ export class AIV2Runtime{
     this.teamResponses=new TeamResponseState({decisionLog:this.decisionLog});
     this.teamAgenda=new TeamAgendaState({decisionLog:this.decisionLog});
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
+    this.teamConcerns=new TeamConcernBoard({decisionLog:this.decisionLog});
     this.objectives=new ObjectiveStateStore({decisionLog:this.decisionLog});
     this.objectiveApproaches=new ObjectiveApproachService({decisionLog:this.decisionLog});
     this.ambientPerception=new AmbientPerceptionRuntime({decisionLog:this.decisionLog});
@@ -123,6 +126,7 @@ export class AIV2Runtime{
     this.casualtyCare=new CasualtyCareExecutor();
     this.fire=new FireExecutor();
     this.communication=new CommunicationExecutor();
+    this.behavioralTruth=new BehavioralTruthMonitor();
     this.visibleByObserver=new Map();
     this.consumedThreatEvents=new Set();
     this.objectives.syncFromGame(game);
@@ -184,6 +188,11 @@ export class AIV2Runtime{
     this.teamResponses.update({missions:this.teamMissions,teamEncounters:this.teamEncounters,encounterOutcomes:this.encounterOutcomes,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.teamAgenda.update({missions:this.teamMissions,teamResponses:this.teamResponses,objectives:this.objectives,now:this.elapsed});
     this.teamProcedures.update({game:this.game,teamResponses:this.teamAgenda,now:this.elapsed});
+    this.teamConcerns.update({
+      game:this.game,missions:this.teamMissions,teamEncounters:this.teamEncounters,teamResponses:this.teamResponses,
+      teamAgenda:this.teamAgenda,teamProcedures:this.teamProcedures,casualtyKnowledge:this.casualtyKnowledge,
+      threatKnowledge:this.threatKnowledge,objectives:this.objectives,encounterOutcomes:this.encounterOutcomes,now:this.elapsed
+    });
     this.tacticalPictures.update({game:this.game,personalKnowledge:this.personalKnowledge,teamKnowledge:this.teamKnowledge,threatKnowledge:this.threatKnowledge,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,now:this.elapsed});
     this.tacticalDeliberation.update({game:this.game,tacticalPictures:this.tacticalPictures,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,now:this.elapsed});
     this.contactResolution.update({game:this.game,teamResponses:this.teamResponses,teamEncounters:this.teamEncounters,teamProcedures:this.teamProcedures,now:this.elapsed});
@@ -222,6 +231,7 @@ export class AIV2Runtime{
     });
     this.localAutonomy.update({game:this.game,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,teamInteractions:liveTeamSocial?this.teamInteractions:null,roleActions:this.roleActions,now:this.elapsed});
     this.actionArbiter?.resolve?.({now:this.elapsed,context:this.#context(this.elapsed)});
+    this.behavioralTruth.update(delta,{game:this.game,scheduler:this.scheduler,teamConcerns:this.teamConcerns,threatKnowledge:this.threatKnowledge,now:this.elapsed});
     this.#updateActorDiagnostics();
 
     this.snapshotAccumulator+=delta;
@@ -381,6 +391,8 @@ export class AIV2Runtime{
         encounterOutcomes:this.encounterOutcomes,
         teamResponses:this.teamResponses,
         teamAgenda:this.teamAgenda,
+        teamConcerns:this.teamConcerns,
+        behavioralTruth:this.behavioralTruth,
         actionArbiter:this.actionArbiter,
         localAutonomy:this.localAutonomy,
         operationalTravel:this.operationalTravel,
