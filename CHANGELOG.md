@@ -180,3 +180,14 @@
 - Added usable-cover edge evaluation and finite reload actions.
 - Added bounded personally perceived cover-fire proposals under governing encounter authority.
 - Fixed false duplicate defensive-position selection records from rejected scheduler starts.
+
+## AI 2.9 — Continuous Utility, Contact Salience & Spatial Self-Preservation
+
+- Added continuous per-actor utility evaluation with visible candidate scores for contact reaction, cover, treatment, reload, spacing, scanning, mission continuation, and stagnation recovery.
+- Material hostile personal contact now sharply devalues unchanged travel and creates a local contact-salience pause before team response resolution completes.
+- Tactical deliberation now uses live utility pressure to select directional cover, bounded fire, safe reloads, active scanning, and congestion recovery.
+- Self-aid is gated by treatment safety: non-catastrophic wounds seek protected treatment space before aid, while catastrophic bleeding may still override exposure.
+- Directional cover objects now expose distinct rear-left, rear-center, and rear-right actor-sized slots instead of one shared center point.
+- Tactical cover selection now consults the shared slot-claim service, reducing team stacking and duplicate destinations.
+- Added local congestion, security support, treatment safety, contact pressure, and stagnation diagnostics.
+- Added deterministic tests for hostile-contact utility suppression and multi-slot cover generation.
