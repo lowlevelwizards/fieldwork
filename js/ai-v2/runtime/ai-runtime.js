@@ -7,6 +7,7 @@ import { ActorInitiativeRuntime } from "../actors/actor-initiative-runtime.js";
 import { ActorTacticalPictureService } from "../actors/actor-tactical-picture-service.js";
 import { ActorTacticalDeliberationRuntime } from "../actors/actor-tactical-deliberation-runtime.js";
 import { ActorTacticalCommitmentStore } from "../actors/actor-tactical-commitment-store.js";
+import { ActorUtilityEvaluationService } from "../actors/actor-utility-evaluation-service.js";
 import { RoleActionRuntime } from "../actors/role-action-runtime.js";
 import { LocalAutonomyRuntime } from "../actors/local-autonomy-runtime.js";
 import { OperationalTravelRuntime } from "../actors/operational-travel-runtime.js";
@@ -107,12 +108,13 @@ export class AIV2Runtime{
     this.positionQueries=new PositionQueryService();
     this.directionalCover=new DirectionalCoverService();
     this.firingEdges=new FiringEdgeQueryService();
+    this.positionSlots=new PositionSlotClaimService({decisionLog:this.decisionLog});
     this.tacticalCommitments=new ActorTacticalCommitmentStore({decisionLog:this.decisionLog});
-    this.tacticalPictures=new ActorTacticalPictureService({directionalCover:this.directionalCover,firingEdges:this.firingEdges,decisionLog:this.decisionLog});
-    this.tacticalDeliberation=new ActorTacticalDeliberationRuntime({arbiter:this.actionArbiter,commitments:this.tacticalCommitments,decisionLog:this.decisionLog});
+    this.utilityEvaluation=new ActorUtilityEvaluationService({decisionLog:this.decisionLog});
+    this.tacticalPictures=new ActorTacticalPictureService({directionalCover:this.directionalCover,firingEdges:this.firingEdges,positionSlots:this.positionSlots,decisionLog:this.decisionLog});
+    this.tacticalDeliberation=new ActorTacticalDeliberationRuntime({arbiter:this.actionArbiter,commitments:this.tacticalCommitments,utilityEvaluation:this.utilityEvaluation,positionSlots:this.positionSlots,decisionLog:this.decisionLog});
     this.evacuationRoutes=new EvacuationRouteService({decisionLog:this.decisionLog});
     this.destinationClaims=new DestinationClaimService({decisionLog:this.decisionLog});
-    this.positionSlots=new PositionSlotClaimService({decisionLog:this.decisionLog});
     this.rolePositions=new RolePositionRuntime({scheduler:this.scheduler,positionQueries:this.positionQueries,destinationClaims:this.destinationClaims,decisionLog:this.decisionLog});
     this.defensivePositions=new DefensivePositionRuntime({scheduler:this.scheduler,directionalCover:this.directionalCover,positionSlots:this.positionSlots,decisionLog:this.decisionLog});
     this.contactResolution=new ContactResolutionRuntime({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
@@ -149,6 +151,7 @@ export class AIV2Runtime{
     this.initiative.update({
       game:this.game,
       teamKnowledge:this.teamKnowledge,
+      tacticalPictures:this.tacticalPictures,
       now:this.elapsed,
       context:this.#context(this.elapsed)
     });
@@ -384,6 +387,7 @@ export class AIV2Runtime{
         contactResolution:this.contactResolution,
         tacticalPictures:this.tacticalPictures,
         tacticalDeliberation:this.tacticalDeliberation,
+        utilityEvaluation:this.utilityEvaluation,
         tacticalCommitments:this.tacticalCommitments,
         firingEdges:this.firingEdges,
         authorityTiers:ACTION_AUTHORITY_TIERS,
