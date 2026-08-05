@@ -12,7 +12,7 @@ export class ActorInitiativeRuntime{
     this.byActor=new Map();
   }
 
-  update({game,teamKnowledge,now=0,context={}}={}){
+  update({game,teamKnowledge,tacticalPictures=null,now=0,context={}}={}){
     const active=new Map();
     for(const actor of game?.actors??[]){
       if(actor.medical?.dead||actor.medical?.unconscious)continue;
@@ -20,13 +20,18 @@ export class ActorInitiativeRuntime{
       const treatmentNeed=game?.wounds?.getTreatmentNeed?.(actor)??null;
       const bleeding=Number(assessment?.bleeding??actor.medical?.bleedingRate??0);
       const selfAidUrgent=Boolean(treatmentNeed&&bleeding>.05&&Number(actor.aiV2MedicalSupplies?.[treatmentNeed.type]??0)>0);
-      if(selfAidUrgent&&!this.scheduler.hasAction(actor.id,"SelfAid")){
+      const tacticalPicture=tacticalPictures?.get?.(actor.id)??null;
+      const activeFire=Boolean(tacticalPicture?.incomingFire?.length||tacticalPicture?.visibleThreats?.length&&tacticalPicture?.exposed);
+      const treatmentSafe=Boolean(tacticalPicture?.currentCover?.protected&&!activeFire||!tacticalPicture?.threatPoint);
+      const catastrophic=bleeding>1.2||actor.medical?.condition==="critical";
+      const mayTreatHere=catastrophic||treatmentSafe;
+      if(selfAidUrgent&&mayTreatHere&&!this.scheduler.hasAction(actor.id,"SelfAid")){
         const action=new SelfAidAction({actorId:actor.id,duration:bleeding>1.2?2.1:2.8});
-        const onGranted=result=>this.#record("actor_initiative_started",actor,now,{actionType:action.type,reason:"uncontrolled_personal_bleeding",bleeding,treatmentType:treatmentNeed.type});
+        const onGranted=result=>this.#record("actor_initiative_started",actor,now,{actionType:action.type,reason:catastrophic?"catastrophic_personal_bleeding":"protected_personal_bleeding",bleeding,treatmentType:treatmentNeed.type});
         if(this.arbiter)this.arbiter.submit({
           actorId:actor.id,action,score:1,urgency:Math.min(1,.72+bleeding*.18),
           authorityTier:ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL,
-          authorityLabel:"Immediate survival",reason:"A conscious operator with treatable uncontrolled bleeding must stop ordinary mission travel and perform self aid.",
+          authorityLabel:"Immediate survival",reason:catastrophic?"Catastrophic bleeding justifies immediate aid despite exposure.":"A conscious operator may perform self aid only after reaching a protected treatment window.",
           source:"actor_initiative",operationId:actor.operationId??null,missionId:actor.squadMission??null,onGranted
         });
         else{const result=this.scheduler.start(action,{now,context});if(result.ok)onGranted(result);}

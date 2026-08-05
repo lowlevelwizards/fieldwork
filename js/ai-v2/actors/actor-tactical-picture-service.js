@@ -13,9 +13,10 @@ function suppressionState(value){
 function clonePoint(point){return point?{x:point.x,y:point.y}:null;}
 
 export class ActorTacticalPictureService{
-  constructor({directionalCover,firingEdges=null,decisionLog=null}={}){
+  constructor({directionalCover,firingEdges=null,positionSlots=null,decisionLog=null}={}){
     this.directionalCover=directionalCover;
     this.firingEdges=firingEdges;
+    this.positionSlots=positionSlots;
     this.decisionLog=decisionLog;
     this.byActor=new Map();
   }
@@ -34,7 +35,7 @@ export class ActorTacticalPictureService{
       const teamActors=(game.actors??[]).filter(candidate=>candidate.teamId===actor.teamId&&!candidate.medical?.dead);
       const coverSearch=threatPoint?this.directionalCover?.findBestSlot?.({
         game,actor,roleId:"tactical_deliberation",threatPoint,teamActors,
-        policy:{maximumCoverDistance:520,maximumTravel:520,minimumProtection:.42,maximumCohesionDistance:780}
+        policy:{maximumCoverDistance:520,maximumTravel:520,minimumProtection:.42,maximumCohesionDistance:780},claims:this.positionSlots,now
       }):null;
       const nearestFriendly=teamActors.filter(candidate=>candidate.id!==actor.id).sort((a,b)=>distance(actor,a)-distance(actor,b))[0]??null;
       const assessment=game?.wounds?.getAssessment?.(actor)??null;
@@ -50,6 +51,9 @@ export class ActorTacticalPictureService{
       const firingEdge=threatPoint&&currentSlot?this.firingEdges?.evaluate?.({game,actor,slot:currentSlot,threatPoint,friendlies:teamActors})??null:null;
       const teamCenter=teamActors.length?{x:teamActors.reduce((sum,item)=>sum+item.x,0)/teamActors.length,y:teamActors.reduce((sum,item)=>sum+item.y,0)/teamActors.length}:null;
       const maximumTeamSeparation=teamCenter?Math.max(...teamActors.map(item=>distance(item,teamCenter)),0):0;
+      const nearbyFriendlies=teamActors.filter(candidate=>candidate.id!==actor.id&&distance(actor,candidate)<92);
+      const localCongestion=clamp(nearbyFriendlies.reduce((sum,item)=>sum+clamp((92-distance(actor,item))/92),0)/Math.max(1,teamActors.length-1));
+      const securitySupport=clamp(teamActors.filter(candidate=>candidate.id!==actor.id&&!candidate.medical?.unconscious&&distance(actor,candidate)<260&&["ready","aiming","firing"].includes(candidate.pose)).length/2);
       const picture={
         actorId:actor.id,teamId:actor.teamId,updatedAt:now,
         visibleThreats:visibleThreats.map(contact=>({...contact,approximatePosition:clonePoint(contact.approximatePosition)})),
@@ -65,6 +69,7 @@ export class ActorTacticalPictureService{
         weaponReadiness,
         firingEdge:firingEdge?{best:firingEdge.best?{...firingEdge.best,point:clonePoint(firingEdge.best.point),returnPoint:clonePoint(firingEdge.best.returnPoint)}:null,candidates:firingEdge.candidates.map(item=>({...item,point:clonePoint(item.point),returnPoint:clonePoint(item.returnPoint)}))}:null,
         teamCohesion:{center:clonePoint(teamCenter),maximumSeparation:maximumTeamSeparation,memberCount:teamActors.length},
+        localCongestion,securitySupport,
         bestCover:coverSearch?.best?{...coverSearch.best,point:clonePoint(coverSearch.best.point),utility:{...coverSearch.best.utility}}:null,
         nearestFriendly:nearestFriendly?{actorId:nearestFriendly.id,distance:distance(actor,nearestFriendly),point:{x:nearestFriendly.x,y:nearestFriendly.y}}:null,
         responsibility:role?{roleId:role.roleId,label:role.label,procedureId:role.procedureId,phaseId:role.phase?.id??null}:null,
@@ -81,7 +86,9 @@ export class ActorTacticalPictureService{
         rememberedThreatCount:picture.recentThreats.length,
         exposed:picture.exposed,
         bestCoverPoint:clonePoint(picture.bestCover?.point),
-        responsibility:picture.responsibility?.label??null
+        responsibility:picture.responsibility?.label??null,
+        treatmentSafe:Boolean(picture.currentCover?.protected&&!picture.incomingFire.length||!picture.threatPoint),
+        contactPressure:clamp((picture.visibleThreats.length? .58:0)+(picture.incomingFire.length? .42:0))
       };
     }
     for(const actorId of [...this.byActor.keys()])if(!live.has(actorId))this.byActor.delete(actorId);
