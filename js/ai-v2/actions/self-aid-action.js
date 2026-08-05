@@ -21,7 +21,9 @@ export class SelfAidAction extends AIV2Action{
   canStart({game}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     const need=actor?game?.wounds?.getTreatmentNeed?.(actor):null;
-    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&need&&Number(actor.aiV2MedicalSupplies?.[need.type]??0)>0);
+    const catastrophic=Number(actor?.medical?.bleedingRate??0)>1.2||actor?.medical?.condition==="critical";
+    const treatmentSafe=actor?.aiV2TacticalPicture?.treatmentSafe!==false;
+    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&need&&Number(actor.aiV2MedicalSupplies?.[need.type]??0)>0&&(catastrophic||treatmentSafe));
   }
 
   canContinue({game}={}){
