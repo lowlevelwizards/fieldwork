@@ -47,6 +47,8 @@ export class AIV2Action{
   canStart(){return true;}
   canContinue(){return true;}
   update(){return null;}
+  amendFrom(){return false;}
+  continuationUtility(){return Number(this.metadata?.utilityScore??0);}
   onInterrupted(){}
   onCancelled(){}
 

@@ -25,6 +25,9 @@ export class HoldReadyAction extends AIV2Action{
     this.elapsed=0;
   }
 
+  amendFrom(action,{now=0,context={}}={}){if(!action?.directive)return false;this.adoptDirective(action.directive,{now,context});return true;}
+  continuationUtility(){return Number(this.metadata?.utilityScore??.3);}
+
   canStart({game}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.directive?.focus);

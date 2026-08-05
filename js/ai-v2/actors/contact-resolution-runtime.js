@@ -24,12 +24,17 @@ export class ContactResolutionRuntime{
     const lateral=(index-(actors.length-1)/2)*58;
     const mode=response.selected.id==="contest_access"?"contest":response.selected.id==="engage_contact"?"engage":"avoid";
     if(mode==="engage"){
-      const shooterCount=Math.min(hostileTargets.length,Math.max(1,Math.ceil(actors.length*.5)));
-      const isShooter=index<shooterCount;
-      const target=hostileTargets[index%Math.max(1,hostileTargets.length)]??null;
-      const directive={focus:{...spatial.otherCenter},targetPoint:target?{x:target.x,y:target.y}:{...spatial.otherCenter},targetActorId:target?.id??null,subjectTeamId:encounter.subjectTeamId,maximumRounds:6,task:"Hostile contact",label:"Opposing team",reason:"Confirmed hostile contact governs a bounded engagement while shooters distribute attention across active threats.",provenance:{owner:"contact_resolution_runtime",source:"governing_response",responseId:response.selected.id,subjectTeamId:encounter.subjectTeamId}};
-      const action=isShooter?new ContactFireAction({actorId:actor.id,directive}):new HoldReadyAction({actorId:actor.id,directive});
-      this.#submit(actor,action,response,now,isShooter?1:.94);return;
+      // Team authority defines the desired effect and permission. It no longer
+      // assigns fixed shooters or physical fire actions; each actor chooses the
+      // safest useful atom from personal perception and position.
+      actor.aiV2ContactIntent={
+        kind:"engage_contact",subjectTeamId:encounter.subjectTeamId,
+        focus:{...spatial.otherCenter},minimumSeparation:Math.max(150,spatial.minimumSeparation*.48),
+        desiredEffect:"halt_hostile_advance",firePermission:"hostile_confirmed",
+        responseId:response.selected.id,updatedAt:now
+      };
+      this.assignments.set(actor.id,{actorId:actor.id,responseId:response.selected.id,subjectId:response.subjectId,actionType:"ActorSelected",at:now});
+      return;
     }
     if(mode==="avoid"&&String(response.teamId).localeCompare(String(encounter.subjectTeamId??""))<0){actor.operationPausedByEncounter=false;return;}
     const distanceOut=mode==="contest"?Math.max(180,spatial.minimumSeparation*.72):Math.max(260,spatial.minimumSeparation);
@@ -39,7 +44,7 @@ export class ContactResolutionRuntime{
     this.#submit(actor,action,response,now,mode==="contest"?.94:.88);
    });
   }
-  for(const actor of game.actors??[])if(actor.operationPausedByEncounter&&!live.has(actor.id)&&!this.scheduler.hasAction(actor.id,"SelfAid")&&!this.scheduler.hasAction(actor.id,"ReactToIncomingFire")){actor.operationPausedByEncounter=false;this.assignments.delete(actor.id);}
+  for(const actor of game.actors??[])if(actor.operationPausedByEncounter&&!live.has(actor.id)&&!this.scheduler.hasAction(actor.id,"SelfAid")&&!this.scheduler.hasAction(actor.id,"ReactToIncomingFire")){actor.operationPausedByEncounter=false;actor.aiV2ContactIntent=null;this.assignments.delete(actor.id);}
  }
  #submit(actor,action,response,now,urgency){this.arbiter?.submit?.({actorId:actor.id,action,score:4,urgency,authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:"Faction contact resolution",reason:action.purpose,source:"contact_resolution_runtime",operationId:actor.operationId??null,missionId:response.missionId??null,governingIntentId:`contact:${response.subjectId}`,onGranted:()=>this.assignments.set(actor.id,{actorId:actor.id,responseId:response.selected.id,subjectId:response.subjectId,actionType:action.type,at:now})});}
  summary(){return[...this.assignments.values()].map(x=>({...x}));}

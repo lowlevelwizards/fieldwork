@@ -32,6 +32,13 @@ export class ActorTacticalDeliberationRuntime{
       const common={operationId:actor.operationId??null,missionId:agenda?.missionId??null,governingIntentId:agenda?.intentId??null,procedureId:role?.procedureId??null,roleId:role?.roleId??null};
       const contactPressure=utility.contactPressure??0;
       if(contactPressure>=.34){actor.operationPausedByEncounter=true;actor.aiV2ContactSalience={status:"material",pressure:contactPressure,subjectTeamId:picture.bestThreat?.subjectTeamId??null,updatedAt:now};}
+      const personallyVisible=picture.visibleThreats?.filter(item=>!["friendly","cooperating","same_faction"].includes(item.relationship))?.[0]??null;
+      if(personallyVisible&&contactPressure>=.34&&picture.weaponReadiness?.ammoInMagazine>0){
+        const threatDistance=Math.hypot((personallyVisible.approximatePosition?.x??actor.x)-actor.x,(personallyVisible.approximatePosition?.y??actor.y)-actor.y);
+        const immediate=Boolean(picture.incomingFire?.length||threatDistance<230);
+        const reactiveFire=new ContactFireAction({actorId:actor.id,directive:{subjectTeamId:personallyVisible.subjectTeamId,targetActorId:personallyVisible.subjectId,targetPoint:{...personallyVisible.approximatePosition},maximumRounds:immediate?2:1,reason:immediate?"A personally visible hostile is dangerously close or firing; return a finite reflexive burst while locomotion remains free to seek protection.":"Maintain one bounded personally justified shot while independently improving position.",provenance:{owner:"actor_tactical_deliberation",source:"personal_threat_reflex"}}});
+        this.arbiter?.submit?.({actorId:actor.id,action:reactiveFire,score:.82+contactPressure*.12,urgency:immediate?.99:.72,authorityTier:immediate?ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:immediate?"Immediate personal threat":"Actor combat execution",reason:reactiveFire.purpose,source:"actor_personal_threat_reflex",...common});
+      }
       let proposal=null;
       const bestCover=picture.bestCover;
       const currentProtection=picture.currentCover?.protection??0;
@@ -47,16 +54,17 @@ export class ActorTacticalDeliberationRuntime{
         const action=new ReloadWeaponAction({actorId:actor.id,directive:{duration:1.65,reason:"Weapon readiness is low and protected reload utility exceeds continued exposure or empty fire attempts.",provenance:{owner:"actor_tactical_deliberation",source:"continuous_utility"}}});
         proposal={action,score:utility.candidates.find(x=>x.kind==="reload_safely")?.score??.63,urgency:picture.weaponReadiness.reloadRequired?.78:.34,tier:picture.weaponReadiness.reloadRequired?ACTION_AUTHORITY_TIERS.SUPPORTING_CONCERN:ACTION_AUTHORITY_TIERS.LOCAL_IMPROVEMENT,label:"Weapon readiness",kind:"reload_safely",desiredEffect:"restore_weapon_readiness",minimumUntil:now+1.5,maximumUntil:now+4,...common};
       }
-      const visible=picture.visibleThreats?.filter(item=>!["friendly","cooperating","same_faction"].includes(item.relationship))?.[0]??null;
+      const visible=personallyVisible;
       if(!proposal&&visible&&picture.currentCover?.protected&&picture.weaponReadiness?.ammoInMagazine>0&&contactPressure>=.34){
         const action=new ContactFireAction({actorId:actor.id,directive:{subjectTeamId:visible.subjectTeamId,targetActorId:visible.subjectId,targetPoint:{...visible.approximatePosition},maximumRounds:Math.min(3,picture.weaponReadiness.ammoInMagazine),reason:"A personally visible materially hostile contact justifies one finite burst before utility is recomputed.",provenance:{owner:"actor_tactical_deliberation",source:"continuous_utility_bounded_fire"}}});
         proposal={action,score:.76+contactPressure*.12,urgency:.64+contactPressure*.22,tier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,label:"Material contact response",kind:"maintain_security_sector",desiredEffect:"interrupt_visible_hostile_activity",minimumUntil:now+1,maximumUntil:now+5,anchorPoint:{x:actor.x,y:actor.y},...common};
       }
-      if(!proposal&&(utility.selected?.kind==="restore_spacing"||utility.selected?.kind==="break_stagnation")&&!role?.roleId?.includes("specialist")){
+      if(!proposal&&contactPressure<.18&&!actor.aiV2CoverOccupancy?.status?.includes("protected")&&(utility.selected?.kind==="restore_spacing"||utility.selected?.kind==="break_stagnation")&&!role?.roleId?.includes("specialist")){
         const teammateId=picture.nearestFriendly?.actorId;const teammate=game.actors.find(candidate=>candidate.id===teammateId);
         let destination=null;
         if(teammate){let dx=actor.x-teammate.x,dy=actor.y-teammate.y;const length=Math.hypot(dx,dy)||1;dx/=length;dy/=length;destination={x:actor.x+dx*96,y:actor.y+dy*96};}
-        else{const angle=stableAngle(`${actor.id}:${Math.floor(now/4)}`);destination={x:actor.x+Math.cos(angle)*110,y:actor.y+Math.sin(angle)*110};}
+        else destination=null;
+        if(!destination){if(existing)this.byActor.set(actor.id,{...existing,status:"maintaining",utility});continue;}
         const action=new TacticalRepositionAction({actorId:actor.id,directive:{kind:"clear_congestion",label:"Redistributing from congested cover",destination,threatPoint:picture.threatPoint,speedMultiplier:.62,minimumCommitment:.9,reason:"The current cluster is crowded or stagnant; local redistribution now has greater utility than remaining stacked.",provenance:{owner:"actor_tactical_deliberation",source:"continuous_utility"}}});
         proposal={action,score:Math.max(.5,utility.selected?.score??0),urgency:.24,tier:ACTION_AUTHORITY_TIERS.LOCAL_IMPROVEMENT,label:"Local tactical improvement",kind:"restore_safe_spacing",desiredEffect:"clear_congestion",minimumUntil:now+1,maximumUntil:now+5,anchorPoint:destination,...common};
       }

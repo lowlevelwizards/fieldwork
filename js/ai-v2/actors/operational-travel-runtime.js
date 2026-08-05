@@ -4,12 +4,14 @@ import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 
 function destinationForActor(actor,waypoint,teamActors,index){
-  const prior=teamActors[index-1]??null;
-  const dx=waypoint.x-(prior?.x??actor.x),dy=waypoint.y-(prior?.y??actor.y);
-  const length=Math.hypot(dx,dy)||1;
-  const px=-dy/length,py=dx/length;
-  const lane=(index-(teamActors.length-1)/2)*42;
-  return{x:waypoint.x+px*lane,y:waypoint.y+py*lane};
+  // Formation is deliberately soft. Everyone advances through the same broad
+  // route region; continuous steering supplies separation and cohesion.
+  const seed=[...String(actor.id)].reduce((sum,ch)=>sum+ch.charCodeAt(0),0);
+  const angle=(seed%17-8)*.018;
+  const dx=waypoint.x-actor.x,dy=waypoint.y-actor.y,l=Math.hypot(dx,dy)||1;
+  const px=-dy/l,py=dx/l;
+  const sideBias=(index-(teamActors.length-1)/2)*12;
+  return{x:waypoint.x+px*sideBias+Math.cos(angle)*4,y:waypoint.y+py*sideBias+Math.sin(angle)*4};
 }
 
 export class OperationalTravelRuntime{
@@ -44,7 +46,7 @@ export class OperationalTravelRuntime{
         :`${role?.roleLabel??role?.label??"Operator"} follows the faction-selected campaign route before field mission authority begins.`;
       const directive={
         operationId:actor.operationId,operationLabel:operation?.label??actor.currentTask,mode:status.mode,index:status.index,total:status.total,
-        waypoint:{...status.waypoint},destination,initialDistance:distance(actor,destination),reason,
+        waypoint:{...status.waypoint},destination,acceptanceRadius:42,initialDistance:distance(actor,destination),utilityScore:3,reason,
         provenance:{owner:"operational_travel_runtime",source:"campaign_route_stage",teamId:actor.teamId,operationId:actor.operationId,
           missionId:agenda?.missionId??null,governingIntentId:agenda?.intentId??null,procedureId:role?.procedureId??null,roleId:role?.roleId??null,
           routeMode:status.mode,waypointId:status.waypoint.id,waypointIndex:status.index}

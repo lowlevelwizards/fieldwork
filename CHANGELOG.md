@@ -191,3 +191,14 @@
 - Tactical cover selection now consults the shared slot-claim service, reducing team stacking and duplicate destinations.
 - Added local congestion, security support, treatment safety, contact pressure, and stagnation diagnostics.
 - Added deterministic tests for hostile-contact utility suppression and multi-slot cover generation.
+
+## AI 3.0 — Continuous Tactical Control
+
+- Replaced rigid per-waypoint formation destinations with soft route regions and live teammate separation.
+- Added `TacticalSteeringService` for continuously deformable movement intents, threat repulsion, cohesion, and obstacle-safe lookahead targets.
+- Added same-action amendment so active tactical and route movement can retarget before touching obsolete destinations.
+- Changed engage-contact authority from fixed shooter assignments to actor-selected physical execution.
+- Added immediate personal-threat reflex fire that can run concurrently with protective movement.
+- Freed tactical repositioning from attention ownership so actors can scan or return fire while moving.
+- Added persistent cover-occupancy diagnostics and prevented low-contact stagnation logic from pacing protected actors behind cover.
+- Added focused tests for soft steering and live movement-intent amendment.

@@ -88,7 +88,8 @@ export class ActorTacticalPictureService{
         bestCoverPoint:clonePoint(picture.bestCover?.point),
         responsibility:picture.responsibility?.label??null,
         treatmentSafe:Boolean(picture.currentCover?.protected&&!picture.incomingFire.length||!picture.threatPoint),
-        contactPressure:clamp((picture.visibleThreats.length? .58:0)+(picture.incomingFire.length? .42:0))
+        contactPressure:clamp((picture.visibleThreats.length? .58:0)+(picture.incomingFire.length? .42:0)),
+        threatPoint:clonePoint(picture.threatPoint)
       };
     }
     for(const actorId of [...this.byActor.keys()])if(!live.has(actorId))this.byActor.delete(actorId);

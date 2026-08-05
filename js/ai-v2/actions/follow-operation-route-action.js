@@ -13,7 +13,17 @@ export class FollowOperationRouteAction extends AIV2Action{
     });
     this.directive={...directive,waypoint:directive?.waypoint?{...directive.waypoint}:null,destination:directive?.destination?{...directive.destination}:null};
     this.initialDistance=Math.max(1,Number(directive?.initialDistance)||1);
+    this.metadata.utilityScore=Number(directive?.utilityScore??3);
   }
+
+  amendFrom(action){
+    if(!action?.directive)return false;
+    this.directive={...this.directive,...action.directive,waypoint:action.directive.waypoint?{...action.directive.waypoint}:this.directive.waypoint,destination:action.directive.destination?{...action.directive.destination}:this.directive.destination};
+    this.initialDistance=Math.max(1,Number(action.directive.initialDistance)||this.initialDistance);
+    return true;
+  }
+
+  continuationUtility(){return Number(this.directive?.utilityScore??3);}
 
   canStart({game}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
@@ -41,8 +51,12 @@ export class FollowOperationRouteAction extends AIV2Action{
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     if(!actor)return{status:"failed",reason:"actor_missing"};
     const destination=this.directive.destination??this.directive.waypoint;
-    const result=services.locomotion.moveToward(actor,destination,delta,{
-      game,speedMultiplier:this.directive.mode==="return"?.76:.72,arrivalRadius:18,
+    const result=services.locomotion.moveWithIntent(actor,{
+      kind:"operation_route_corridor",goal:destination,acceptanceRadius:this.directive.acceptanceRadius??34,
+      corridor:this.directive.corridor,minimumProgress:.86,preferredSeparationMin:54,preferredSeparationMax:210,
+      threatPoint:actor.aiV2TacticalPicture?.threatPoint??null,dangerRadius:360,lookAhead:105
+    },delta,{
+      game,now,speedMultiplier:this.directive.mode==="return"?.76:.72,arrivalRadius:12,
       task:this.directive.mode==="return"?`Returning through ${this.directive.waypoint?.label??"route"}`:`Traveling through ${this.directive.waypoint?.label??"route"}`,
       pose:"walk"
     });

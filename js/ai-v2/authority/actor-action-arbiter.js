@@ -74,6 +74,7 @@ export class ActorActionArbiter{
       action.priority=Math.max(Number(action.priority)||0,Number(authorityTier)||0);
       action.displayPriority=Math.max(Number(action.displayPriority)||0,Math.round((Number(authorityTier)||0)/10));
     }
+    action.metadata={...(action.metadata??{}),utilityScore:Number(score)||0};
     const proposal={
       id:`v2_proposal_${nextProposalId++}`,
       actorId,
@@ -127,12 +128,17 @@ export class ActorActionArbiter{
         }
         const current=this.scheduler.getAction(actorId,proposal.actionType);
         if(current){
+          const incumbentUtility=Number(current.continuationUtility?.(context)??current.metadata?.utilityScore??0);
+          const candidateUtility=Number(proposal.score)||0;
+          const mayAmend=typeof current.amendFrom==="function"&&candidateUtility+this.switchMargin>=incumbentUtility;
+          const amended=mayAmend?Boolean(current.amendFrom(proposal.action,{now,context,proposal})):false;
           proposal.status="preserved";
-          proposal.resultReason="matching_action_already_active";
+          proposal.resultReason=amended?"matching_action_amended":"matching_action_already_active";
+          if(amended)current.metadata.utilityScore=candidateUtility;
           for(const channel of proposal.channels)claimedChannels.add(channel);
           granted.push(proposal);
-          proposal.onGranted?.({ok:true,preserved:true,action:current},proposal);
-          this.#record("action_proposal_preserved",proposal,now,{actionId:current.id});
+          proposal.onGranted?.({ok:true,preserved:true,amended,action:current},proposal);
+          this.#record(amended?"action_proposal_amended":"action_proposal_preserved",proposal,now,{actionId:current.id,incumbentUtility,candidateUtility});
           continue;
         }
         const result=this.scheduler.start(proposal.action,{now,context});
