@@ -57,33 +57,28 @@ export class DirectionalCoverService{
       const magnitude=Math.hypot(awayX,awayY);
       if(magnitude<=.001)continue;
       const offset=radius+actorRadius+Math.max(7,policy.coverGap??9);
-      const point={x:obstacle.x+awayX/magnitude*offset,y:obstacle.y+awayY/magnitude*offset};
-      if(!insideZone(point,zone,policy.zonePadding??28))continue;
-      const protection=protectionFor({obstacle,point,threatPoint});
-      if(protection<minimumProtection)continue;
-      const cohesionDistance=distance(point,center);
-      const threatDistance=distance(point,threatPoint);
-      const travelUtility=clamp(1-cohesionDistance/Math.max(1,maximumCoverDistance));
-      const firingUtility=clamp(.32+protection*.34+Math.min(1,threatDistance/900)*.12);
-      const observationUtility=clamp(.38+protection*.26);
+      const rearX=awayX/magnitude,rearY=awayY/magnitude;
+      const lateralX=-rearY,lateralY=rearX;
+      const lateralSpacing=Math.max(actorRadius*2.25,Math.min(radius*.72,54));
       const sourceId=obstacleId(obstacle,index);
-      slots.push({
-        id:`directional_cover:${sourceId}:rear`,
-        sourceObjectId:sourceId,
-        sourceType:obstacle.type??"cover",
-        point,
-        obstacle:{x:obstacle.x,y:obstacle.y,radius},
-        threatPoint:{x:threatPoint.x,y:threatPoint.y},
-        protectedDirection:Math.atan2(threatPoint.y-point.y,threatPoint.x-point.x),
-        capacity:1,
-        utility:{
-          protection,
-          exposure:clamp(1-protection),
-          firing:firingUtility,
-          observation:observationUtility,
-          cohesion:travelUtility
-        }
-      });
+      for(const variant of [{id:"left",lateral:-1},{id:"center",lateral:0},{id:"right",lateral:1}]){
+        const point={x:obstacle.x+rearX*offset+lateralX*lateralSpacing*variant.lateral,y:obstacle.y+rearY*offset+lateralY*lateralSpacing*variant.lateral};
+        if(!insideZone(point,zone,policy.zonePadding??28))continue;
+        const protection=protectionFor({obstacle,point,threatPoint});
+        if(protection<minimumProtection)continue;
+        const cohesionDistance=distance(point,center);
+        const threatDistance=distance(point,threatPoint);
+        const travelUtility=clamp(1-cohesionDistance/Math.max(1,maximumCoverDistance));
+        const firingUtility=clamp(.30+protection*.32+Math.min(1,threatDistance/900)*.12+(variant.lateral? .08:0));
+        const observationUtility=clamp(.36+protection*.24+(variant.lateral?.08:0));
+        slots.push({
+          id:`directional_cover:${sourceId}:rear_${variant.id}`,
+          sourceObjectId:sourceId,sourceType:obstacle.type??"cover",point,
+          obstacle:{x:obstacle.x,y:obstacle.y,radius},threatPoint:{x:threatPoint.x,y:threatPoint.y},
+          protectedDirection:Math.atan2(threatPoint.y-point.y,threatPoint.x-point.x),capacity:1,variant:variant.id,
+          utility:{protection,exposure:clamp(1-protection),firing:firingUtility,observation:observationUtility,cohesion:travelUtility}
+        });
+      }
     }
 
     return slots.sort((a,b)=>{
