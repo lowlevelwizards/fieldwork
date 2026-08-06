@@ -1,0 +1,1 @@
+Trigger the verified AI 3.1E-F ingest after the exact sixteen-part payload was restaged and hash-checked.
