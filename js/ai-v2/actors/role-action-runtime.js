@@ -82,8 +82,8 @@ function roleAction(action){return action?.metadata?.provenance?.owner==="role_a
 function sameProvenance(a,b){return (!a&&!b)||(a?.procedureId===b?.procedureId&&a?.phaseId===b?.phaseId&&a?.roleId===b?.roleId&&a?.owner===b?.owner);}
 
 export class RoleActionRuntime{
-  constructor({scheduler,decisionLog=null,evaluator=new ActorActionEvaluator(),arbiter=null}={}){
-    this.scheduler=scheduler;this.decisionLog=decisionLog;this.evaluator=evaluator;this.arbiter=arbiter;this.assignments=new Map();
+  constructor({scheduler,decisionLog=null,evaluator=new ActorActionEvaluator(),brain=null,arbiter=null}={}){
+    this.scheduler=scheduler;this.decisionLog=decisionLog;this.evaluator=evaluator;this.brain=brain??arbiter;this.assignments=new Map();
   }
 
   update({game,teamProcedures,teamMissions,teamKnowledge,teamEncounters,casualtyKnowledge,now=0,context={}}={}){
@@ -161,21 +161,18 @@ export class RoleActionRuntime{
       :ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY;
     const authorityLabel=agenda?.source==="encounter"?"Governing team response":"Governing mission responsibility";
     const onGranted=result=>this.#record("role_action_started",actor,selected,now,{actionId:result.action?.id??action.id,roleId:role.roleId,procedureId:procedure.procedureId});
-    if(this.arbiter)this.arbiter.submit({
+    if(this.brain)this.brain.submit({
       actorId:actor.id,action,score:selected.score,urgency:agenda?.source==="encounter"?.9:.55,
       authorityTier,authorityLabel,reason:selected.reason,source:"role_action_runtime",
       operationId:actor.operationId??null,missionId:procedure.missionId??null,
       governingIntentId:agenda?.intentId??null,supportingIntentId:agenda?.supporting?.intentId??null,
       procedureId:procedure.procedureId,roleId:role.roleId,onGranted
     });
-    else{
-      const result=this.scheduler.start(action,{now,context});
-      if(result.ok)onGranted(result);
-    }
+
   }
 
   #cancelWithCleanup(actor,action,{now,context,reason}){
-    this.scheduler.cancelAction(actor.id,action,{now,reason,context});
+    this.brain?.requestCancel?.(actor.id,action,{reason});
     if(["WithdrawToRoute","ApproachCasualty","ApproachEvacuationCasualty","DragCasualty","AdvanceRouteSecurity","EvacuateCasualty","MoveToObjectivePosition","CollectSupply","AssistObjectiveWork"].includes(action.type))context?.services?.destinationClaims?.release?.(actor.id,{now,reason});
     if(["DragCasualty","EvacuateCasualty"].includes(action.type)){
       const patientId=action.directive?.casualtyId;const patient=context?.game?.actors?.find(candidate=>candidate.id===patientId);

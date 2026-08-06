@@ -1,3 +1,17 @@
+## 3.1C–D unified actor brain and execution gateway
+
+All AI V2 physical behavior now crosses one control seam. Evidence, concerns, responses, procedures, travel, role logic, and tactical systems may publish candidates, but only `UnifiedActorBrain` compares them and only `ActorActionArbiter` may start scheduler actions. The brain compares cross-type candidates against incumbent continuation utility, composes compatible channel intentions into one actor plan, and exposes the active concurrent concern context for diagnostics.
+
+```text
+many evidence and intent producers
+→ one actor brain
+→ one action arbiter
+→ one scheduler
+→ physical executors
+```
+
+This is the compatibility migration required before 3.1E+ replaces exact-point movement and legacy procedure choreography.
+
 # Fieldwork AI V2
 
 ## 2.7 continuous tactical deliberation

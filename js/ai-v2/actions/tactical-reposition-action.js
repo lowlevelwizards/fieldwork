@@ -36,9 +36,9 @@ export class TacticalRepositionAction extends AIV2Action{
     this.progress=Math.max(0,Math.min(1,1-(movement.distance??distance(actor,this.directive.destination))/this.initialDistance));
     actor.aiV2TacticalMove={status:movement.arrived?"holding":"moving",kind:this.directive.kind??"improve_position",destination:{...this.directive.destination},progress:this.progress,updatedAt:now};
     if(movement.failed)return{status:"failed",reason:movement.reason??"movement_failed"};
-    if(movement.arrived||this.elapsed>=(this.directive.minimumCommitment??1.4)&&movement.distance<34){services?.locomotion?.stop?.(actor,{pose:"brace"});if(["seek_cover","seek_treatment_cover","acquire_directional_cover"].includes(this.directive.kind)){actor.aiV2CoverOccupancy={status:"protected",kind:this.directive.kind,point:{x:actor.x,y:actor.y},threatPoint:this.directive.threatPoint?{...this.directive.threatPoint}:null,enteredAt:now,lastUsefulAt:now};}return{status:"completed",reason:"tactical_position_reached"};}
+    if(movement.arrived||this.elapsed>=(this.directive.minimumCommitment??1.4)&&movement.distance<34){services?.locomotion?.stop?.(actor,{pose:"brace"});if(["seek_cover","seek_treatment_cover","acquire_directional_cover"].includes(this.directive.kind)){actor.aiV2CoverOccupancy={status:"protected",kind:this.directive.kind,point:{x:actor.x,y:actor.y},threatPoint:this.directive.threatPoint?{...this.directive.threatPoint}:null,enteredAt:now,lastUsefulAt:now};services?.positionSlots?.releaseActor?.(actor.id,{now,reason:"tactical_cover_position_reached"});}return{status:"completed",reason:"tactical_position_reached"};}
     return null;
   }
-  onInterrupted({game}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);if(actor)actor.aiV2TacticalMove={...(actor.aiV2TacticalMove??{}),status:"interrupted"};}
+  onInterrupted({game,services,now=0}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);if(actor)actor.aiV2TacticalMove={...(actor.aiV2TacticalMove??{}),status:"interrupted"};if(["seek_cover","seek_treatment_cover","acquire_directional_cover"].includes(this.directive.kind))services?.positionSlots?.releaseActor?.(this.actorId,{now,reason:"tactical_reposition_interrupted"});}
   onCancelled(context={}){this.onInterrupted(context);}
 }

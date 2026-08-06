@@ -132,6 +132,20 @@ export class ActorActionArbiter{
           const candidateUtility=Number(proposal.score)||0;
           const mayAmend=typeof current.amendFrom==="function"&&candidateUtility+this.switchMargin>=incumbentUtility;
           const amended=mayAmend?Boolean(current.amendFrom(proposal.action,{now,context,proposal})):false;
+          const shouldReplace=!amended&&candidateUtility>=incumbentUtility+this.switchMargin&&current.interruptible&&proposal.action.canStart?.(context)!==false;
+          if(shouldReplace){
+            this.scheduler.cancelAction(actorId,current,{now,reason:`same_type_replanned_to:${proposal.action.type}`,context});
+            const result=this.scheduler.start(proposal.action,{now,context});
+            if(result.ok){
+              proposal.status="granted";
+              proposal.resultReason="matching_action_replaced";
+              for(const channel of proposal.channels)claimedChannels.add(channel);
+              granted.push(proposal);
+              proposal.onGranted?.({...result,replaced:true,replacedAction:current},proposal);
+              this.#record("action_proposal_replaced",proposal,now,{actionId:proposal.action.id,replacedActionId:current.id,incumbentUtility,candidateUtility});
+              continue;
+            }
+          }
           proposal.status="preserved";
           proposal.resultReason=amended?"matching_action_amended":"matching_action_already_active";
           if(amended)current.metadata.utilityScore=candidateUtility;

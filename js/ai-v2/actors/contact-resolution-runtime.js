@@ -4,7 +4,7 @@ import { ContactFireAction } from "../actions/contact-fire-action.js";
 import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 export class ContactResolutionRuntime{
- constructor({scheduler,arbiter,decisionLog=null}={}){this.scheduler=scheduler;this.arbiter=arbiter;this.decisionLog=decisionLog;this.assignments=new Map();}
+ constructor({scheduler,brain=null,arbiter=null,decisionLog=null}={}){this.scheduler=scheduler;this.brain=brain??arbiter;this.decisionLog=decisionLog;this.assignments=new Map();}
  update({game,teamResponses,teamEncounters,teamProcedures=null,now=0}={}){
   if(game?.scenarioMode!=="live")return;
   const live=new Set();
@@ -46,6 +46,6 @@ export class ContactResolutionRuntime{
   }
   for(const actor of game.actors??[])if(actor.operationPausedByEncounter&&!live.has(actor.id)&&!this.scheduler.hasAction(actor.id,"SelfAid")&&!this.scheduler.hasAction(actor.id,"ReactToIncomingFire")){actor.operationPausedByEncounter=false;actor.aiV2ContactIntent=null;this.assignments.delete(actor.id);}
  }
- #submit(actor,action,response,now,urgency){this.arbiter?.submit?.({actorId:actor.id,action,score:4,urgency,authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:"Faction contact resolution",reason:action.purpose,source:"contact_resolution_runtime",operationId:actor.operationId??null,missionId:response.missionId??null,governingIntentId:`contact:${response.subjectId}`,onGranted:()=>this.assignments.set(actor.id,{actorId:actor.id,responseId:response.selected.id,subjectId:response.subjectId,actionType:action.type,at:now})});}
+ #submit(actor,action,response,now,urgency){this.brain?.submit?.({actorId:actor.id,action,score:4,urgency,authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:"Faction contact resolution",reason:action.purpose,source:"contact_resolution_runtime",operationId:actor.operationId??null,missionId:response.missionId??null,governingIntentId:`contact:${response.subjectId}`,onGranted:()=>this.assignments.set(actor.id,{actorId:actor.id,responseId:response.selected.id,subjectId:response.subjectId,actionType:action.type,at:now})});}
  summary(){return[...this.assignments.values()].map(x=>({...x}));}
 }

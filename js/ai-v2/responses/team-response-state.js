@@ -6,6 +6,7 @@ function procedureOwnsResponseCompletion(response,procedure){
   const phase=procedure.phase?.id;
   switch(response.selected.id){
     case"break_contact_under_fire":return procedure.procedureId==="protective_breakaway"&&phase!=="contact_broken";
+    case"withdraw_silently":return procedure.procedureId==="break_contact_quietly"&&phase!=="reassess";
     case"recover_casualty":return procedure.procedureId==="casualty_recovery"&&!(["recovery_complete","reassess"].includes(phase));
     case"evacuate_casualty":return procedure.procedureId==="casualty_evacuation"&&!(["safe_return","procedure_reassess"].includes(phase));
     case"warn":return procedure.procedureId==="challenge_unknown_contact"&&phase==="issue_warning";
@@ -57,7 +58,7 @@ export class TeamResponseState{
         if(existing)this.#invalidate(existing,now,"encounter_outcome_resolved");
         continue;
       }
-      if(mission.liveOperation&&existing&&procedureOwnsResponseCompletion(existing,activeProcedure)){
+      if(existing&&procedureOwnsResponseCompletion(existing,activeProcedure)){
         existing.lastEvaluatedAt=now;
         existing.heldReason=`${activeProcedure.label} retains governing authority until ${activeProcedure.phase?.label??"its causal completion condition"}.`;
         this.#record("team_response_reaffirmed",existing,now,{heldReason:existing.heldReason,procedureId:activeProcedure.procedureId,phaseId:activeProcedure.phase?.id});

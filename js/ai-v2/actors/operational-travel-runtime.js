@@ -15,8 +15,8 @@ function destinationForActor(actor,waypoint,teamActors,index){
 }
 
 export class OperationalTravelRuntime{
-  constructor({scheduler,arbiter,decisionLog=null}={}){
-    this.scheduler=scheduler;this.arbiter=arbiter;this.decisionLog=decisionLog;this.byActor=new Map();
+  constructor({scheduler,brain=null,arbiter=null,decisionLog=null}={}){
+    this.scheduler=scheduler;this.brain=brain??arbiter;this.decisionLog=decisionLog;this.byActor=new Map();
   }
 
   update({game,teamAgenda,teamProcedures,now=0}={}){
@@ -52,7 +52,7 @@ export class OperationalTravelRuntime{
           routeMode:status.mode,waypointId:status.waypoint.id,waypointIndex:status.index}
       };
       const action=new FollowOperationRouteAction({actorId:actor.id,directive});
-      this.arbiter?.submit?.({
+      this.brain?.submit?.({
         actorId:actor.id,action,score:3,urgency:status.mode==="return"?.58:.44,
         authorityTier:ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY,authorityLabel:"Operation route stage",
         reason,source:"operational_travel_runtime",operationId:actor.operationId,missionId:agenda?.missionId??null,

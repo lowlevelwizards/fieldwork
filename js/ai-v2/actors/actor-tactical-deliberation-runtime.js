@@ -10,21 +10,22 @@ const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 const stableAngle=text=>{let hash=2166136261;for(const ch of String(text)){hash^=ch.charCodeAt(0);hash=Math.imul(hash,16777619);}return((hash>>>0)%6283)/1000;};
 
 export class ActorTacticalDeliberationRuntime{
-  constructor({arbiter,commitments=null,utilityEvaluation=null,positionSlots=null,decisionLog=null}={}){
-    this.arbiter=arbiter;this.commitments=commitments??new ActorTacticalCommitmentStore({decisionLog});
+  constructor({brain=null,arbiter=null,commitments=null,utilityEvaluation=null,positionSlots=null,decisionLog=null}={}){
+    this.brain=brain??arbiter;this.commitments=commitments??new ActorTacticalCommitmentStore({decisionLog});
     this.utilityEvaluation=utilityEvaluation??new ActorUtilityEvaluationService({decisionLog});this.positionSlots=positionSlots;this.decisionLog=decisionLog;this.byActor=new Map();
   }
   update({game,tacticalPictures,teamProcedures,teamAgenda,now=0}={}){
     const live=[];
     for(const actor of game?.actors??[]){
-      if(actor.medical?.dead||actor.medical?.unconscious)continue;live.push(actor.id);
+      if(actor.medical?.dead||actor.medical?.unconscious||actor.medical?.condition==="critical")continue;live.push(actor.id);
       const picture=tacticalPictures?.get?.(actor.id);if(!picture)continue;
       const role=teamProcedures?.getActorRole?.(actor.id)??null,agenda=teamAgenda?.get?.(actor.teamId)??null;
+      const defensiveProcedure=role?.procedureId==="defensive_position";
       const responsibilityId=role?`${role.procedureId}:${role.roleId}`:agenda?.intentId??null;
       const threatTrackId=picture.bestThreat?.subjectId??picture.bestThreat?.subjectTeamId??null;
       const existing=this.commitments?.get?.(actor.id)??null;
       if(existing&&existing.responsibilityId&&responsibilityId&&existing.responsibilityId!==responsibilityId)this.commitments.release(actor.id,{now,reason:"governing_responsibility_changed"});
-      const activeActions=this.arbiter?.scheduler?.getActions?.(actor.id)??[];
+      const activeActions=this.brain?.scheduler?.getActions?.(actor.id)??[];
       const activeAction=activeActions[0]??null;
       const utility=this.utilityEvaluation.evaluate({game,actor,picture,currentAction:activeAction,currentCommitment:existing,role,agenda,now});
       actor.aiV2UtilityEvaluation=utility;
@@ -37,7 +38,7 @@ export class ActorTacticalDeliberationRuntime{
         const threatDistance=Math.hypot((personallyVisible.approximatePosition?.x??actor.x)-actor.x,(personallyVisible.approximatePosition?.y??actor.y)-actor.y);
         const immediate=Boolean(picture.incomingFire?.length||threatDistance<230);
         const reactiveFire=new ContactFireAction({actorId:actor.id,directive:{subjectTeamId:personallyVisible.subjectTeamId,targetActorId:personallyVisible.subjectId,targetPoint:{...personallyVisible.approximatePosition},maximumRounds:immediate?2:1,reason:immediate?"A personally visible hostile is dangerously close or firing; return a finite reflexive burst while locomotion remains free to seek protection.":"Maintain one bounded personally justified shot while independently improving position.",provenance:{owner:"actor_tactical_deliberation",source:"personal_threat_reflex"}}});
-        this.arbiter?.submit?.({actorId:actor.id,action:reactiveFire,score:.82+contactPressure*.12,urgency:immediate?.99:.72,authorityTier:immediate?ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:immediate?"Immediate personal threat":"Actor combat execution",reason:reactiveFire.purpose,source:"actor_personal_threat_reflex",...common});
+        this.brain?.submit?.({actorId:actor.id,action:reactiveFire,score:.82+contactPressure*.12,urgency:immediate?.99:.72,authorityTier:immediate?ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:immediate?"Immediate personal threat":"Actor combat execution",reason:reactiveFire.purpose,source:"actor_personal_threat_reflex",...common});
       }
       let proposal=null;
       const bestCover=picture.bestCover;
@@ -45,7 +46,7 @@ export class ActorTacticalDeliberationRuntime{
       const coverImprovement=(bestCover?.utility?.protection??0)-currentProtection;
       const treatmentNeedsCover=Boolean(picture.selfAidNeed&&picture.exposed&&!((picture.woundState?.bleeding??0)>1.2));
       const contactNeedsCover=Boolean(contactPressure>=.34&&picture.exposed);
-      if(bestCover?.point&&(treatmentNeedsCover||contactNeedsCover||utility.selected?.kind==="seek_cover")&&(coverImprovement>=.08||picture.exposed)){
+      if(!defensiveProcedure&&bestCover?.point&&(treatmentNeedsCover||contactNeedsCover||utility.selected?.kind==="seek_cover")&&(coverImprovement>=.08||picture.exposed)){
         const emergency=Boolean(picture.incomingFire?.length||["pinned","breaking"].includes(picture.suppressionState));
         const action=new TacticalRepositionAction({actorId:actor.id,directive:{kind:treatmentNeedsCover?"seek_treatment_cover":"seek_cover",label:treatmentNeedsCover?"Creating a treatment window":"Reacting to material contact",destination:{...bestCover.point},threatPoint:picture.threatPoint?{...picture.threatPoint}:null,speedMultiplier:emergency?.96:.78,minimumCommitment:1.2,reason:treatmentNeedsCover?"Self aid is useful but unsafe here; first occupy a distinct protected slot.":"Material hostile contact makes unchanged exposed travel low utility; move to a claimed directional-cover slot.",provenance:{owner:"actor_tactical_deliberation",source:"continuous_utility"}}});
         proposal={action,score:Math.max(.74,utility.candidates.find(x=>x.kind==="seek_cover")?.score??0),urgency:emergency?.98:Math.max(.58,contactPressure),tier:emergency?ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,label:emergency?"Immediate survival":"Material contact response",kind:treatmentNeedsCover?"acquire_treatment_cover":"acquire_directional_cover",desiredEffect:treatmentNeedsCover?"create_treatment_window":"break_exposed_contact_route",minimumUntil:now+1.4,maximumUntil:now+10,anchorPoint:bestCover.point,slot:bestCover,...common};
@@ -59,7 +60,7 @@ export class ActorTacticalDeliberationRuntime{
         const action=new ContactFireAction({actorId:actor.id,directive:{subjectTeamId:visible.subjectTeamId,targetActorId:visible.subjectId,targetPoint:{...visible.approximatePosition},maximumRounds:Math.min(3,picture.weaponReadiness.ammoInMagazine),reason:"A personally visible materially hostile contact justifies one finite burst before utility is recomputed.",provenance:{owner:"actor_tactical_deliberation",source:"continuous_utility_bounded_fire"}}});
         proposal={action,score:.76+contactPressure*.12,urgency:.64+contactPressure*.22,tier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,label:"Material contact response",kind:"maintain_security_sector",desiredEffect:"interrupt_visible_hostile_activity",minimumUntil:now+1,maximumUntil:now+5,anchorPoint:{x:actor.x,y:actor.y},...common};
       }
-      if(!proposal&&contactPressure<.18&&!actor.aiV2CoverOccupancy?.status?.includes("protected")&&(utility.selected?.kind==="restore_spacing"||utility.selected?.kind==="break_stagnation")&&!role?.roleId?.includes("specialist")){
+      if(!proposal&&!defensiveProcedure&&!role&&!picture.bestThreat&&actor.aiV2Assignment?.action!=="observe_sector"&&contactPressure<.18&&!actor.aiV2CoverOccupancy?.status?.includes("protected")&&(utility.selected?.kind==="restore_spacing"||utility.selected?.kind==="break_stagnation")){
         const teammateId=picture.nearestFriendly?.actorId;const teammate=game.actors.find(candidate=>candidate.id===teammateId);
         let destination=null;
         if(teammate){let dx=actor.x-teammate.x,dy=actor.y-teammate.y;const length=Math.hypot(dx,dy)||1;dx/=length;dy/=length;destination={x:actor.x+dx*96,y:actor.y+dy*96};}
@@ -74,7 +75,7 @@ export class ActorTacticalDeliberationRuntime{
         proposal={action,score:utility.candidates.find(x=>x.kind==="scan")?.score??.34,urgency:contactPressure*.45,tier:contactPressure>=.34?ACTION_AUTHORITY_TIERS.SUPPORTING_CONCERN:ACTION_AUTHORITY_TIERS.AMBIENT_AUTONOMY,label:contactPressure>=.34?"Supporting tactical concern":"Ambient autonomy",kind:"maintain_security_sector",desiredEffect:"actively_observe",minimumUntil:now+.8,maximumUntil:now+4,anchorPoint:{x:actor.x,y:actor.y},...common};
       }
       if(!proposal){if(existing)this.byActor.set(actor.id,{...existing,status:"maintaining",utility});continue;}
-      this.arbiter?.submit?.({actorId:actor.id,action:proposal.action,score:proposal.score,urgency:proposal.urgency,authorityTier:proposal.tier,authorityLabel:proposal.label,reason:proposal.action.purpose,source:"actor_tactical_deliberation",operationId:proposal.operationId,missionId:proposal.missionId,governingIntentId:proposal.governingIntentId,procedureId:proposal.procedureId,roleId:proposal.roleId,onGranted:()=>{
+      this.brain?.submit?.({actorId:actor.id,action:proposal.action,score:proposal.score,urgency:proposal.urgency,authorityTier:proposal.tier,authorityLabel:proposal.label,reason:proposal.action.purpose,source:"actor_tactical_deliberation",operationId:proposal.operationId,missionId:proposal.missionId,governingIntentId:proposal.governingIntentId,procedureId:proposal.procedureId,roleId:proposal.roleId,onGranted:()=>{
         if(proposal.slot)this.positionSlots?.claim?.({actorId:actor.id,slot:proposal.slot,now,duration:12,purpose:proposal.kind});
         const record=this.commitments.commit({actorId:actor.id,kind:proposal.kind,responsibilityId,procedureId:proposal.procedureId,roleId:proposal.roleId,threatTrackId,anchorPoint:proposal.anchorPoint,threatPoint:picture.threatPoint,desiredEffect:proposal.desiredEffect,minimumUntil:proposal.minimumUntil,maximumUntil:proposal.maximumUntil,reason:proposal.action.purpose,provenance:{owner:"actor_tactical_deliberation",authorityTier:proposal.tier}}, {now});
         this.byActor.set(actor.id,{...record,status:"acting",actionType:proposal.action.type,utility});actor.aiV2TacticalCommitment={...record};

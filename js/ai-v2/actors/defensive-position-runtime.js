@@ -1,5 +1,6 @@
 import { MoveToPositionSlotAction } from "../actions/move-to-position-slot-action.js";
 import { HoldPositionAction } from "../actions/hold-position-action.js";
+import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 
@@ -16,11 +17,12 @@ function cloneSlot(slot){
 function capable(actor){return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&actor.medical?.condition!=="critical");}
 
 export class DefensivePositionRuntime{
-  constructor({scheduler,directionalCover,positionSlots,decisionLog=null}={}){
+  constructor({scheduler,directionalCover,positionSlots,brain=null,decisionLog=null}={}){
     this.scheduler=scheduler;
     this.directionalCover=directionalCover;
     this.positionSlots=positionSlots;
     this.decisionLog=decisionLog;
+    this.brain=brain;
     this.byActor=new Map();
   }
 
@@ -78,15 +80,13 @@ export class DefensivePositionRuntime{
         const slot=cloneSlot(search.best);
         const claimed=this.positionSlots.claim({actorId:actor.id,slot,now,duration:8,purpose:`${role.roleId}_defensive_position`});
         if(!claimed.ok)continue;
-        const moveResult=this.#startMove({actor,role,procedure,mission,policy,slot,now,context});
-        if(!moveResult?.ok)continue;
         const record={
           actorId:actor.id,
           teamId:actor.teamId,
           roleId:role.roleId,
           roleLabel:role.label,
           procedureId:procedure.procedureId,
-          status:"moving",
+          status:"proposed",
           selectedAt:now,
           committedAt:null,
           lastUpdatedAt:now,
@@ -94,7 +94,8 @@ export class DefensivePositionRuntime{
           slot
         };
         this.byActor.set(actor.id,record);
-        this.#record("defensive_position_selected",actor,now,{roleId:role.roleId,procedureId:procedure.procedureId,slotId:slot.id,sourceObjectId:slot.sourceObjectId,score:slot.score,protection:slot.utility?.protection});
+        const moveResult=this.#startMove({actor,role,procedure,mission,policy,slot,now,context});
+        if(!moveResult?.ok){this.byActor.delete(actor.id);continue;}
       }
     }
 
@@ -132,9 +133,26 @@ export class DefensivePositionRuntime{
       provenance:{owner:"defensive_position_runtime",source:"directional_cover_slot",teamId:actor.teamId,procedureId:procedure.procedureId,phaseId:procedure.phase?.id??null,roleId:role.roleId,roleLabel:role.label}
     };
     const action=new MoveToPositionSlotAction({actorId:actor.id,directive});
-    const result=this.scheduler.start(action,{now,context});
-    if(!result.ok)this.positionSlots.releaseActor(actor.id,{now,reason:"defensive_move_rejected"});
-    return result;
+    const proposalId=this.brain?.submit?.({
+      actorId:actor.id,action,
+      score:Math.max(.5,Math.min(1,Number(slot.score)||.65)),urgency:.58,
+      authorityTier:ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY,
+      authorityLabel:"Defensive responsibility",
+      reason:directive.reason,source:"defensive_position_runtime",
+      operationId:actor.operationId??null,procedureId:procedure.procedureId,roleId:role.roleId,
+      desiredEffect:"occupy_directional_protection",
+      onGranted:result=>{
+        const existing=this.byActor.get(actor.id);
+        if(existing)this.byActor.set(actor.id,{...existing,status:"moving",actionId:result.action?.id??action.id,lastUpdatedAt:now});
+        this.#record("defensive_position_selected",actor,now,{actionId:result.action?.id??action.id,roleId:role.roleId,procedureId:procedure.procedureId,slotId:slot.id,sourceObjectId:slot.sourceObjectId,score:slot.score,protection:slot.utility?.protection});
+      },
+      onRejected:reason=>{
+        this.positionSlots.releaseActor(actor.id,{now,reason:`defensive_move_rejected:${reason}`});
+        const existing=this.byActor.get(actor.id);
+        if(existing)this.byActor.set(actor.id,{...existing,status:"blocked",reason,lastUpdatedAt:now});
+      }
+    });
+    return{ok:Boolean(proposalId),action,proposalId};
   }
 
   #startHold({actor,role,procedure,mission,slot,now,context}){
@@ -151,13 +169,20 @@ export class DefensivePositionRuntime{
       provenance:{owner:"defensive_position_runtime",source:"position_commitment",teamId:actor.teamId,procedureId:procedure.procedureId,phaseId:procedure.phase?.id??null,roleId:role.roleId,roleLabel:role.label}
     };
     const action=new HoldPositionAction({actorId:actor.id,directive});
-    this.scheduler.start(action,{now,context});
+    this.brain?.submit?.({
+      actorId:actor.id,action,score:.62,urgency:.34,
+      authorityTier:ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY,
+      authorityLabel:"Defensive responsibility",
+      reason:directive.reason,source:"defensive_position_runtime",
+      operationId:actor.operationId??null,procedureId:procedure.procedureId,roleId:role.roleId,
+      desiredEffect:"maintain_directional_protection"
+    });
   }
 
   #release(actor,{now,context,reason,preserveEligibility=false}){
     for(const type of ["MoveToPositionSlot","HoldPosition"]){
       const action=this.scheduler.getAction(actor.id,type);
-      if(action)this.scheduler.cancelAction(actor.id,action,{now,reason,context});
+      if(action)this.brain?.requestCancel?.(actor.id,action,{reason});
     }
     this.positionSlots.releaseActor(actor.id,{now,reason});
     this.byActor.delete(actor.id);
