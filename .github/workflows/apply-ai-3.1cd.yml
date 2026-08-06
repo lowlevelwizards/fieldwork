@@ -1,0 +1,57 @@
+name: Apply AI 3.1C-D staged patch
+
+on:
+  push:
+    branches:
+      - agent/ai-3.1cd-unified-brain
+    paths:
+      - .github/workflows/apply-ai-3.1cd.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/ai-3.1cd-unified-brain
+          fetch-depth: 0
+
+      - name: Decode and apply AI 3.1C-D patch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat .ai-staging/3.1cd.part* | base64 -d > /tmp/fieldwork-ai-3.1cd.zip
+          rm -rf /tmp/fieldwork-ai-3.1cd
+          mkdir -p /tmp/fieldwork-ai-3.1cd
+          unzip -q /tmp/fieldwork-ai-3.1cd.zip -d /tmp/fieldwork-ai-3.1cd
+
+          PATCH_ROOT=/tmp/fieldwork-ai-3.1cd/fieldwork-ai-3.1CD-changed-files
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+            mkdir -p "$(dirname "$file")"
+            cp "$PATCH_ROOT/$file" "$file"
+          done < "$PATCH_ROOT/CHANGED_FILES.txt"
+
+          rm -rf .ai-staging
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+            git add -- "$file"
+          done < "$PATCH_ROOT/CHANGED_FILES.txt"
+          git add -A -- .ai-staging
+
+          if git diff --cached --quiet; then
+            echo "No patch changes to commit."
+            exit 0
+          fi
+
+          git commit -m "AI 3.1C-D unified actor brain"
+          git push origin HEAD:agent/ai-3.1cd-unified-brain
