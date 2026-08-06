@@ -9,7 +9,8 @@ export class LocomotionExecutor{
     if(!target)return{arrived:false,failed:true,reason:"missing_spatial_intent"};
     if(this.steering.regionSatisfied(actor,intent)){this.stop(actor,{pose:options.pose});return{arrived:true,failed:false,distance:0,regionSatisfied:true};}
     const result=this.moveToward(actor,target,delta,{...options,arrivalRadius:Math.min(options.arrivalRadius??12,12)});
-    return{...result,arrived:this.steering.regionSatisfied(actor,intent),distance:Math.hypot((intent.goal??intent.destination).x-actor.x,(intent.goal??intent.destination).y-actor.y)};
+    const reference=intent?.region?.center??intent?.goal??intent?.destination;
+    return{...result,arrived:this.steering.regionSatisfied(actor,intent),distance:reference?Math.hypot(reference.x-actor.x,reference.y-actor.y):0};
   }
 
   moveToward(actor,target,delta,{game,speedMultiplier=.58,arrivalRadius=10,task="Repositioning",pose="walk"}={}){

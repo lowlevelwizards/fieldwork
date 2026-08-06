@@ -68,6 +68,19 @@ export class PositionSlotClaimService{
     return true;
   }
 
+  reconcileExecution({scheduler,now=0,reservedGrace=0,occupiedGrace=.45}={}){
+    if(!scheduler)return 0;
+    let released=0;
+    for(const claim of [...this.bySlot.values()]){
+      const actionType=claim.status==="occupied"?"HoldPosition":"MoveToPositionSlot";
+      const grace=claim.status==="occupied"?occupiedGrace:reservedGrace;
+      if(scheduler.hasAction(claim.actorId,actionType))continue;
+      if(now-(claim.renewedAt??claim.claimedAt??0)<grace)continue;
+      if(this.releaseActor(claim.actorId,{now,reason:`${claim.status}_slot_without_${actionType}`}))released+=1;
+    }
+    return released;
+  }
+
   getForActor(actorId,now=0){
     this.update(now);
     return this.#clone(this.byActor.get(actorId)??null);
