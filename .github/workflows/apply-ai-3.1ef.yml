@@ -1,3 +1,4 @@
+# Updated after PR registration to trigger the synchronize event.
 name: Apply AI 3.1E-F staged patch
 
 on:
