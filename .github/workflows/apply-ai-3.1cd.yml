@@ -1,3 +1,4 @@
+# Second commit intentionally triggers the workflow after registration.
 name: Apply AI 3.1C-D staged patch
 
 on:
