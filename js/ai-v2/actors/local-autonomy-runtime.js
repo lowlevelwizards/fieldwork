@@ -38,9 +38,9 @@ function untreatedCasualty(actors){
 }
 
 export class LocalAutonomyRuntime{
-  constructor({scheduler,arbiter,decisionLog=null}={}){
+  constructor({scheduler,brain=null,arbiter=null,decisionLog=null}={}){
     this.scheduler=scheduler;
-    this.arbiter=arbiter;
+    this.brain=brain??arbiter;
     this.decisionLog=decisionLog;
     this.byActor=new Map();
   }
@@ -124,7 +124,7 @@ export class LocalAutonomyRuntime{
         score=role?.roleId==="local_security"?.42:.25;record={focus:{...focus}};
       }
 
-      this.arbiter?.submit?.({
+      this.brain?.submit?.({
         actorId:actor.id,action,score,urgency,
         authorityTier:source==="cross_team_casualty_aid"?ACTION_AUTHORITY_TIERS.SUPPORTING_CONCERN:role?ACTION_AUTHORITY_TIERS.LOCAL_IMPROVEMENT:ACTION_AUTHORITY_TIERS.AMBIENT_AUTONOMY,
         authorityLabel:source==="cross_team_casualty_aid"?"Supporting team concern":role?"Local responsibility improvement":"Ambient autonomy",

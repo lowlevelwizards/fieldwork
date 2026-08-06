@@ -130,4 +130,11 @@ export class WithdrawToRouteAction extends AIV2Action{
     }
     return null;
   }
+  onInterrupted({services,now=0}={}){
+    if(this.claimAccepted)services?.destinationClaims?.release?.(this.actorId,{now,reason:"withdrawal_interrupted"});
+    this.claimAccepted=false;
+  }
+
+  onCancelled(context={}){this.onInterrupted(context);}
+
 }

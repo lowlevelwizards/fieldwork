@@ -30,12 +30,12 @@ export class HoldReadyAction extends AIV2Action{
 
   canStart({game}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
-    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.directive?.focus);
+    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&actor.medical?.condition!=="critical"&&this.directive?.focus);
   }
 
   canContinue({game}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
-    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.directive?.focus);
+    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&actor.medical?.condition!=="critical"&&this.directive?.focus);
   }
 
   adoptDirective(directive,{now=0,context={}}={}){

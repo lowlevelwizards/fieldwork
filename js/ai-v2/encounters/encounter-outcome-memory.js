@@ -109,8 +109,17 @@ export class EncounterOutcomeMemory{
 
       const incoming=heardCommunications?.getLatestForTeam?.(procedure.teamId)??null;
       const sourceTeamId=incoming?.sourceTeamId??null;
-      const sourceEncounter=sourceTeamId?teamEncounters?.getBestTeamHypothesis?.(sourceTeamId):null;
-      if(!incoming||!sourceTeamId||!sourceEncounter?.departureObservedAfterWarning)continue;
+      const sourceEncounter=sourceTeamId
+        ?(teamEncounters?.getBestTeamHypothesis?.(sourceTeamId)
+          ??teamEncounters?.getTeamHypotheses?.(sourceTeamId)?.find(item=>item.subjectTeamId===procedure.teamId)
+          ??null)
+        :null;
+      // Completing an authored staged withdrawal is durable physical evidence
+      // that the warned team departed even if the observing team's contact
+      // track became stale during the movement. Plan completion must not be
+      // erased merely because the last observation aged out one frame earlier.
+      const departureConfirmed=Boolean(sourceEncounter?.departureObservedAfterWarning||procedure.phase?.id==="withdrawal_complete");
+      if(!incoming||!sourceTeamId||!departureConfirmed)continue;
 
       this.completedProcedures.add(key);
       this.#remember({

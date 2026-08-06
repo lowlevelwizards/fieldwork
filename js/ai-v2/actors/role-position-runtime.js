@@ -1,5 +1,6 @@
 import { RepositionForResponsibilityAction } from "../actions/reposition-for-responsibility-action.js";
 import { describePositionFailure } from "../position/position-query-service.js";
+import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 
@@ -19,11 +20,12 @@ function summarizeEvaluation(evaluation){
 }
 
 export class RolePositionRuntime{
-  constructor({scheduler,positionQueries,destinationClaims,decisionLog=null}={}){
+  constructor({scheduler,positionQueries,destinationClaims,brain=null,decisionLog=null}={}){
     this.scheduler=scheduler;
     this.positionQueries=positionQueries;
     this.destinationClaims=destinationClaims;
     this.decisionLog=decisionLog;
+    this.brain=brain;
     this.byActor=new Map();
   }
 
@@ -146,21 +148,31 @@ export class RolePositionRuntime{
         }
       };
       const action=new RepositionForResponsibilityAction({actorId:actor.id,directive});
-      const result=this.scheduler.start(action,{now,context});
-      if(!result.ok){
-        this.destinationClaims.release(actor.id,{now,reason:"movement_action_rejected"});
-        continue;
-      }
       const record={
-        actorId:actor.id,status:"moving",roleId:role.roleId,roleLabel:role.label,procedureId:role.procedureId,
+        actorId:actor.id,status:"proposed",roleId:role.roleId,roleLabel:role.label,procedureId:role.procedureId,
         sectorSignature,evaluation:summarizeEvaluation(evaluation),failureReason,destination:{...destination},
-        startedAt:now,lastUpdatedAt:now,nextEvaluationAt:Infinity,actionId:action.id
+        proposedAt:now,lastUpdatedAt:now,nextEvaluationAt:now+.45,actionId:action.id
       };
       this.byActor.set(actor.id,record);
       actor.aiV2PositionRequirement={...record,destination:{...record.destination},evaluation:{...record.evaluation,reasons:[...record.evaluation.reasons]}};
-      this.#record("responsibility_reposition_started",actor,now,{
-        actionId:action.id,roleId:role.roleId,procedureId:role.procedureId,reason:failureReason,
-        from:{x:actor.x,y:actor.y},destination:{...destination},candidateScore:search.best.score
+      this.brain?.submit?.({
+        actorId:actor.id,action,
+        score:Math.max(.45,Math.min(1,Number(search.best.score)||.6)),urgency:.46,
+        authorityTier:ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY,
+        authorityLabel:"Mission responsibility position",
+        reason:directive.reason,source:"role_position_runtime",
+        operationId:actor.operationId??null,procedureId:role.procedureId,roleId:role.roleId,
+        desiredEffect:"occupy_a_position_that_fulfills_responsibility",
+        onGranted:result=>{
+          const activeRecord={...record,status:"moving",startedAt:now,nextEvaluationAt:Infinity,actionId:result.action?.id??action.id};
+          this.byActor.set(actor.id,activeRecord);
+          actor.aiV2PositionRequirement={...activeRecord,destination:{...activeRecord.destination},evaluation:{...activeRecord.evaluation,reasons:[...activeRecord.evaluation.reasons]}};
+          this.#record("responsibility_reposition_started",actor,now,{actionId:activeRecord.actionId,roleId:role.roleId,procedureId:role.procedureId,reason:failureReason,from:{x:actor.x,y:actor.y},destination:{...destination},candidateScore:search.best.score});
+        },
+        onRejected:reason=>{
+          this.destinationClaims.release(actor.id,{now,reason:`movement_action_rejected:${reason}`});
+          this.byActor.set(actor.id,{...record,status:"blocked",nextEvaluationAt:now+.5});
+        }
       });
     }
 
@@ -186,7 +198,7 @@ export class RolePositionRuntime{
 
   #release(actor,{now,reason}){
     const action=this.scheduler.getAction(actor.id,"RepositionForResponsibility");
-    if(action)this.scheduler.cancelAction(actor.id,action,{now,reason});
+    if(action)this.brain?.requestCancel?.(actor.id,action,{reason});
     this.destinationClaims?.release?.(actor.id,{now,reason});
     if(this.byActor.has(actor.id))this.#record("responsibility_position_released",actor,now,{reason});
     this.byActor.delete(actor.id);

@@ -1,3 +1,12 @@
+AI 3.1C–D — Unified Actor Brain & Single Execution Gateway
+
+- One actor brain now collects and compares every AI V2 physical action proposal.
+- The action arbiter is the only module allowed to start scheduler actions.
+- Cross-type replanning compares candidate utility with incumbent continuation utility and switch cost.
+- Existing travel, role, defensive, contact, initiative, tactical, autonomy, and report systems now use compatibility proposal adapters.
+- Compatible locomotion, attention, weapon, communication, stance, and hands actions can coexist as one actor plan.
+- Added plan diagnostics, concurrent concern visibility, claim cleanup, casualty guards, and staged-withdrawal continuity.
+
 FIELDWORK 2.7 — CONTINUOUS TACTICAL DELIBERATION
 
 This build adds a persistent actor-level tactical reasoning layer beneath mission procedures. Operators now combine personal perception, recent threat memory, suppression, wounds, terrain cover, teammate spacing, and current responsibility into one local tactical picture.

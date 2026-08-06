@@ -71,6 +71,14 @@ export class EvacuateCasualtyAction extends AIV2Action{
     return{status:"completed",reason:"casualty_transport_leg_completed",data:{routeId:this.directive.routeId,legIndex:this.directive.legIndex,finalLeg:Boolean(this.directive.finalLeg),transportStaminaBefore:before,transportStaminaAfter:after}};
   }
 
+  onInterrupted({game,services,now=0}={}){
+    const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
+    const casualty=game?.actors?.find(candidate=>candidate.id===this.directive.casualtyId);
+    if(actor&&casualty)this.#release(services,actor,casualty,now,"evacuation_interrupted");
+  }
+
+  onCancelled(context={}){this.onInterrupted(context);}
+
   #release(services,actor,casualty,now,reason){
     services.destinationClaims.release(actor.id,{now,reason});
     services.casualtyCare.releasePatient(casualty.id,actor.id);

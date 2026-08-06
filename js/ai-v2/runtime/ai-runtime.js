@@ -4,6 +4,7 @@ import { ReportContactAction } from "../actions/report-contact-action.js";
 import { ReportContactUpdateAction } from "../actions/report-contact-update-action.js";
 import { ReportCasualtyAction } from "../actions/report-casualty-action.js";
 import { ActorInitiativeRuntime } from "../actors/actor-initiative-runtime.js";
+import { UnifiedActorBrain } from "../actors/unified-actor-brain.js";
 import { ActorTacticalPictureService } from "../actors/actor-tactical-picture-service.js";
 import { ActorTacticalDeliberationRuntime } from "../actors/actor-tactical-deliberation-runtime.js";
 import { ActorTacticalCommitmentStore } from "../actors/actor-tactical-commitment-store.js";
@@ -82,10 +83,11 @@ export class AIV2Runtime{
     this.elapsed=0;
     this.snapshotAccumulator=0;
     this.snapshotInterval=.25;
-    this.decisionLog=new DecisionLog({limit:1400});
+    this.decisionLog=new DecisionLog({limit:8000});
     this.invariants=new InvariantMonitor({decisionLog:this.decisionLog});
     this.scheduler=new ActionScheduler({decisionLog:this.decisionLog});
-    this.actionArbiter=game?.scenarioMode==="live"?new ActorActionArbiter({scheduler:this.scheduler,decisionLog:this.decisionLog}):null;
+    this.actionArbiter=new ActorActionArbiter({scheduler:this.scheduler,decisionLog:this.decisionLog});
+    this.actorBrain=new UnifiedActorBrain({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
     this.personalKnowledge=new PersonalKnowledgeStore({decisionLog:this.decisionLog});
     this.teamKnowledge=new TeamKnowledgeStore({decisionLog:this.decisionLog});
     this.relationships=new TeamRelationshipService({decisionLog:this.decisionLog});
@@ -104,10 +106,10 @@ export class AIV2Runtime{
     this.objectives=new ObjectiveStateStore({decisionLog:this.decisionLog});
     this.objectiveApproaches=new ObjectiveApproachService({decisionLog:this.decisionLog});
     this.ambientPerception=new AmbientPerceptionRuntime({decisionLog:this.decisionLog});
-    this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog,arbiter:this.actionArbiter});
-    this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog,arbiter:this.actionArbiter});
-    this.localAutonomy=new LocalAutonomyRuntime({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
-    this.operationalTravel=new OperationalTravelRuntime({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
+    this.initiative=new ActorInitiativeRuntime({scheduler:this.scheduler,threatKnowledge:this.threatKnowledge,decisionLog:this.decisionLog,brain:this.actorBrain});
+    this.roleActions=new RoleActionRuntime({scheduler:this.scheduler,decisionLog:this.decisionLog,brain:this.actorBrain});
+    this.localAutonomy=new LocalAutonomyRuntime({scheduler:this.scheduler,brain:this.actorBrain,decisionLog:this.decisionLog});
+    this.operationalTravel=new OperationalTravelRuntime({scheduler:this.scheduler,brain:this.actorBrain,decisionLog:this.decisionLog});
     this.positionQueries=new PositionQueryService();
     this.directionalCover=new DirectionalCoverService();
     this.firingEdges=new FiringEdgeQueryService();
@@ -115,12 +117,12 @@ export class AIV2Runtime{
     this.tacticalCommitments=new ActorTacticalCommitmentStore({decisionLog:this.decisionLog});
     this.utilityEvaluation=new ActorUtilityEvaluationService({decisionLog:this.decisionLog});
     this.tacticalPictures=new ActorTacticalPictureService({directionalCover:this.directionalCover,firingEdges:this.firingEdges,positionSlots:this.positionSlots,decisionLog:this.decisionLog});
-    this.tacticalDeliberation=new ActorTacticalDeliberationRuntime({arbiter:this.actionArbiter,commitments:this.tacticalCommitments,utilityEvaluation:this.utilityEvaluation,positionSlots:this.positionSlots,decisionLog:this.decisionLog});
+    this.tacticalDeliberation=new ActorTacticalDeliberationRuntime({brain:this.actorBrain,commitments:this.tacticalCommitments,utilityEvaluation:this.utilityEvaluation,positionSlots:this.positionSlots,decisionLog:this.decisionLog});
     this.evacuationRoutes=new EvacuationRouteService({decisionLog:this.decisionLog});
     this.destinationClaims=new DestinationClaimService({decisionLog:this.decisionLog});
-    this.rolePositions=new RolePositionRuntime({scheduler:this.scheduler,positionQueries:this.positionQueries,destinationClaims:this.destinationClaims,decisionLog:this.decisionLog});
-    this.defensivePositions=new DefensivePositionRuntime({scheduler:this.scheduler,directionalCover:this.directionalCover,positionSlots:this.positionSlots,decisionLog:this.decisionLog});
-    this.contactResolution=new ContactResolutionRuntime({scheduler:this.scheduler,arbiter:this.actionArbiter,decisionLog:this.decisionLog});
+    this.rolePositions=new RolePositionRuntime({scheduler:this.scheduler,positionQueries:this.positionQueries,destinationClaims:this.destinationClaims,brain:this.actorBrain,decisionLog:this.decisionLog});
+    this.defensivePositions=new DefensivePositionRuntime({scheduler:this.scheduler,directionalCover:this.directionalCover,positionSlots:this.positionSlots,brain:this.actorBrain,decisionLog:this.decisionLog});
+    this.contactResolution=new ContactResolutionRuntime({scheduler:this.scheduler,brain:this.actorBrain,decisionLog:this.decisionLog});
     this.attention=new AttentionExecutor();
     this.locomotion=new LocomotionExecutor();
     this.casualtyCare=new CasualtyCareExecutor();
@@ -141,7 +143,7 @@ export class AIV2Runtime{
     this.visibleByObserver=new Map();
     this.objectives.syncFromGame(this.game);
     this.teamMissions.syncFromGame(this.game);
-    this.actionArbiter?.beginFrame?.({now:this.elapsed});
+    this.actorBrain.beginFrame({now:this.elapsed,context:this.#context(this.elapsed)});
     this.#consumeThreatEvents();
     this.#updateCasualtyObservations(delta);
     this.#ensureAuthoredObservationActions();
@@ -230,7 +232,7 @@ export class AIV2Runtime{
       now:this.elapsed
     });
     this.localAutonomy.update({game:this.game,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,teamInteractions:liveTeamSocial?this.teamInteractions:null,roleActions:this.roleActions,now:this.elapsed});
-    this.actionArbiter?.resolve?.({now:this.elapsed,context:this.#context(this.elapsed)});
+    this.actorBrain.resolve({now:this.elapsed,context:this.#context(this.elapsed)});
     this.behavioralTruth.update(delta,{game:this.game,scheduler:this.scheduler,teamConcerns:this.teamConcerns,threatKnowledge:this.threatKnowledge,now:this.elapsed});
     this.#updateActorDiagnostics();
 
@@ -249,7 +251,8 @@ export class AIV2Runtime{
       positionSlots:this.positionSlots.summary(this.elapsed),
       patientClaims:this.casualtyCare.summary(),
       scheduler:this.scheduler,
-      actionArbiter:this.actionArbiter?.summary?.()??[]
+      actionArbiter:this.actionArbiter?.summary?.()??[],
+      actorBrain:this.actorBrain?.summary?.()??[]
     });
   }
 
@@ -294,7 +297,14 @@ export class AIV2Runtime{
       if(!casualty?.currentlyVisible||casualty.confidence<(assignment.report?.minimumConfidence??52))continue;
       if(this.casualtyKnowledge.hasInitialReport(actor.teamId,actor.id,casualty.subjectId))continue;
       const action=new ReportCasualtyAction({actorId:actor.id,casualty,assignment});
-      this.scheduler.start(action,{now:this.elapsed,context:this.#context(this.elapsed)});
+      this.actorBrain.submit({
+        actorId:actor.id,action,score:.72,urgency:.64,
+        authorityTier:ACTION_AUTHORITY_TIERS.SUPPORTING_CONCERN,
+        authorityLabel:"Casualty communication",
+        reason:action.purpose,source:"runtime_casualty_report",
+        concernId:`casualty:${casualty.subjectId}`,desiredEffect:"establish_shared_casualty_awareness",
+        operationId:actor.operationId??null,missionId:actor.squadMission??null
+      });
     }
   }
 
@@ -303,14 +313,21 @@ export class AIV2Runtime{
       const resolvedOutcome=this.encounterOutcomes.getLatest(actor.teamId);
       if(resolvedOutcome?.kind==="withdrew_without_reply"){
         const observe=this.scheduler.getAction(actor.id,"ObserveSector");
-        if(observe&&observe.metadata?.provenance?.source==="authored_task")this.scheduler.cancelAction(actor.id,observe,{now:this.elapsed,reason:"encounter_resolved_by_withdrawal",context:this.#context(this.elapsed)});
+        if(observe&&observe.metadata?.provenance?.source==="authored_task")this.actorBrain.requestCancel(actor.id,observe,{reason:"encounter_resolved_by_withdrawal"});
         continue;
       }
       const directive=authoredObservationDirective(actor);
       if(!directive||this.scheduler.hasAction(actor.id,"ObserveSector"))continue;
       if(this.teamProcedures.getActorRole(actor.id))continue;
       const action=new ObserveSectorAction({actorId:actor.id,assignment:directive});
-      this.scheduler.start(action,{now:this.elapsed,context:this.#context(this.elapsed)});
+      this.actorBrain.submit({
+        actorId:actor.id,action,score:.58,urgency:.24,
+        authorityTier:ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY,
+        authorityLabel:"Authored observation responsibility",
+        reason:action.purpose,source:"runtime_authored_observation",
+        desiredEffect:"maintain_authored_observation_sector",
+        operationId:actor.operationId??null,missionId:actor.squadMission??null
+      });
     }
   }
 
@@ -335,7 +352,14 @@ export class AIV2Runtime{
         .filter(candidate=>!this.teamKnowledge.hasReportFrom(actor.teamId,actor.id,candidate.subjectId))[0]??null;
       if(!contact)continue;
       const action=new ReportContactAction({actorId:actor.id,contact,assignment});
-      this.scheduler.start(action,{now:this.elapsed,context:this.#context(this.elapsed)});
+      this.actorBrain.submit({
+        actorId:actor.id,action,score:.78,urgency:.7,
+        authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,
+        authorityLabel:"Contact communication",
+        reason:action.purpose,source:"runtime_contact_report",
+        concernId:`contact:${contact.subjectId}`,desiredEffect:"establish_shared_contact_awareness",
+        operationId:actor.operationId??null,missionId:mission?.id??actor.squadMission??null
+      });
     }
   }
 
@@ -363,7 +387,14 @@ export class AIV2Runtime{
       if(!contact||revision<=0)continue;
       if(this.elapsed-(contact.track?.lastActivityChangedAt??0)<.2)continue;
       const action=new ReportContactUpdateAction({actorId:actor.id,contact,assignment});
-      this.scheduler.start(action,{now:this.elapsed,context:this.#context(this.elapsed)});
+      this.actorBrain.submit({
+        actorId:actor.id,action,score:.66,urgency:.48,
+        authorityTier:ACTION_AUTHORITY_TIERS.SUPPORTING_CONCERN,
+        authorityLabel:"Contact update",
+        reason:action.purpose,source:"runtime_contact_update",
+        concernId:`contact:${contact.subjectId}`,desiredEffect:"refresh_shared_contact_activity",
+        operationId:actor.operationId??null,missionId:mission?.id??actor.squadMission??null
+      });
     }
   }
 
@@ -394,6 +425,7 @@ export class AIV2Runtime{
         teamConcerns:this.teamConcerns,
         behavioralTruth:this.behavioralTruth,
         actionArbiter:this.actionArbiter,
+        actorBrain:this.actorBrain,
         localAutonomy:this.localAutonomy,
         operationalTravel:this.operationalTravel,
         contactResolution:this.contactResolution,

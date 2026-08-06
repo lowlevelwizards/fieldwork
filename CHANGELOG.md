@@ -1,3 +1,14 @@
+## AI 3.1C–D — Unified Actor Brain & Single Execution Gateway
+
+- Added `UnifiedActorBrain` as the sole behavior-facing proposal and cancellation gateway.
+- Added cross-type incumbent continuation-utility comparison with switch hysteresis.
+- Added coherent multi-channel actor plans and concurrent team-concern visibility.
+- Routed initiative, tactical deliberation, contact response, travel, role actions, role positioning, defensive positioning, local autonomy, authored observation, and runtime reports through the brain.
+- Restricted `scheduler.start()` to `ActorActionArbiter` and added static regression enforcement.
+- Added interruption cleanup for destination, cover-slot, casualty custody, and drag claims.
+- Preserved staged withdrawal through temporary evidence decay and prevented critical casualties or governed observers from receiving generic redistribution behavior.
+- Added focused unified-brain, single-gateway, carrier-handoff, observation, and control-integration regressions.
+
 ## AI 3.1A–B — Behavioral Truth & Concurrent Team Concerns
 
 - Added `BehavioralTruthMonitor` for long-running measurement of pacing reversals, action churn, stationary threat exposure, actor overlap, close-team nonreaction, static contact, casualty attendance, and concern timelines.

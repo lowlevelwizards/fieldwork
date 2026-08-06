@@ -63,4 +63,11 @@ export class ApproachEvacuationCasualtyAction extends AIV2Action{
     }
     return null;
   }
+  onInterrupted({services,now=0}={}){
+    if(this.destinationClaimed)services?.destinationClaims?.release?.(this.actorId,{now,reason:"evacuation_casualty_approach_interrupted"});
+    this.destinationClaimed=false;
+  }
+
+  onCancelled(context={}){this.onInterrupted(context);}
+
 }
