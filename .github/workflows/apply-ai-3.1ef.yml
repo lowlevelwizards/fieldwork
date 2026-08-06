@@ -1,4 +1,4 @@
-# Updated after PR registration to trigger the synchronize event.
+# Retriggered after the hosted runner queue cleared.
 name: Apply AI 3.1E-F staged patch
 
 on:
