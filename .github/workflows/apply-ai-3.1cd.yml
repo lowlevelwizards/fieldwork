@@ -1,30 +1,39 @@
-# Second commit intentionally triggers the workflow after registration.
 name: Apply AI 3.1C-D staged patch
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/ai-3.1cd-unified-brain
-    paths:
-      - .github/workflows/apply-ai-3.1cd.yml
+      - AI-2.0
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Check out staging branch
         uses: actions/checkout@v4
         with:
-          ref: agent/ai-3.1cd-unified-brain
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
       - name: Decode and apply AI 3.1C-D patch
         shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
+
+          if [ ! -d .ai-staging ]; then
+            echo "Staging payload already applied."
+            exit 0
+          fi
 
           cat .ai-staging/3.1cd.part* | base64 -d > /tmp/fieldwork-ai-3.1cd.zip
           rm -rf /tmp/fieldwork-ai-3.1cd
@@ -55,4 +64,4 @@ jobs:
           fi
 
           git commit -m "AI 3.1C-D unified actor brain"
-          git push origin HEAD:agent/ai-3.1cd-unified-brain
+          git push origin "HEAD:${HEAD_BRANCH}"
