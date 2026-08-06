@@ -1,4 +1,4 @@
-# Retriggered after the hosted runner queue cleared.
+# Explicit authenticated push with a bounded timeout.
 name: Apply AI 3.1E-F staged patch
 
 on:
@@ -17,17 +17,21 @@ jobs:
   apply:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check out staging branch
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Decode and apply AI 3.1E-F patch
         shell: bash
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+          GIT_TERMINAL_PROMPT: "0"
         run: |
           set -euo pipefail
 
@@ -65,4 +69,4 @@ jobs:
           fi
 
           git commit -m "AI 3.1E-F spatial intent and concern staffing"
-          git push origin "HEAD:${HEAD_BRANCH}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${HEAD_BRANCH}"
