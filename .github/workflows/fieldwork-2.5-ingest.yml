@@ -1,10 +1,9 @@
 name: Verified AI 3.1E-F ingest
 
 on:
-  pull_request_target:
-    types: [opened, reopened, synchronize]
-  schedule:
-    - cron: '*/5 * * * *'
+  workflow_run:
+    workflows: ["AI V2 checks"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -16,7 +15,7 @@ concurrency:
 
 jobs:
   deliver:
-    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.ref == 'AI-2.0-staging-3.1ef-retry'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_branch == 'AI-2.0-staging-3.1ef-retry'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
