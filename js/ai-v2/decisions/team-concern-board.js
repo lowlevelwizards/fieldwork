@@ -19,7 +19,7 @@ function cloneConcern(concern){
     evidence:(concern.evidence??[]).map(item=>({...item,point:clonePoint(item.point)})),
     permissions:{...(concern.permissions??{})},
     prohibitions:[...(concern.prohibitions??[])],
-    staffing:(concern.staffing??[]).map(item=>({...item})),
+    staffing:(concern.staffing??[]).map(item=>({...item,assignedActorIds:[...(item.assignedActorIds??[])],assignedActorNames:[...(item.assignedActorNames??[])]})),
     legacyProjection:{...(concern.legacyProjection??{})},
     history:(concern.history??[]).map(item=>({...item}))
   };
@@ -286,6 +286,28 @@ export class TeamConcernBoard{
     }
 
     this.#reconcile(candidates,now);
+  }
+
+
+  setStaffingAssignments(teamId,assignments=[],{now=0}={}){
+    const records=this.byTeam.get(teamId);
+    if(!records)return false;
+    let changed=false;
+    for(const concern of records.values()){
+      if(concern.status!=="active")continue;
+      const concernAssignments=assignments.filter(item=>item.concernId===concern.id);
+      concern.staffing=(concern.staffing??[]).map(requirement=>{
+        const matches=concernAssignments.filter(item=>item.responsibility===requirement.responsibility);
+        const minimum=Math.max(0,Number(requirement.minimum)||0);
+        const preferred=Math.max(minimum,Number(requirement.preferred)||0);
+        const status=matches.length>=preferred?"preferred_met":matches.length>=minimum?"minimum_met":"understaffed";
+        return{...requirement,status,filled:matches.length,assignedActorIds:matches.map(item=>item.actorId),assignedActorNames:matches.map(item=>item.actorName)};
+      });
+      concern.staffingUpdatedAt=now;
+      concern.staffedActorIds=[...new Set(concernAssignments.map(item=>item.actorId))];
+      changed=true;
+    }
+    return changed;
   }
 
   get(teamId,concernId){return cloneConcern(this.byTeam.get(teamId)?.get(concernId)??null);}

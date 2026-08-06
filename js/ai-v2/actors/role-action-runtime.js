@@ -37,6 +37,17 @@ import {
 } from "./objective-mission-actions.js";
 import { evaluateLiveOperationActions, extendLiveOperationContext } from "./live-operation-actions.js";
 
+function staffedConcernForRole(actor,role,context){
+  const staffing=context?.services?.concernStaffing;
+  if(!staffing)return null;
+  const direct=staffing.findForActor?.(actor.id,{responsibility:role?.roleId});
+  if(direct)return direct;
+  if(String(role?.roleId??"").includes("security")){
+    return(staffing.getActorAssignments?.(actor.id)??[]).find(item=>String(item.responsibility).includes("security"))??null;
+  }
+  return staffing.getPrimaryForActor?.(actor.id)??null;
+}
+
 const ROLE_ACTION_TYPES=new Set([
   "ObserveSector","HoldReady","IssueWarning","WithdrawToRoute",
   "ApproachCasualty","ApproachEvacuationCasualty","AssessCasualty","DragCasualty","StabilizeCasualty",
@@ -134,6 +145,11 @@ export class RoleActionRuntime{
 
   #reconcile(desired,{game,now,context}){
     const {actor,selected,role,procedure}=desired;
+    const staffedConcern=staffedConcernForRole(actor,role,context);
+    const bindConcern=action=>{
+      if(!action||!staffedConcern)return;
+      action.metadata={...(action.metadata??{}),actorBrainPlan:{...(action.metadata?.actorBrainPlan??{}),concernId:staffedConcern.concernId,desiredEffect:staffedConcern.desiredEffect,source:action.metadata?.actorBrainPlan?.source??"role_action_runtime"}};
+    };
     const existing=this.scheduler.getAction(actor.id,selected.type);
     for(const action of [...this.scheduler.getActions(actor.id)]){
       if(action.type===selected.type||!ROLE_ACTION_TYPES.has(action.type))continue;
@@ -143,16 +159,18 @@ export class RoleActionRuntime{
     if(selected.type==="ObserveSector"&&existing){
       const prior=existing.metadata?.provenance??null;
       const adopted=existing.adoptDirective(selected.directive,{now,context});
+      bindConcern(existing);
       if(adopted.changed||!sameProvenance(prior,selected.directive.provenance))this.#record("role_action_adopted",actor,selected,now,{actionId:existing.id,roleId:role.roleId,procedureId:procedure.procedureId,preservedAction:true});
       return;
     }
     if(selected.type==="HoldReady"&&existing){
       const prior=existing.metadata?.provenance??null;
       const adopted=existing.adoptDirective(selected.directive,{now,context});
+      bindConcern(existing);
       if(adopted.changed||!sameProvenance(prior,selected.directive.provenance))this.#record("role_action_adopted",actor,selected,now,{actionId:existing.id,roleId:role.roleId,procedureId:procedure.procedureId,preservedAction:true});
       return;
     }
-    if(existing)return;
+    if(existing){bindConcern(existing);return;}
     const create=ACTION_CONSTRUCTORS[selected.type];if(!create)return;
     const action=create({actorId:actor.id,directive:selected.directive});
     const agenda=context?.services?.teamAgenda?.get?.(actor.teamId)??null;
@@ -160,13 +178,14 @@ export class RoleActionRuntime{
       ?ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE
       :ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY;
     const authorityLabel=agenda?.source==="encounter"?"Governing team response":"Governing mission responsibility";
-    const onGranted=result=>this.#record("role_action_started",actor,selected,now,{actionId:result.action?.id??action.id,roleId:role.roleId,procedureId:procedure.procedureId});
+    const onGranted=result=>this.#record("role_action_started",actor,selected,now,{actionId:result.action?.id??action.id,roleId:role.roleId,procedureId:procedure.procedureId,concernId:staffedConcern?.concernId??null});
     if(this.brain)this.brain.submit({
       actorId:actor.id,action,score:selected.score,urgency:agenda?.source==="encounter"?.9:.55,
       authorityTier,authorityLabel,reason:selected.reason,source:"role_action_runtime",
       operationId:actor.operationId??null,missionId:procedure.missionId??null,
       governingIntentId:agenda?.intentId??null,supportingIntentId:agenda?.supporting?.intentId??null,
-      procedureId:procedure.procedureId,roleId:role.roleId,onGranted
+      procedureId:procedure.procedureId,roleId:role.roleId,concernId:staffedConcern?.concernId??null,
+      desiredEffect:staffedConcern?.desiredEffect??null,onGranted
     });
 
   }

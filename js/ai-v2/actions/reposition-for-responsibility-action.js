@@ -67,13 +67,13 @@ export class RepositionForResponsibilityAction extends AIV2Action{
     if(!actor)return{status:"failed",reason:"actor_missing"};
     this.elapsed+=delta;
     services.destinationClaims?.renew?.(actor.id,{now,duration:2.5});
-    const result=services.locomotion.moveToward(actor,this.directive.destination,delta,{
-      game,
-      speedMultiplier:this.directive.policy?.speedMultiplier??.58,
-      arrivalRadius:this.directive.policy?.arrivalRadius??10,
-      task:`Repositioning — ${this.directive.roleLabel??"responsibility"}`,
-      pose:"walk"
-    });
+    const result=services.locomotion.moveWithIntent(actor,{
+      kind:"responsibility_region",goal:this.directive.destination,
+      region:{type:"circle",center:{...this.directive.destination},innerRadius:0,outerRadius:this.directive.policy?.arrivalRadius??34,preferredRadius:18},
+      acceptanceRadius:this.directive.policy?.arrivalRadius??34,
+      preferredSeparationMin:this.directive.policy?.claimSpacing??58,preferredSeparationMax:220,
+      threatPoint:actor.aiV2TacticalPicture?.threatPoint??null,dangerRadius:330,lookAhead:74
+    },delta,{game,now,speedMultiplier:this.directive.policy?.speedMultiplier??.58,arrivalRadius:10,task:`Repositioning — ${this.directive.roleLabel??"responsibility"}`,pose:"walk"});
     this.lastDistance=result.distance??this.lastDistance;
     const totalDistance=Math.max(1,this.directive.initialDistance??this.lastDistance);
     this.progress=Math.max(0,Math.min(1,1-this.lastDistance/totalDistance));

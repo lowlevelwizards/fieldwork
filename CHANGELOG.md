@@ -1,3 +1,15 @@
+## AI 3.1E–F — Spatial Intent Fields & Concurrent Concern Staffing
+
+- Added stable minimum/preferred staffing for simultaneous mission, contact, casualty, and safe-return concerns.
+- Added capability, proximity, load, continuity, injury, and legacy-role scoring with reassignment hysteresis.
+- Added actor-sized circle and annulus intent fields with deterministic spread anchors.
+- Extended tactical steering and locomotion to satisfy regions rather than exact generic destinations.
+- Added direct live-sandbox fulfillment for unowned contact and casualty-security assignments.
+- Bound legacy role and operation-route proposals to the concurrent concern and desired effect they serve.
+- Migrated responsibility repositioning and objective approach movement to acceptable regions while preserving hard-affordance points.
+- Added immediate cleanup for cover-slot reservations whose movement proposal loses actor-brain arbitration.
+- Added staffing, intent-field, debug, architecture, and deterministic regression coverage.
+
 ## AI 3.1C–D — Unified Actor Brain & Single Execution Gateway
 
 - Added `UnifiedActorBrain` as the sole behavior-facing proposal and cancellation gateway.

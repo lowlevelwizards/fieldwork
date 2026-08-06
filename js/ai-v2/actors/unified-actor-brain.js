@@ -220,7 +220,7 @@ export class UnifiedActorBrain{
       live.add(actorId);
       const actor=context?.game?.actors?.find?.(candidate=>candidate.id===actorId)??null;
       const availableConcerns=actor?.teamId
-        ?(context?.services?.teamConcerns?.getActive?.(actor.teamId)??[]).map(concern=>({id:concern.id,kind:concern.kind,importance:concern.importance,urgency:concern.urgency,desiredEffect:concern.desiredEffect}))
+        ?(context?.services?.teamConcerns?.getActive?.(actor.teamId)??[]).map(concern=>({id:concern.id,kind:concern.kind,importance:concern.importance,urgency:concern.urgency,desiredEffect:concern.desiredEffect,staffedResponsibilities:(context?.services?.concernStaffing?.getActorAssignments?.(actorId)??[]).filter(item=>item.concernId===concern.id).map(item=>item.responsibility)}))
         :[];
       const concernIds=[...new Set(actions.map(action=>action.metadata?.actorBrainPlan?.concernId).filter(Boolean))];
       const plan={

@@ -45,11 +45,13 @@ export class MoveToObjectivePositionAction extends AIV2Action{
     if(!actor)return{status:"failed",reason:"actor_missing"};
     if(!this.claimed)return{status:"failed",reason:"objective_destination_claim_rejected"};
     services.destinationClaims.renew(actor.id,{now,duration:3});
-    const result=services.locomotion.moveToward(actor,this.directive.destination,delta,{
-      game,speedMultiplier:this.directive.policy?.speedMultiplier??.68,
-      arrivalRadius:this.directive.policy?.arrivalRadius??11,
-      task:`Approaching objective — ${this.directive.roleLabel}`,pose:"walk"
-    });
+    const result=services.locomotion.moveWithIntent(actor,{
+      kind:"objective_approach_region",goal:this.directive.destination,
+      region:{type:"circle",center:{...this.directive.destination},innerRadius:0,outerRadius:this.directive.policy?.arrivalRadius??28,preferredRadius:14},
+      acceptanceRadius:this.directive.policy?.arrivalRadius??28,
+      preferredSeparationMin:this.directive.policy?.claimSpacing??68,preferredSeparationMax:190,
+      threatPoint:actor.aiV2TacticalPicture?.threatPoint??null,dangerRadius:320,lookAhead:72
+    },delta,{game,now,speedMultiplier:this.directive.policy?.speedMultiplier??.68,arrivalRadius:10,task:`Approaching objective — ${this.directive.roleLabel}`,pose:"walk"});
     const remaining=result.distance??0;
     this.progress=Math.max(0,Math.min(1,1-remaining/this.initialDistance));
     actor.aiV2Objective={status:result.arrived?"positioned":"approaching",objectiveId:this.directive.objectiveId,roleId:this.directive.roleId,destination:{...this.directive.destination},distance:remaining,progress:this.progress};

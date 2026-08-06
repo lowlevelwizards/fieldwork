@@ -1,3 +1,12 @@
+AI 3.1E–F — Spatial Intent Fields & Concurrent Concern Staffing
+
+- Team concerns now receive stable capability-based actor staffing.
+- Ordinary security and responsibility movement can target an acceptable field instead of one exact point.
+- Live actors without a procedural owner can directly fulfill secondary contact and casualty-security concerns.
+- Legacy procedure actions now identify the concern and desired effect they serve during migration.
+- Finite cover, casualty reach, and physical interaction coordinates remain exact hard affordances.
+- Rejected cover-slot reservations are cleaned immediately after actor-plan arbitration.
+
 AI 3.1C–D — Unified Actor Brain & Single Execution Gateway
 
 - One actor brain now collects and compares every AI V2 physical action proposal.

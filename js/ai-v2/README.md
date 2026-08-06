@@ -1,3 +1,12 @@
+## 3.1E–F spatial intent fields and concurrent concern staffing
+
+Active team concerns now receive stable capability-based staffing. The assigned actor either binds its existing atomic procedure action to that concern or, when unowned in the live sandbox, can directly propose an actor-sized security intent field through the unified brain. Circle and annulus regions replace generic exact-point choreography while finite cover slots, treatment reach, and physical interactions remain exact hard affordances.
+
+```text
+concurrent concern → stable staffing → spatial intent field
+→ unified actor brain → single execution gateway
+```
+
 ## 3.1C–D unified actor brain and execution gateway
 
 All AI V2 physical behavior now crosses one control seam. Evidence, concerns, responses, procedures, travel, role logic, and tactical systems may publish candidates, but only `UnifiedActorBrain` compares them and only `ActorActionArbiter` may start scheduler actions. The brain compares cross-type candidates against incumbent continuation utility, composes compatible channel intentions into one actor plan, and exposes the active concurrent concern context for diagnostics.
