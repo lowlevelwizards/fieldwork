@@ -40,7 +40,7 @@ function assessmentFresh(record,casualty,now){
   if(age>12)return false;
   if(record?.approximatePosition&&distance(record.approximatePosition,casualty)>120)return false;
   const visible=casualty?.medical?.unconscious?"unconscious":casualty?.medical?.condition??null;
-  if(visible&&assessment.condition&&visible!==assessment.condition&&!["critical","unconscious"].includes(visible)&&!["critical","unconscious"].includes(assessment.condition))return false;
+  if(visible&&assessment.condition&&visible!==assessment.condition)return false;
   return true;
 }
 
