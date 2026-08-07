@@ -15,6 +15,27 @@ function operationFor(game,actors){const id=actors.find(a=>a.operationId)?.opera
 function normalized(from,to){const x=(to?.x??0)-(from?.x??0),y=(to?.y??0)-(from?.y??0),l=Math.hypot(x,y)||1;return{x:x/l,y:y/l};}
 function movementVector(label){return DIRECTION_VECTORS[String(label??"").toLowerCase()]??{x:0,y:0};}
 
+function estimateFromTacticalBeliefs(game,actors,observerTeamId,subjectTeamId){
+  const candidates=[];
+  for(const actor of actors){
+    const picture=game?.aiV2?.tacticalPictures?.get?.(actor.id)??actor.aiV2TacticalPicture??null;
+    for(const belief of picture?.contactBeliefs??[]){
+      if(belief.subjectTeamId!==subjectTeamId||!belief.center)continue;
+      candidates.push(belief);
+    }
+  }
+  if(!candidates.length)return null;
+  candidates.sort((a,b)=>(b.tacticalSalience??0)-(a.tacticalSalience??0)||(b.lastConfirmedAt??0)-(a.lastConfirmedAt??0));
+  const belief=candidates[0];
+  const understanding=game?.aiV2?.teamUnderstanding?.get?.(observerTeamId,subjectTeamId)??null;
+  return{
+    position:{...belief.center},confidence:belief.confidence??.5,age:0,
+    movementDirection:belief.motion?.direction??"unknown",estimatedSpeed:belief.motion?.speed??0,
+    uncertaintyRadius:belief.uncertaintyRadius,
+    objectiveId:understanding?.operationHypothesis?.objectiveId??null
+  };
+}
+
 function routeForTeam(game,actors,teamCenter){
   const operation=operationFor(game,actors);
   if(!operation||!game?.livingSandbox?.operationRouteStatus)return{operation,mode:null,points:[teamCenter],direction:{x:0,y:0},complete:true};
@@ -162,7 +183,13 @@ export class ContactResolutionService{
     const ownCenter=center(ownActors);if(!ownCenter)return null;
     const ownRadius=radius(ownActors,ownCenter);
     const ownRoute=routeForTeam(game,ownActors,ownCenter);
-    const belief=believedContact(subjectEstimate);
+    const runtimeEstimate=subjectEstimate??estimateFromTacticalBeliefs(game,ownActors,observerTeamId,subjectTeamId);
+    const epistemicLive=Boolean(game?.scenarioMode==="live"&&game?.aiV2);
+    const belief=believedContact(runtimeEstimate);
+    // In the live runtime, wait for actor/team knowledge to establish a contact
+    // region instead of silently consulting the hidden team's exact location.
+    // Isolated geometry tests have no AI runtime and retain the direct fallback.
+    if(epistemicLive&&!belief)return null;
     const actualOtherCenter=center(actualOtherActors);
     const otherCenter=belief?.center??actualOtherCenter;if(!otherCenter)return null;
     const otherRadius=belief?Math.max(48,belief.uncertaintyRadius*.55):radius(actualOtherActors,actualOtherCenter);
