@@ -54,10 +54,13 @@ test("route progress consumes a waypoint passed beside rather than touched",()=>
 
 test("rejoining near a later segment consumes multiple obsolete markers",()=>{
   const {game,actor,living}=makeGame();
-  actor.x=235;actor.y=100;
+  // Stay outside the route's broad terminal region so this test measures
+  // intermediate marker consumption rather than terminal handoff semantics.
+  actor.x=235;actor.y=160;
   const service=new OperationalRouteProgressService();
   const intent=service.evaluate({game,actor,operationId:"op",mode:"outbound",now:1,syncLegacy:true});
   assert.ok(intent.strategicProgress>.75);
+  assert.equal(intent.terminalReady,false);
   assert.equal(living.operation.actorRouteProgress.actor.index,3);
   assert.deepEqual(intent.consumedWaypointIds,["b","c"]);
 });
@@ -108,20 +111,24 @@ test("return mode measures monotonic progress toward origin using reversed route
   operation.actorRouteProgress.actor={mode:"return",index:1,complete:false,lastReachedAt:0};
   const {game,actor,living}=makeGame(operation);
   const service=new OperationalRouteProgressService();
-  actor.x=140;
+  // Both samples intentionally remain just outside the broad terminal radius;
+  // this test is about intermediate return progress, not return completion.
+  actor.x=140;actor.y=30;
   const first=service.evaluate({game,actor,operationId:"op",mode:"return",now:1,syncLegacy:true});
   assert.ok(first.strategicProgress>.5);
+  assert.equal(first.terminalReady,false);
   assert.equal(living.operation.actorRouteProgress.actor.index,2);
-  actor.x=60;
+  actor.x=80;actor.y=120;
   const second=service.evaluate({game,actor,operationId:"op",mode:"return",now:2,syncLegacy:true});
   assert.ok(second.strategicProgress>first.strategicProgress);
+  assert.equal(second.terminalReady,false);
   assert.equal(living.operation.actorRouteProgress.actor.index,3);
 });
 
 test("moving backward after markers were consumed cannot reactivate them",()=>{
   const {game,actor,living}=makeGame();
   const service=new OperationalRouteProgressService();
-  actor.x=235;service.evaluate({game,actor,operationId:"op",mode:"outbound",now:1,syncLegacy:true});
+  actor.x=235;actor.y=160;service.evaluate({game,actor,operationId:"op",mode:"outbound",now:1,syncLegacy:true});
   assert.equal(living.operation.actorRouteProgress.actor.index,3);
   const high=service.get(actor.id).strategicProgress;
   actor.x=80;
