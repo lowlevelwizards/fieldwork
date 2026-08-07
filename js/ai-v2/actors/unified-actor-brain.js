@@ -20,6 +20,7 @@ function cloneCandidate(candidate){
     reason:candidate.reason,
     source:candidate.source,
     concernId:candidate.concernId??null,
+    obligationId:candidate.obligationId??null,
     desiredEffect:candidate.desiredEffect??null,
     status:candidate.status??"proposed",
     resultReason:candidate.resultReason??null
@@ -62,7 +63,7 @@ export class UnifiedActorBrain{
     actorId,action,score=0,urgency=0,
     authorityTier=ACTION_AUTHORITY_TIERS.AMBIENT_AUTONOMY,
     authorityLabel="Ambient autonomy",reason=null,source="unknown",
-    concernId=null,desiredEffect=null,
+    concernId=null,obligationId=null,desiredEffect=null,
     operationId=null,missionId=null,governingIntentId=null,supportingIntentId=null,
     procedureId=null,roleId=null,onGranted=null,onRejected=null
   }={}){
@@ -72,7 +73,7 @@ export class UnifiedActorBrain{
       actorId,action,score:Number(score)||0,urgency:Number(urgency)||0,
       authorityTier:Number(authorityTier)||0,authorityLabel,
       reason:reason??action.purpose??"No explanation supplied",source,
-      concernId,desiredEffect,operationId,missionId,governingIntentId,supportingIntentId,
+      concernId,obligationId,desiredEffect,operationId,missionId,governingIntentId,supportingIntentId,
       procedureId,roleId,onGranted,onRejected,status:"proposed",resultReason:null
     };
     action.metadata={
@@ -81,7 +82,7 @@ export class UnifiedActorBrain{
       actorBrainPlan:{
         proposalId:candidate.id,authorityTier:candidate.authorityTier,
         authorityLabel:candidate.authorityLabel,urgency:candidate.urgency,source:candidate.source,
-        concernId,desiredEffect,reason:candidate.reason,createdAt:this.now
+        concernId,obligationId,desiredEffect,reason:candidate.reason,createdAt:this.now
       }
     };
     if(!this.pending.has(actorId))this.pending.set(actorId,[]);
@@ -143,7 +144,7 @@ export class UnifiedActorBrain{
           authorityTier:candidate.authorityTier,authorityLabel:candidate.authorityLabel,
           reason:candidate.reason,source:candidate.source,operationId:candidate.operationId,
           missionId:candidate.missionId,governingIntentId:candidate.governingIntentId,
-          supportingIntentId:candidate.supportingIntentId,procedureId:candidate.procedureId,roleId:candidate.roleId,
+          supportingIntentId:candidate.supportingIntentId,procedureId:candidate.procedureId,roleId:candidate.roleId,obligationId:candidate.obligationId,
           onGranted:(result,proposal)=>{
             candidate.status=result?.preserved?"preserved":"granted";
             candidate.resultReason=result?.amended?"matching_action_amended":result?.preserved?"matching_action_preserved":"execution_granted";
@@ -172,7 +173,7 @@ export class UnifiedActorBrain{
 
   getPlan(actorId){
     const plan=this.plans.get(actorId);
-    return plan?{...plan,actions:plan.actions.map(item=>({...item,channels:[...item.channels]})),concernIds:[...plan.concernIds],availableConcerns:(plan.availableConcerns??[]).map(item=>({...item}))}:null;
+    return plan?{...plan,actions:plan.actions.map(item=>({...item,channels:[...item.channels]})),concernIds:[...plan.concernIds],obligationIds:[...(plan.obligationIds??[])],availableConcerns:(plan.availableConcerns??[]).map(item=>({...item}))}:null;
   }
 
   getTrace(actorId){
@@ -223,15 +224,17 @@ export class UnifiedActorBrain{
         ?(context?.services?.teamConcerns?.getActive?.(actor.teamId)??[]).map(concern=>({id:concern.id,kind:concern.kind,importance:concern.importance,urgency:concern.urgency,desiredEffect:concern.desiredEffect,staffedResponsibilities:(context?.services?.concernStaffing?.getActorAssignments?.(actorId)??[]).filter(item=>item.concernId===concern.id).map(item=>item.responsibility)}))
         :[];
       const concernIds=[...new Set(actions.map(action=>action.metadata?.actorBrainPlan?.concernId).filter(Boolean))];
+      const obligationIds=[...new Set(actions.map(action=>action.metadata?.actorBrainPlan?.obligationId).filter(Boolean))];
       const plan={
-        actorId,status:"active",updatedAt:now,concernIds,availableConcerns,
+        actorId,status:"active",updatedAt:now,concernIds,obligationIds,availableConcerns,
         authorityTier:Math.max(...actions.map(authorityOf),0),
         utility:Math.max(...actions.map(action=>utilityOf(action,context)),0),
         actions:actions.map(action=>({
           actionId:action.id,actionType:action.type,channels:cloneChannels(action.channels),
           purpose:action.purpose,utility:utilityOf(action,context),authorityTier:authorityOf(action),
           source:action.metadata?.actorBrainPlan?.source??action.metadata?.provenance?.owner??null,
-          desiredEffect:action.metadata?.actorBrainPlan?.desiredEffect??null
+          desiredEffect:action.metadata?.actorBrainPlan?.desiredEffect??null,
+          obligationId:action.metadata?.actorBrainPlan?.obligationId??null
         }))
       };
       this.plans.set(actorId,plan);
@@ -250,7 +253,7 @@ export class UnifiedActorBrain{
   #record(type,candidate,now,data={}){
     this.decisionLog?.record?.({
       type,time:now,actorId:candidate.actorId,actionType:candidate.action?.type,
-      data:{proposalId:candidate.id,source:candidate.source,authorityTier:candidate.authorityTier,score:candidate.score,urgency:candidate.urgency,reason:candidate.reason,concernId:candidate.concernId,desiredEffect:candidate.desiredEffect,...data}
+      data:{proposalId:candidate.id,source:candidate.source,authorityTier:candidate.authorityTier,score:candidate.score,urgency:candidate.urgency,reason:candidate.reason,concernId:candidate.concernId,obligationId:candidate.obligationId,desiredEffect:candidate.desiredEffect,...data}
     });
   }
 }

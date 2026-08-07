@@ -1,3 +1,13 @@
+## AI 3.1G — Persistent Actor Obligations
+
+- Added durable actor-owned obligations between concurrent concern staffing/personal survival needs and atomic execution.
+- Staffed concerns now preserve stable actor ownership across action completion, interruption, rejection, and replanning until the source resolves or is reassigned.
+- Added immediate-survival self-aid obligations for treatable wounds with finite supplies.
+- Required hostile-contact obligations now receive governing-response authority and can displace unchanged mission travel.
+- Unrelated mission procedures no longer suppress separately staffed hostile-contact or casualty-security fulfillment.
+- Bound concern fulfillment, tactical behavior, role actions, operation travel, and self aid to obligation IDs visible in unified actor plans and diagnostics.
+- Added focused persistence, procedure-coexistence, travel-preemption, and unified-plan regression coverage.
+
 ## AI 3.1E–F — Spatial Intent Fields & Concurrent Concern Staffing
 
 - Added stable minimum/preferred staffing for simultaneous mission, contact, casualty, and safe-return concerns.

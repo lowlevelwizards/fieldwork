@@ -18,6 +18,7 @@ export class ActorInitiativeRuntime{
       if(actor.medical?.dead||actor.medical?.unconscious)continue;
       const assessment=game?.wounds?.getAssessment?.(actor)??null;
       const treatmentNeed=game?.wounds?.getTreatmentNeed?.(actor)??null;
+      const selfAidObligation=context?.services?.actorObligations?.findForActor?.(actor.id,{kind:"self_aid"})??null;
       const bleeding=Number(assessment?.bleeding??actor.medical?.bleedingRate??0);
       const selfAidUrgent=Boolean(treatmentNeed&&bleeding>.05&&Number(actor.aiV2MedicalSupplies?.[treatmentNeed.type]??0)>0);
       const tacticalPicture=tacticalPictures?.get?.(actor.id)??null;
@@ -32,7 +33,7 @@ export class ActorInitiativeRuntime{
           actorId:actor.id,action,score:1,urgency:Math.min(1,.72+bleeding*.18),
           authorityTier:ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL,
           authorityLabel:"Immediate survival",reason:catastrophic?"Catastrophic bleeding justifies immediate aid despite exposure.":"A conscious operator may perform self aid only after reaching a protected treatment window.",
-          source:"actor_initiative",operationId:actor.operationId??null,missionId:actor.squadMission??null,onGranted
+          source:"actor_initiative",obligationId:selfAidObligation?.id??null,operationId:actor.operationId??null,missionId:actor.squadMission??null,onGranted
         });
 
       }

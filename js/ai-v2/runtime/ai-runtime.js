@@ -6,6 +6,7 @@ import { ReportCasualtyAction } from "../actions/report-casualty-action.js";
 import { ActorInitiativeRuntime } from "../actors/actor-initiative-runtime.js";
 import { UnifiedActorBrain } from "../actors/unified-actor-brain.js";
 import { ActorTacticalPictureService } from "../actors/actor-tactical-picture-service.js";
+import { ActorObligationStore } from "../actors/actor-obligation-store.js";
 import { ActorTacticalDeliberationRuntime } from "../actors/actor-tactical-deliberation-runtime.js";
 import { ActorTacticalCommitmentStore } from "../actors/actor-tactical-commitment-store.js";
 import { ActorUtilityEvaluationService } from "../actors/actor-utility-evaluation-service.js";
@@ -107,6 +108,7 @@ export class AIV2Runtime{
     this.teamProcedures=new TeamProcedureState({decisionLog:this.decisionLog});
     this.teamConcerns=new TeamConcernBoard({decisionLog:this.decisionLog});
     this.concernStaffing=new TeamConcernStaffingService({decisionLog:this.decisionLog});
+    this.actorObligations=new ActorObligationStore({decisionLog:this.decisionLog});
     this.spatialIntentFields=new SpatialIntentFieldService({decisionLog:this.decisionLog});
     this.objectives=new ObjectiveStateStore({decisionLog:this.decisionLog});
     this.objectiveApproaches=new ObjectiveApproachService({decisionLog:this.decisionLog});
@@ -140,7 +142,7 @@ export class AIV2Runtime{
     this.objectives.syncFromGame(game);
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"3.1E_F_spatial_intent_concern_staffing",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"3.1G_persistent_actor_obligations",scenario:game.scenarioMode}});
   }
 
   update(delta){
@@ -202,9 +204,10 @@ export class AIV2Runtime{
       threatKnowledge:this.threatKnowledge,objectives:this.objectives,encounterOutcomes:this.encounterOutcomes,now:this.elapsed
     });
     this.concernStaffing.update({game:this.game,teamConcerns:this.teamConcerns,teamProcedures:this.teamProcedures,now:this.elapsed});
-    this.concernFulfillment.update({game:this.game,teamConcerns:this.teamConcerns,concernStaffing:this.concernStaffing,teamProcedures:this.teamProcedures,now:this.elapsed});
+    this.actorObligations.syncSources({game:this.game,teamConcerns:this.teamConcerns,concernStaffing:this.concernStaffing,now:this.elapsed});
+    this.concernFulfillment.update({game:this.game,teamConcerns:this.teamConcerns,concernStaffing:this.concernStaffing,actorObligations:this.actorObligations,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.tacticalPictures.update({game:this.game,personalKnowledge:this.personalKnowledge,teamKnowledge:this.teamKnowledge,threatKnowledge:this.threatKnowledge,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,now:this.elapsed});
-    this.tacticalDeliberation.update({game:this.game,tacticalPictures:this.tacticalPictures,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,now:this.elapsed});
+    this.tacticalDeliberation.update({game:this.game,tacticalPictures:this.tacticalPictures,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,actorObligations:this.actorObligations,now:this.elapsed});
     this.contactResolution.update({game:this.game,teamResponses:this.teamResponses,teamEncounters:this.teamEncounters,teamProcedures:this.teamProcedures,now:this.elapsed});
     this.operationalTravel.update({game:this.game,teamAgenda:this.teamAgenda,teamProcedures:this.teamProcedures,now:this.elapsed,context:this.#context(this.elapsed)});
     this.roleActions.update({
@@ -241,6 +244,7 @@ export class AIV2Runtime{
     });
     this.localAutonomy.update({game:this.game,teamProcedures:this.teamProcedures,teamAgenda:this.teamAgenda,teamInteractions:liveTeamSocial?this.teamInteractions:null,roleActions:this.roleActions,now:this.elapsed});
     this.actorBrain.resolve({now:this.elapsed,context:this.#context(this.elapsed)});
+    this.actorObligations.reconcileExecution({game:this.game,scheduler:this.scheduler,now:this.elapsed});
     this.positionSlots.reconcileExecution?.({scheduler:this.scheduler,now:this.elapsed});
     this.behavioralTruth.update(delta,{game:this.game,scheduler:this.scheduler,teamConcerns:this.teamConcerns,threatKnowledge:this.threatKnowledge,now:this.elapsed});
     this.#updateActorDiagnostics();
@@ -263,6 +267,7 @@ export class AIV2Runtime{
       actionArbiter:this.actionArbiter?.summary?.()??[],
       actorBrain:this.actorBrain?.summary?.()??[],
       concernStaffing:this.concernStaffing?.summary?.()??[],
+      actorObligations:this.actorObligations?.summary?.()??[],
       concernFulfillment:this.concernFulfillment?.summary?.()??[]
     });
   }
@@ -435,6 +440,7 @@ export class AIV2Runtime{
         teamAgenda:this.teamAgenda,
         teamConcerns:this.teamConcerns,
         concernStaffing:this.concernStaffing,
+        actorObligations:this.actorObligations,
         spatialIntentFields:this.spatialIntentFields,
         concernFulfillment:this.concernFulfillment,
         behavioralTruth:this.behavioralTruth,

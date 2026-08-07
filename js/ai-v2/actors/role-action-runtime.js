@@ -146,9 +146,10 @@ export class RoleActionRuntime{
   #reconcile(desired,{game,now,context}){
     const {actor,selected,role,procedure}=desired;
     const staffedConcern=staffedConcernForRole(actor,role,context);
+    const obligation=staffedConcern?context?.services?.actorObligations?.findForActor?.(actor.id,{sourceAssignmentId:staffedConcern.id})??null:null;
     const bindConcern=action=>{
       if(!action||!staffedConcern)return;
-      action.metadata={...(action.metadata??{}),actorBrainPlan:{...(action.metadata?.actorBrainPlan??{}),concernId:staffedConcern.concernId,desiredEffect:staffedConcern.desiredEffect,source:action.metadata?.actorBrainPlan?.source??"role_action_runtime"}};
+      action.metadata={...(action.metadata??{}),actorBrainPlan:{...(action.metadata?.actorBrainPlan??{}),concernId:staffedConcern.concernId,obligationId:obligation?.id??null,desiredEffect:staffedConcern.desiredEffect,source:action.metadata?.actorBrainPlan?.source??"role_action_runtime"}};
     };
     const existing=this.scheduler.getAction(actor.id,selected.type);
     for(const action of [...this.scheduler.getActions(actor.id)]){
@@ -184,7 +185,7 @@ export class RoleActionRuntime{
       authorityTier,authorityLabel,reason:selected.reason,source:"role_action_runtime",
       operationId:actor.operationId??null,missionId:procedure.missionId??null,
       governingIntentId:agenda?.intentId??null,supportingIntentId:agenda?.supporting?.intentId??null,
-      procedureId:procedure.procedureId,roleId:role.roleId,concernId:staffedConcern?.concernId??null,
+      procedureId:procedure.procedureId,roleId:role.roleId,concernId:staffedConcern?.concernId??null,obligationId:obligation?.id??null,
       desiredEffect:staffedConcern?.desiredEffect??null,onGranted
     });
 

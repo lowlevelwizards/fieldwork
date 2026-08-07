@@ -14,12 +14,14 @@ export class ActorTacticalDeliberationRuntime{
     this.brain=brain??arbiter;this.commitments=commitments??new ActorTacticalCommitmentStore({decisionLog});
     this.utilityEvaluation=utilityEvaluation??new ActorUtilityEvaluationService({decisionLog});this.positionSlots=positionSlots;this.decisionLog=decisionLog;this.byActor=new Map();
   }
-  update({game,tacticalPictures,teamProcedures,teamAgenda,now=0}={}){
+  update({game,tacticalPictures,teamProcedures,teamAgenda,actorObligations=null,now=0}={}){
     const live=[];
     for(const actor of game?.actors??[]){
       if(actor.medical?.dead||actor.medical?.unconscious||actor.medical?.condition==="critical")continue;live.push(actor.id);
       const picture=tacticalPictures?.get?.(actor.id);if(!picture)continue;
       const role=teamProcedures?.getActorRole?.(actor.id)??null,agenda=teamAgenda?.get?.(actor.teamId)??null;
+      const selfAidObligation=actorObligations?.findForActor?.(actor.id,{kind:"self_aid"})??null;
+      const contactObligation=actorObligations?.findForActor?.(actor.id,{concernKind:["hostile_contact","uncertain_contact"]})??null;
       const defensiveProcedure=role?.procedureId==="defensive_position";
       const responsibilityId=role?`${role.procedureId}:${role.roleId}`:agenda?.intentId??null;
       const threatTrackId=picture.bestThreat?.subjectId??picture.bestThreat?.subjectTeamId??null;
@@ -75,7 +77,9 @@ export class ActorTacticalDeliberationRuntime{
         proposal={action,score:utility.candidates.find(x=>x.kind==="scan")?.score??.34,urgency:contactPressure*.45,tier:contactPressure>=.34?ACTION_AUTHORITY_TIERS.SUPPORTING_CONCERN:ACTION_AUTHORITY_TIERS.AMBIENT_AUTONOMY,label:contactPressure>=.34?"Supporting tactical concern":"Ambient autonomy",kind:"maintain_security_sector",desiredEffect:"actively_observe",minimumUntil:now+.8,maximumUntil:now+4,anchorPoint:{x:actor.x,y:actor.y},...common};
       }
       if(!proposal){if(existing)this.byActor.set(actor.id,{...existing,status:"maintaining",utility});continue;}
-      this.brain?.submit?.({actorId:actor.id,action:proposal.action,score:proposal.score,urgency:proposal.urgency,authorityTier:proposal.tier,authorityLabel:proposal.label,reason:proposal.action.purpose,source:"actor_tactical_deliberation",operationId:proposal.operationId,missionId:proposal.missionId,governingIntentId:proposal.governingIntentId,procedureId:proposal.procedureId,roleId:proposal.roleId,onGranted:()=>{
+      const obligation=proposal.kind==="acquire_treatment_cover"?selfAidObligation:["acquire_directional_cover","reload_safely","maintain_security_sector"].includes(proposal.kind)?contactObligation:null;
+      if(obligation){proposal.obligationId=obligation.id;proposal.tier=Math.max(proposal.tier,obligation.authorityTier??proposal.tier);proposal.score=Math.max(proposal.score,obligation.priority??0);proposal.urgency=Math.max(proposal.urgency,obligation.urgency??0);}
+      this.brain?.submit?.({actorId:actor.id,action:proposal.action,score:proposal.score,urgency:proposal.urgency,authorityTier:proposal.tier,authorityLabel:proposal.label,reason:proposal.action.purpose,source:"actor_tactical_deliberation",obligationId:proposal.obligationId??null,operationId:proposal.operationId,missionId:proposal.missionId,governingIntentId:proposal.governingIntentId,procedureId:proposal.procedureId,roleId:proposal.roleId,onGranted:()=>{
         if(proposal.slot)this.positionSlots?.claim?.({actorId:actor.id,slot:proposal.slot,now,duration:12,purpose:proposal.kind});
         const record=this.commitments.commit({actorId:actor.id,kind:proposal.kind,responsibilityId,procedureId:proposal.procedureId,roleId:proposal.roleId,threatTrackId,anchorPoint:proposal.anchorPoint,threatPoint:picture.threatPoint,desiredEffect:proposal.desiredEffect,minimumUntil:proposal.minimumUntil,maximumUntil:proposal.maximumUntil,reason:proposal.action.purpose,provenance:{owner:"actor_tactical_deliberation",authorityTier:proposal.tier}}, {now});
         this.byActor.set(actor.id,{...record,status:"acting",actionType:proposal.action.type,utility});actor.aiV2TacticalCommitment={...record};

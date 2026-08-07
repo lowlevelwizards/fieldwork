@@ -1,3 +1,11 @@
+AI 3.1G — Persistent Actor Obligations
+
+- Important world problems now remain owned by an actor across individual action changes instead of disappearing when one atomic action ends.
+- Required hostile contact can interrupt unchanged mission travel.
+- Self-aid needs persist as immediate survival obligations until treatment is no longer required.
+- Actors with unrelated mission roles may still fulfill separately staffed contact or casualty-security obligations.
+- Existing casualty, objective, warning, and campaign procedures remain the narrow multi-step executors; 3.1H will address combat/care closure and anti-loop behavior.
+
 AI 3.1E–F — Spatial Intent Fields & Concurrent Concern Staffing
 
 - Team concerns now receive stable capability-based actor staffing.
