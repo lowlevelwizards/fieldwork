@@ -92,7 +92,8 @@ export class RoleActionRuntime{
 
   update({game,teamProcedures,teamMissions,teamKnowledge,teamEncounters,casualtyKnowledge,now=0,context={}}={}){
     const desiredByActor=new Map();const migratedByActor=new Map();this.casualtyRecovery.beginFrame(game);
-    for(const procedure of teamProcedures?.summary?.()??[]){
+    const procedures=teamProcedures?.summary?.()??[];
+    for(const procedure of procedures){
       if(procedure.phase?.id==="establish_responsibilities")continue;
       const mission=teamMissions?.get?.(procedure.teamId)??null;
       for(const role of procedure.roles??[]){
@@ -128,13 +129,37 @@ export class RoleActionRuntime{
       }
     }
 
+    // The desired-effect recovery path is owned by the durable obligation, not
+    // by the continued existence of a legacy recovery procedure. If staffing
+    // still owns a casualty but no compatible procedure role is active, run
+    // the same selector with procedure/role treated as optional metadata.
+    if(game?.scenarioMode==="live"&&game?.livingSandbox?.liveMode){
+      for(const actor of game?.actors??[]){
+        if(migratedByActor.has(actor.id))continue;
+        const obligation=(context?.services?.actorObligations?.getActorObligations?.(actor.id)??[]).find(item=>item.concernKind==="friendly_casualty"&&item.responsibility==="carrier_or_aid_provider"&&!["resolved","abandoned"].includes(item.status))??null;
+        if(!obligation)continue;
+        const procedure=procedures.find(item=>item.teamId===actor.teamId&&(!item.subjectId||item.subjectId===obligation.subjectId))??null;
+        const role=procedure?.roles?.find(item=>item.actorId===actor.id)??{roleId:obligation.responsibility,label:"Casualty recovery",fulfillment:{need:"recover_casualty"}};
+        const mission=teamMissions?.get?.(actor.teamId)??null;
+        for(const action of [...this.scheduler.getActions(actor.id)]){
+          if(roleAction(action)&&MIGRATED_RECOVERY_ACTION_TYPES.has(action.type))this.#cancelWithCleanup(actor,action,{now,context,reason:"desired_effect_casualty_recovery_migrated"});
+        }
+        const recovery=this.casualtyRecovery.evaluateAndSubmit({
+          game,actor,role,procedure,mission,obligation,casualtyKnowledge,
+          tacticalPictures:context?.services?.tacticalPictures,directionalCover:context?.services?.directionalCover,
+          actorObligations:context?.services?.actorObligations,teamProcedures:context?.services?.teamProcedures,now
+        });
+        migratedByActor.set(actor.id,{actor,role,procedure,mission,recovery});
+      }
+    }
+
     for(const desired of desiredByActor.values())this.#reconcile(desired,{game,now,context});
     for(const actor of game?.actors??[])if(!desiredByActor.has(actor.id)&&!migratedByActor.has(actor.id))this.#releaseActor(actor,{game,now,context});
 
     const assignments=[...desiredByActor].map(([actorId,entry])=>[actorId,{actorId,roleId:entry.role.roleId,roleLabel:entry.role.label,procedureId:entry.procedure.procedureId,phaseId:entry.procedure.phase?.id??null,actionType:entry.selected.type,reason:entry.selected.reason,candidates:entry.candidates.map(candidate=>({type:candidate.type,score:candidate.score,reason:candidate.reason}))}]);
     for(const [actorId,entry] of migratedByActor){
       const selected=entry.recovery?.selected??null;
-      assignments.push([actorId,{actorId,roleId:entry.role.roleId,roleLabel:entry.role.label,procedureId:entry.procedure.procedureId,phaseId:entry.procedure.phase?.id??null,actionType:selected?.type??"DesiredEffectRecoveryStable",reason:selected?.reason??"Casualty recovery desired effect is currently satisfied enough to require no stronger physical method.",candidates:(entry.recovery?.candidates??[]).map(candidate=>({type:candidate.type,score:candidate.score,reason:candidate.reason})),desiredEffectDriven:true}]);
+      assignments.push([actorId,{actorId,roleId:entry.role.roleId,roleLabel:entry.role.label,procedureId:entry.procedure?.procedureId??null,phaseId:entry.procedure?.phase?.id??null,actionType:selected?.type??"DesiredEffectRecoveryStable",reason:selected?.reason??"Casualty recovery desired effect is currently satisfied enough to require no stronger physical method.",candidates:(entry.recovery?.candidates??[]).map(candidate=>({type:candidate.type,score:candidate.score,reason:candidate.reason})),desiredEffectDriven:true}]);
     }
     this.assignments=new Map(assignments);
   }
