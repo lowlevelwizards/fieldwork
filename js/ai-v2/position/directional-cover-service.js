@@ -9,26 +9,10 @@ function pointSegmentDistance(point,start,end){
   return Math.hypot(point.x-(start.x+dx*t),point.y-(start.y+dy*t));
 }
 
-function activeFixtureZone(game){
-  return game?.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId)??null;
-}
-
-function insideZone(point,zone,padding=28){
-  if(!zone)return true;
-  return point.x>=zone.x+padding&&point.x<=zone.x+zone.width-padding&&point.y>=zone.y+padding&&point.y<=zone.y+zone.height-padding;
-}
-
-function teamCenter(actors=[]){
-  if(!actors.length)return{x:0,y:0};
-  return{
-    x:actors.reduce((sum,actor)=>sum+actor.x,0)/actors.length,
-    y:actors.reduce((sum,actor)=>sum+actor.y,0)/actors.length
-  };
-}
-
-function obstacleId(obstacle,index){
-  return obstacle.id??`${obstacle.type??"cover"}:${Math.round(obstacle.x)}:${Math.round(obstacle.y)}:${index}`;
-}
+function activeFixtureZone(game){return game?.map?.sandboxLayout?.zones?.find(zone=>zone.id===game.sandboxFixtureId)??null;}
+function insideZone(point,zone,padding=28){if(!zone)return true;return point.x>=zone.x+padding&&point.x<=zone.x+zone.width-padding&&point.y>=zone.y+padding&&point.y<=zone.y+zone.height-padding;}
+function teamCenter(actors=[]){if(!actors.length)return{x:0,y:0};return{x:actors.reduce((sum,actor)=>sum+actor.x,0)/actors.length,y:actors.reduce((sum,actor)=>sum+actor.y,0)/actors.length};}
+function obstacleId(obstacle,index){return obstacle.id??`${obstacle.type??"cover"}:${Math.round(obstacle.x)}:${Math.round(obstacle.y)}:${index}`;}
 
 function protectionFor({obstacle,point,threatPoint}){
   const radius=Math.max(12,Number(obstacle?.radius)||36);
@@ -43,86 +27,47 @@ function protectionFor({obstacle,point,threatPoint}){
 export class DirectionalCoverService{
   buildSlots({game,threatPoint,teamActors=[],policy={}}={}){
     if(!threatPoint)return[];
-    const zone=activeFixtureZone(game);
-    const center=teamCenter(teamActors);
-    const actorRadius=Math.max(12,policy.actorRadius??18);
-    const maximumCoverDistance=Math.max(80,policy.maximumCoverDistance??520);
-    const minimumProtection=clamp(policy.minimumProtection??.72);
-    const slots=[];
-
+    const zone=activeFixtureZone(game);const center=teamCenter(teamActors);const actorRadius=Math.max(12,policy.actorRadius??18);const maximumCoverDistance=Math.max(80,policy.maximumCoverDistance??520);const minimumProtection=clamp(policy.minimumProtection??.72);const slots=[];
     for(const [index,obstacle] of (game?.map?.obstacles??[]).entries()){
-      const radius=Math.max(18,Number(obstacle.radius)||36);
-      if(distance(center,obstacle)>maximumCoverDistance)continue;
-      const awayX=obstacle.x-threatPoint.x,awayY=obstacle.y-threatPoint.y;
-      const magnitude=Math.hypot(awayX,awayY);
-      if(magnitude<=.001)continue;
-      const offset=radius+actorRadius+Math.max(7,policy.coverGap??9);
-      const rearX=awayX/magnitude,rearY=awayY/magnitude;
-      const lateralX=-rearY,lateralY=rearX;
-      const lateralSpacing=Math.max(actorRadius*2.25,Math.min(radius*.72,54));
-      const sourceId=obstacleId(obstacle,index);
+      const radius=Math.max(18,Number(obstacle.radius)||36);if(distance(center,obstacle)>maximumCoverDistance)continue;
+      const awayX=obstacle.x-threatPoint.x,awayY=obstacle.y-threatPoint.y;const magnitude=Math.hypot(awayX,awayY);if(magnitude<=.001)continue;
+      const offset=radius+actorRadius+Math.max(7,policy.coverGap??9);const rearX=awayX/magnitude,rearY=awayY/magnitude;const lateralX=-rearY,lateralY=rearX;const lateralSpacing=Math.max(actorRadius*2.25,Math.min(radius*.72,54));const sourceId=obstacleId(obstacle,index);
       for(const variant of [{id:"left",lateral:-1},{id:"center",lateral:0},{id:"right",lateral:1}]){
         const point={x:obstacle.x+rearX*offset+lateralX*lateralSpacing*variant.lateral,y:obstacle.y+rearY*offset+lateralY*lateralSpacing*variant.lateral};
         if(!insideZone(point,zone,policy.zonePadding??28))continue;
-        const protection=protectionFor({obstacle,point,threatPoint});
-        if(protection<minimumProtection)continue;
-        const cohesionDistance=distance(point,center);
-        const threatDistance=distance(point,threatPoint);
-        const travelUtility=clamp(1-cohesionDistance/Math.max(1,maximumCoverDistance));
-        const firingUtility=clamp(.30+protection*.32+Math.min(1,threatDistance/900)*.12+(variant.lateral? .08:0));
-        const observationUtility=clamp(.36+protection*.24+(variant.lateral?.08:0));
-        slots.push({
-          id:`directional_cover:${sourceId}:rear_${variant.id}`,
-          sourceObjectId:sourceId,sourceType:obstacle.type??"cover",point,
-          obstacle:{x:obstacle.x,y:obstacle.y,radius},threatPoint:{x:threatPoint.x,y:threatPoint.y},
-          protectedDirection:Math.atan2(threatPoint.y-point.y,threatPoint.x-point.x),capacity:1,variant:variant.id,
-          utility:{protection,exposure:clamp(1-protection),firing:firingUtility,observation:observationUtility,cohesion:travelUtility}
-        });
+        const protection=protectionFor({obstacle,point,threatPoint});if(protection<minimumProtection)continue;
+        const cohesionDistance=distance(point,center);const threatDistance=distance(point,threatPoint);const travelUtility=clamp(1-cohesionDistance/Math.max(1,maximumCoverDistance));const firingUtility=clamp(.30+protection*.32+Math.min(1,threatDistance/900)*.12+(variant.lateral? .08:0));const observationUtility=clamp(.36+protection*.24+(variant.lateral?.08:0));
+        slots.push({id:`directional_cover:${sourceId}:rear_${variant.id}`,sourceObjectId:sourceId,sourceType:obstacle.type??"cover",point,obstacle:{x:obstacle.x,y:obstacle.y,radius},threatPoint:{x:threatPoint.x,y:threatPoint.y},protectedDirection:Math.atan2(threatPoint.y-point.y,threatPoint.x-point.x),capacity:1,variant:variant.id,utility:{protection,exposure:clamp(1-protection),firing:firingUtility,observation:observationUtility,cohesion:travelUtility}});
       }
     }
-
-    return slots.sort((a,b)=>{
-      const aScore=a.utility.protection*.48+a.utility.firing*.18+a.utility.observation*.14+a.utility.cohesion*.20;
-      const bScore=b.utility.protection*.48+b.utility.firing*.18+b.utility.observation*.14+b.utility.cohesion*.20;
-      return bScore-aScore||a.point.x-b.point.x||a.point.y-b.point.y;
-    });
+    return slots.sort((a,b)=>{const aScore=a.utility.protection*.48+a.utility.firing*.18+a.utility.observation*.14+a.utility.cohesion*.20;const bScore=b.utility.protection*.48+b.utility.firing*.18+b.utility.observation*.14+b.utility.cohesion*.20;return bScore-aScore||a.point.x-b.point.x||a.point.y-b.point.y;});
   }
 
   scoreForRole(slot,{roleId,actor,teamActors=[],policy={}}={}){
-    const center=teamCenter(teamActors);
-    const travel=actor?distance(actor,slot.point):0;
-    const maximumTravel=Math.max(1,policy.maximumTravel??520);
-    const travelScore=clamp(1-travel/maximumTravel);
-    const cohesionScore=clamp(1-distance(slot.point,center)/Math.max(1,policy.maximumCohesionDistance??560));
-    const reserve=roleId==="mobile_reserve";
-    const anchor=roleId==="security_anchor";
-    return(
-      slot.utility.protection*(reserve ? .48 : .40)+
-      slot.utility.firing*(anchor ? .24 : reserve ? .08 : .18)+
-      slot.utility.observation*(anchor ? .16 : reserve ? .08 : .14)+
-      cohesionScore*(reserve ? .20 : .10)+
-      travelScore*.10
-    );
+    const center=teamCenter(teamActors);const travel=actor?distance(actor,slot.point):0;const maximumTravel=Math.max(1,policy.maximumTravel??520);const travelScore=clamp(1-travel/maximumTravel);const cohesionScore=clamp(1-distance(slot.point,center)/Math.max(1,policy.maximumCohesionDistance??560));const reserve=roleId==="mobile_reserve";const anchor=roleId==="security_anchor";
+    return slot.utility.protection*(reserve?.48:.40)+slot.utility.firing*(anchor?.24:reserve?.08:.18)+slot.utility.observation*(anchor?.16:reserve?.08:.14)+cohesionScore*(reserve?.20:.10)+travelScore*.10;
   }
 
   findBestSlot({game,actor,roleId,threatPoint,teamActors=[],policy={},claims=null,now=0}={}){
-    const candidates=this.buildSlots({game,threatPoint,teamActors,policy})
-      .filter(slot=>!claims?.isClaimed?.(slot.id,{excludingActorId:actor?.id,now}))
-      .map(slot=>({...slot,score:this.scoreForRole(slot,{roleId,actor,teamActors,policy})}))
-      .sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
+    const candidates=this.buildSlots({game,threatPoint,teamActors,policy}).filter(slot=>!claims?.isClaimed?.(slot.id,{excludingActorId:actor?.id,now})).map(slot=>({...slot,score:this.scoreForRole(slot,{roleId,actor,teamActors,policy})})).sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
     return{best:candidates[0]??null,candidates};
+  }
+
+  protectionAt({game,point,threatPoint}={}){
+    if(!point||!threatPoint)return{protected:false,protection:0,sourceObjectId:null,sourceType:null};
+    let best={protected:false,protection:0,sourceObjectId:null,sourceType:null};
+    for(const [index,obstacle] of (game?.map?.obstacles??[]).entries()){
+      const protection=protectionFor({obstacle,point,threatPoint});
+      if(protection<=best.protection)continue;
+      best={protected:protection>=.38,protection,sourceObjectId:obstacleId(obstacle,index),sourceType:obstacle.type??"cover"};
+    }
+    return best;
   }
 
   isSlotValid({game,slot,threatPoint,policy={}}={}){
     if(!slot||!threatPoint)return{valid:false,reason:"missing_slot_or_threat"};
-    const obstacle=(game?.map?.obstacles??[]).find((candidate,index)=>obstacleId(candidate,index)===slot.sourceObjectId);
-    if(!obstacle)return{valid:false,reason:"cover_source_missing"};
-    const protection=protectionFor({obstacle,point:slot.point,threatPoint});
-    const minimumProtection=clamp(policy.minimumProtection??.72);
-    return{
-      valid:protection>=minimumProtection,
-      reason:protection>=minimumProtection?"directional_protection_remains_valid":"threat_direction_defeats_cover",
-      protection
-    };
+    const obstacle=(game?.map?.obstacles??[]).find((candidate,index)=>obstacleId(candidate,index)===slot.sourceObjectId);if(!obstacle)return{valid:false,reason:"cover_source_missing"};
+    const protection=protectionFor({obstacle,point:slot.point,threatPoint});const minimumProtection=clamp(policy.minimumProtection??.72);
+    return{valid:protection>=minimumProtection,reason:protection>=minimumProtection?"directional_protection_remains_valid":"threat_direction_defeats_cover",protection};
   }
 }
