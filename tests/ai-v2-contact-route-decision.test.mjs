@@ -162,16 +162,16 @@ test("unchanged access contest falls back to right-of-way yield",()=>{
   assert.equal(state.summary()[0].mode,"yield");
 });
 
-test("meaningful route progress resets the contact decision liveness timer",()=>{
+test("meaningful strategic route progress resets the contact decision liveness timer",()=>{
   const {game,actors}=routeGame({bPos:{x:300,y:0}});
   const hostileA=spatial({relationship:"hostile"}),hostileB=spatial({observerTeamId:"B",subjectTeamId:"A",relationship:"hostile"});
   const records=[response("A","engage_contact"),response("B","engage_contact")],encounters=[encounter("A",hostileA),encounter("B",hostileB)];
   const {teamResponses,teamEncounters}=stores(records,encounters);
   const state=new ContactRouteDecisionState({stalemateAfter:8});state.update({game,teamResponses,teamEncounters,now:0});
-  actors[0].x+=80;
+  actors[0].aiV2RouteIntent={strategicProgress:.05};
   state.update({game,teamResponses,teamEncounters,now:6});
   state.update({game,teamResponses,teamEncounters,now:9});
-  assert.equal(state.summary()[0].mode,"engage","real spatial change proves the engagement is not yet a route stalemate");
+  assert.equal(state.summary()[0].mode,"engage","real strategic progress proves the route-level encounter is not yet a stalemate");
 });
 
 test("when contact ceases to be materially relevant the pair decision disappears and route suspension clears",()=>{
