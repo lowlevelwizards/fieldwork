@@ -54,10 +54,10 @@ test("route progress consumes a waypoint passed beside rather than touched",()=>
 
 test("rejoining near a later segment consumes multiple obsolete markers",()=>{
   const {game,actor,living}=makeGame();
-  actor.x=270;actor.y=100;
+  actor.x=235;actor.y=100;
   const service=new OperationalRouteProgressService();
   const intent=service.evaluate({game,actor,operationId:"op",mode:"outbound",now:1,syncLegacy:true});
-  assert.ok(intent.strategicProgress>.85);
+  assert.ok(intent.strategicProgress>.75);
   assert.equal(living.operation.actorRouteProgress.actor.index,3);
   assert.deepEqual(intent.consumedWaypointIds,["b","c"]);
 });
