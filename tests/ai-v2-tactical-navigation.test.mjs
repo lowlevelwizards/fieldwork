@@ -30,6 +30,7 @@ test("local path continuity prevents immediate left-right oscillation",()=>{
   const second=Math.sign(a.aiV2Steering.selected.angleDegrees);
   assert.notEqual(first,0);
   assert.equal(second,first);
+  assert.ok(a.aiV2Steering.selected.factors.continuity>.8);
 });
 
 test("predicted friendly congestion bends an actor away from a teammate occupying the direct line",()=>{
