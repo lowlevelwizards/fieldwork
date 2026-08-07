@@ -47,22 +47,25 @@ export class ContactResolutionRuntime{
    actor.aiV2ContactIntent=null;
    const routeDirection=normalized(directive.routeDirection??{x:1,y:0});
    const perpendicular={x:-routeDirection.y,y:routeDirection.x};
-   const side=directive.side>=0?1:-1;
-   const lateral=(String(actor.id).localeCompare(String((game.actors??[]).filter(item=>item.teamId===actor.teamId)[0]?.id??actor.id)))*28;
+   const teamActors=(game.actors??[]).filter(item=>item.teamId===actor.teamId&&!item.medical?.dead&&!item.medical?.unconscious).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+   const actorIndex=Math.max(0,teamActors.findIndex(item=>item.id===actor.id));
+   const lane=(actorIndex-(teamActors.length-1)/2)*34;
    let mode="contest",destination=null,reason="";
    if(directive.routeMode==="contest"){
-    const conflict=directive.conflictPoint??directive.contactCenter??actor;
-    const standoff=Math.max(170,Math.min(320,(directive.minimumSeparation??240)*.68));
-    const away=directive.contactCenter?normalized({x:conflict.x-directive.contactCenter.x,y:conflict.y-directive.contactCenter.y}):{x:-routeDirection.y,y:routeDirection.x};
-    destination={x:conflict.x+away.x*standoff+perpendicular.x*side*lateral,y:conflict.y+away.y*standoff+perpendicular.y*side*lateral};
-    reason="The pair-level route decision says access itself is unresolved; occupy a bounded contest position while normal operation travel remains suspended.";
+    const anchor=directive.contestPoint??directive.conflictPoint??directive.contactCenter;
+    if(anchor)destination={x:anchor.x+perpendicular.x*lane,y:anchor.y+perpendicular.y*lane};
+    reason="The pair-level route decision says access itself is unresolved; occupy a stable bounded contest position while normal operation travel remains suspended.";
    }else if(directive.routeMode==="withdraw"){
     mode="avoid";
-    const contact=directive.contactCenter??directive.conflictPoint??actor;
-    const away=normalized({x:actor.x-contact.x,y:actor.y-contact.y});
-    const retreat=Math.max(300,Number(directive.clearance)||340);
-    destination={x:actor.x+away.x*retreat+perpendicular.x*side*70,y:actor.y+away.y*retreat+perpendicular.y*side*70};
-    reason=directive.recoveryFrom?"The prior contact-route decision reached a stalemate; create real separation before choosing another route relationship.":"The governing contact-route decision requires withdrawal before mission travel can resume.";
+    const anchor=directive.withdrawPoint;
+    if(anchor)destination={x:anchor.x+perpendicular.x*lane,y:anchor.y+perpendicular.y*lane};
+    if(!destination){
+      const contact=directive.contactCenter??directive.conflictPoint??actor;
+      const away=normalized({x:actor.x-contact.x,y:actor.y-contact.y});
+      const retreat=Math.max(300,Number(directive.clearance)||340);
+      destination={x:actor.x+away.x*retreat+perpendicular.x*lane,y:actor.y+away.y*retreat+perpendicular.y*lane};
+    }
+    reason=directive.recoveryFrom?"The prior contact-route decision reached a stalemate; create real separation toward the fixed recovery anchor before choosing another route relationship.":"The governing contact-route decision requires movement toward a fixed withdrawal anchor before mission travel can resume.";
    }
    if(!destination)continue;
    const action=new CircumventContactAction({actorId:actor.id,directive:{mode,destination,focus:directive.contactCenter??directive.conflictPoint,initialDistance:distance(actor,destination),reason,holdDuration:directive.routeMode==="contest"?3.5:0,provenance:{owner:"contact_resolution_runtime",source:"contact_route_decision",responseId:response?.selected?.id??null,subjectTeamId:encounter.subjectTeamId,pairKey:directive.pairKey,routeMode:directive.routeMode}}});
