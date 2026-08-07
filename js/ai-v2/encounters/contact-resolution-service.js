@@ -123,7 +123,10 @@ export class ContactResolutionService{
     const operationConflict=Boolean(ownOperation?.id&&otherOperation?.id&&(ownOperation.contestedByOperationId===otherOperation.id||otherOperation.contestedByOperationId===ownOperation.id));
     const route=routeConflictAssessment(ownRoute,otherRoute,separation);
     const hostile=relationship==="hostile"||operationConflict;
-    const protectedFriendly=["own_team","same_faction","cooperating","deconflicting"].includes(relationship);
+    // Same-faction/cooperating teams are fully protected from contact-route conflict.
+    // A deconflicting/pass-through relationship is different: it is fire-safe,
+    // but it still requires physical spacing when the routes actually overlap.
+    const protectedFriendly=["own_team","same_faction","cooperating"].includes(relationship);
     const key=[observerTeamId,subjectTeamId].sort().join("::");
     const prior=this.byPair.get(key);
     const releaseDistance=hostile?1050:objectiveConflict?900:620;
