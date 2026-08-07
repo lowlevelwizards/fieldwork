@@ -3,12 +3,17 @@ const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 const ROUTE_LOOKAHEAD=920;
 const ROUTE_CLEARANCE=220;
 const NOMINAL_ROUTE_SPEED=88;
+const DIRECTION_VECTORS=Object.freeze({
+  east:{x:1,y:0},northeast:{x:.707,y:-.707},north:{x:0,y:-1},northwest:{x:-.707,y:-.707},
+  west:{x:-1,y:0},southwest:{x:-.707,y:.707},south:{x:0,y:1},southeast:{x:.707,y:.707}
+});
 
 function activeActors(game,teamId){return (game?.actors??[]).filter(actor=>actor.teamId===teamId&&!actor.medical?.dead&&!actor.medical?.unconscious);}
 function center(actors){if(!actors.length)return null;return{x:actors.reduce((s,a)=>s+a.x,0)/actors.length,y:actors.reduce((s,a)=>s+a.y,0)/actors.length};}
 function radius(actors,c){return actors.reduce((m,a)=>Math.max(m,distance(a,c)+(a.radius??18)),0);}
 function operationFor(game,actors){const id=actors.find(a=>a.operationId)?.operationId;return id?game?.livingSandbox?.getOperation?.(id)??null:null;}
 function normalized(from,to){const x=(to?.x??0)-(from?.x??0),y=(to?.y??0)-(from?.y??0),l=Math.hypot(x,y)||1;return{x:x/l,y:y/l};}
+function movementVector(label){return DIRECTION_VECTORS[String(label??"").toLowerCase()]??{x:0,y:0};}
 
 function routeForTeam(game,actors,teamCenter){
   const operation=operationFor(game,actors);
@@ -102,6 +107,46 @@ function routeConflictAssessment(ownRoute,otherRoute,separation){
   };
 }
 
+function believedContact(subjectEstimate){
+  if(!subjectEstimate?.position)return null;
+  const confidence=clamp(Number(subjectEstimate.confidence??.5));
+  const age=Math.max(0,Number(subjectEstimate.age)||0);
+  const direction=movementVector(subjectEstimate.movementDirection);
+  const speed=clamp(Number(subjectEstimate.estimatedSpeed)||0,0,105);
+  const predictionTime=Math.min(3.2,age);
+  const predictionScale=confidence*(1-clamp(age/12)*.45);
+  const center={
+    x:subjectEstimate.position.x+direction.x*speed*predictionTime*predictionScale,
+    y:subjectEstimate.position.y+direction.y*speed*predictionTime*predictionScale
+  };
+  const uncertaintyRadius=clamp(Number(subjectEstimate.uncertaintyRadius)||(48+age*28+(1-confidence)*145),42,360);
+  return{center,confidence,age,direction,speed,uncertaintyRadius,objectiveId:subjectEstimate.objectiveId??null};
+}
+function routeConflictAgainstBelief(ownRoute,belief,separation){
+  const segments=polylineSegments(ownRoute.points);
+  if(!segments.length)return{routeConflict:separation<380,severity:separation<380?.55:0,conflictPoint:null,routeDistance:null,otherRouteDistance:null,etaGap:null,parallelMovement:false,headOn:false,crossingMovement:false};
+  let best=null;
+  for(const segment of segments){
+    const projected=projectPointToSegment(belief.center,segment.from,segment.to);
+    const along=segment.along+distance(segment.from,projected.point);
+    if(!best||projected.distance<best.distance)best={distance:projected.distance,point:projected.point,along};
+  }
+  const influenceRadius=ROUTE_CLEARANCE+belief.uncertaintyRadius;
+  const routeConflict=best.along<=ROUTE_LOOKAHEAD&&best.distance<=influenceRadius;
+  const effectiveClearance=Math.max(0,best.distance-belief.uncertaintyRadius);
+  const proximityTerm=1-clamp(effectiveClearance/ROUTE_CLEARANCE);
+  const distanceTerm=1-clamp(best.along/ROUTE_LOOKAHEAD);
+  const certaintyTerm=.35+.65*belief.confidence;
+  const severity=routeConflict?clamp((proximityTerm*.56+distanceTerm*.24+certaintyTerm*.20)*(belief.confidence>.2?1:.72)):0;
+  const dot=ownRoute.direction.x*belief.direction.x+ownRoute.direction.y*belief.direction.y;
+  const moving=belief.speed>12;
+  return{
+    routeConflict,severity,conflictPoint:{...best.point},routeDistance:best.along,otherRouteDistance:null,etaGap:null,
+    parallelMovement:moving&&dot>.68,headOn:moving&&dot<-.55,crossingMovement:moving&&Math.abs(dot)<.68,
+    contactUncertaintyRadius:belief.uncertaintyRadius,contactConfidence:belief.confidence
+  };
+}
+
 function teamMotion(actors){
   const moving=actors.filter(a=>Math.hypot(a.vx??0,a.vy??0)>.02);
   if(!moving.length)return{x:0,y:0};
@@ -111,21 +156,28 @@ function teamMotion(actors){
 
 export class ContactResolutionService{
   constructor({decisionLog=null}={}){this.decisionLog=decisionLog;this.byPair=new Map();}
-  assess({game,observerTeamId,subjectTeamId,relationship="unknown",now=0}={}){
+  assess({game,observerTeamId,subjectTeamId,relationship="unknown",subjectEstimate=null,now=0}={}){
     if(!observerTeamId||!subjectTeamId||observerTeamId===subjectTeamId)return null;
-    const ownActors=activeActors(game,observerTeamId),otherActors=activeActors(game,subjectTeamId);
-    const ownCenter=center(ownActors),otherCenter=center(otherActors);if(!ownCenter||!otherCenter)return null;
-    const ownRadius=radius(ownActors,ownCenter),otherRadius=radius(otherActors,otherCenter);
+    const ownActors=activeActors(game,observerTeamId),actualOtherActors=activeActors(game,subjectTeamId);
+    const ownCenter=center(ownActors);if(!ownCenter)return null;
+    const ownRadius=radius(ownActors,ownCenter);
+    const ownRoute=routeForTeam(game,ownActors,ownCenter);
+    const belief=believedContact(subjectEstimate);
+    const actualOtherCenter=center(actualOtherActors);
+    const otherCenter=belief?.center??actualOtherCenter;if(!otherCenter)return null;
+    const otherRadius=belief?Math.max(48,belief.uncertaintyRadius*.55):radius(actualOtherActors,actualOtherCenter);
     const separation=Math.max(0,distance(ownCenter,otherCenter)-ownRadius-otherRadius);
-    const ownRoute=routeForTeam(game,ownActors,ownCenter),otherRoute=routeForTeam(game,otherActors,otherCenter);
-    const ownOperation=ownRoute.operation,otherOperation=otherRoute.operation;
-    const objectiveConflict=Boolean(ownOperation?.objectiveId&&ownOperation.objectiveId===otherOperation?.objectiveId);
-    const operationConflict=Boolean(ownOperation?.id&&otherOperation?.id&&(ownOperation.contestedByOperationId===otherOperation.id||otherOperation.contestedByOperationId===ownOperation.id));
-    const route=routeConflictAssessment(ownRoute,otherRoute,separation);
+    const otherRoute=belief?null:routeForTeam(game,actualOtherActors,otherCenter);
+    const ownOperation=ownRoute.operation,otherOperation=otherRoute?.operation??null;
+    const subjectObjectiveId=belief?.objectiveId??otherOperation?.objectiveId??null;
+    const objectiveConflict=Boolean(ownOperation?.objectiveId&&subjectObjectiveId&&ownOperation.objectiveId===subjectObjectiveId);
+    const operationConflict=Boolean(!belief&&ownOperation?.id&&otherOperation?.id&&(ownOperation.contestedByOperationId===otherOperation.id||otherOperation.contestedByOperationId===ownOperation.id));
+    const route=belief?routeConflictAgainstBelief(ownRoute,belief,separation):routeConflictAssessment(ownRoute,otherRoute,separation);
     const hostile=relationship==="hostile"||operationConflict;
     // Same-faction/cooperating teams are fully protected from contact-route conflict.
     // A deconflicting/pass-through relationship is different: it is fire-safe,
-    // but it still requires physical spacing when the routes actually overlap.
+    // but it still requires physical spacing when the believed contact region
+    // actually overlaps the intended route.
     const protectedFriendly=["own_team","same_faction","cooperating"].includes(relationship);
     const key=[observerTeamId,subjectTeamId].sort().join("::");
     const prior=this.byPair.get(key);
@@ -138,19 +190,20 @@ export class ContactResolutionService{
       (Boolean(prior?.materiallyRelevant)&&separation<releaseDistance&&(route.routeConflict||localConflict||objectiveConflict||hostile))
     );
     const kind=hostile&&(route.routeConflict||localConflict||objectiveConflict)?"engage":objectiveConflict?"contest":materiallyRelevant?"avoid":"observe";
-    const ownMotion=teamMotion(ownActors),otherMotion=teamMotion(otherActors);
+    const ownMotion=teamMotion(ownActors),otherMotion=belief?{...belief.direction}:teamMotion(actualOtherActors);
     const record={
       key,observerTeamId,subjectTeamId,relationship:hostile?"hostile":relationship,separation,
       ownCenter,otherCenter,ownRadius,otherRadius,
       routeConflict:route.routeConflict,routeConflictSeverity:route.severity,conflictPoint:route.conflictPoint,
       routeDistanceToConflict:route.routeDistance,otherRouteDistanceToConflict:route.otherRouteDistance,routeEtaGap:route.etaGap,
       parallelMovement:route.parallelMovement,headOnMovement:route.headOn,crossingMovement:route.crossingMovement,
-      ownRouteDirection:{...ownRoute.direction},otherRouteDirection:{...otherRoute.direction},ownRouteMode:ownRoute.mode,otherRouteMode:otherRoute.mode,
+      ownRouteDirection:{...ownRoute.direction},otherRouteDirection:otherRoute?{...otherRoute.direction}:{...otherMotion},ownRouteMode:ownRoute.mode,otherRouteMode:otherRoute?.mode??null,
       ownMotion,otherMotion,objectiveConflict,operationConflict,mutualAwareness:true,materiallyRelevant,kind,
-      minimumSeparation:Math.max(170,ownRadius+otherRadius+90),contactRegionRadius:Math.max(150,otherRadius+110),assessedAt:now
+      minimumSeparation:Math.max(170,ownRadius+Math.min(otherRadius,140)+90),contactRegionRadius:belief?belief.uncertaintyRadius:Math.max(150,otherRadius+110),
+      contactConfidence:belief?.confidence??1,contactUncertaintyRadius:belief?.uncertaintyRadius??Math.max(40,otherRadius),evidenceBound:Boolean(belief),assessedAt:now
     };
     this.byPair.set(key,record);
-    if(materiallyRelevant&&(!prior||prior.kind!==kind||prior.routeConflict!==route.routeConflict))this.decisionLog?.record?.({type:"team_contact_resolution_required",time:now,teamId:observerTeamId,data:{subjectTeamId,relationship,kind,separation:Math.round(separation),routeConflict:route.routeConflict,routeConflictSeverity:Number(route.severity.toFixed(2)),objectiveConflict}});
+    if(materiallyRelevant&&(!prior||prior.kind!==kind||prior.routeConflict!==route.routeConflict))this.decisionLog?.record?.({type:"team_contact_resolution_required",time:now,teamId:observerTeamId,data:{subjectTeamId,relationship,kind,separation:Math.round(separation),routeConflict:route.routeConflict,routeConflictSeverity:Number(route.severity.toFixed(2)),objectiveConflict,evidenceBound:Boolean(belief)}});
     return{...record,ownCenter:{...ownCenter},otherCenter:{...otherCenter},conflictPoint:record.conflictPoint?{...record.conflictPoint}:null,ownRouteDirection:{...record.ownRouteDirection},otherRouteDirection:{...record.otherRouteDirection}};
   }
   get(teamAId,teamBId){const item=this.byPair.get([teamAId,teamBId].sort().join("::"));return item?{...item,ownCenter:{...item.ownCenter},otherCenter:{...item.otherCenter},conflictPoint:item.conflictPoint?{...item.conflictPoint}:null,ownRouteDirection:{...item.ownRouteDirection},otherRouteDirection:{...item.otherRouteDirection}}:null;}
