@@ -7,7 +7,7 @@ function normalized(vector){const l=Math.hypot(vector?.x??0,vector?.y??0)||1;ret
 export class ContactResolutionRuntime{
  constructor({scheduler,brain=null,arbiter=null,decisionLog=null,routeDecisions=null}={}){
   this.scheduler=scheduler;this.brain=brain??arbiter;this.decisionLog=decisionLog;this.assignments=new Map();
-  this.routeDecisions=routeDecisions??new ContactRouteDecisionState({decisionLog});
+  this.routeDecisions=routeDecisions??new ContactRouteDecisionState({decisionLog,recoveryHold:9});
  }
  update({game,teamResponses,teamEncounters,teamProcedures=null,now=0}={}){
   if(game?.scenarioMode!=="live")return;
