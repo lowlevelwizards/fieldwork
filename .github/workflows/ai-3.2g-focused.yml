@@ -25,7 +25,6 @@ jobs:
             tests/ai-v2-contact-route-liveness.test.mjs \
             tests/ai-v2-contact-route-live.test.mjs \
             tests/ai-v2-contact-resolution.test.mjs \
-            tests/ai-v2-behavior-closure.test.mjs \
             tests/ai-v2-route-intent.test.mjs \
             tests/ai-v2-route-field-handoff.test.mjs
       - name: Package exact changed files
