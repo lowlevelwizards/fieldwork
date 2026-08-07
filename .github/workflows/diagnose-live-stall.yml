@@ -1,0 +1,20 @@
+name: Diagnose live stall
+
+on:
+  push:
+    branches:
+      - agent/ai-3.2f-live-stall-diagnostic
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run live stall diagnostic
+        run: node tools/diagnose-live-stall.mjs
