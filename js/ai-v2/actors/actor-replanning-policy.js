@@ -1,3 +1,5 @@
+import { AIV2Action } from "../actions/action.js";
+
 export const REPLAN_DECISIONS=Object.freeze({
   PRESERVE:"preserve",
   AMEND:"amend",
@@ -9,6 +11,7 @@ const utilityOf=(action,context)=>Number(action?.continuationUtility?.(context)?
 const urgencyOf=action=>Number(action?.metadata?.actorBrainPlan?.urgency??0)||0;
 const point=value=>value&&Number.isFinite(Number(value.x))&&Number.isFinite(Number(value.y))?{x:Number(value.x),y:Number(value.y)}:null;
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
+const supportsAmend=action=>typeof action?.amendFrom==="function"&&action.amendFrom!==AIV2Action.prototype.amendFrom;
 
 function directiveSignature(action){
   const directive=action?.directive??action?.metadata?.directive??{};
@@ -102,7 +105,7 @@ export class ActorReplanningPolicy{
 
     if(sameType){
       if(!directiveChanged(candidate.action,incumbent))return{decision:REPLAN_DECISIONS.PRESERVE,reason:"equivalent_same_type_incumbent",effectiveMargin:margin,effectiveChallenger,...common};
-      if(typeof incumbent.amendFrom==="function"&&effectiveChallenger>=incumbentUtility-Math.max(.025,margin*.35)){
+      if(supportsAmend(incumbent)&&effectiveChallenger>=incumbentUtility-Math.max(.025,margin*.35)){
         return{decision:REPLAN_DECISIONS.AMEND,reason:changed?"material_same_type_update":"same_type_update_within_continuity_band",effectiveMargin:margin,effectiveChallenger,...common};
       }
     }
