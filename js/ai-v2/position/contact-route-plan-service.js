@@ -1,7 +1,6 @@
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 function normalized(vector){const l=Math.hypot(vector?.x??0,vector?.y??0)||1;return{x:(vector?.x??0)/l,y:(vector?.y??0)/l};}
-function clonePoint(point){return point?{x:Number(point.x)||0,y:Number(point.y)||0}:null;}
 
 export class ContactRoutePlanService{
   apply({actor,baseDestination,routeIntent,decision}={}){
@@ -30,12 +29,16 @@ export class ContactRoutePlanService{
       };
       reason=`Stable ${side<0?"left":"right"}-side bypass around the contact region overlays the original operation corridor.`;
     }else if(decision.routeMode==="yield"){
-      const retreat=Math.max(120,Math.min(210,clearance*.48));
-      destination={
-        x:actor.x-routeDirection.x*retreat+perpendicular.x*side*Math.min(120,clearance*.28),
-        y:actor.y-routeDirection.y*retreat+perpendicular.y*side*Math.min(120,clearance*.28)
-      };
-      reason=`Temporary yield pocket gives the priority team room to clear the route conflict before this operation resumes.`;
+      if(decision.yieldPoint){
+        destination={...decision.yieldPoint};
+      }else{
+        const retreat=Math.max(120,Math.min(210,clearance*.48));
+        destination={
+          x:actor.x-routeDirection.x*retreat+perpendicular.x*side*Math.min(120,clearance*.28),
+          y:actor.y-routeDirection.y*retreat+perpendicular.y*side*Math.min(120,clearance*.28)
+        };
+      }
+      reason=`Temporary fixed yield pocket gives the priority team room to clear the route conflict before this operation resumes.`;
     }else if(decision.routeMode==="shadow"){
       const offset=Math.max(170,Math.min(270,clearance*.72));
       destination={x:baseDestination.x+perpendicular.x*side*offset,y:baseDestination.y+perpendicular.y*side*offset};
