@@ -53,4 +53,5 @@ export class ConcernFulfillmentRuntime{
 
   get(actorId){return(this.byActor.get(actorId)??[]).map(item=>({...item,intent:{...item.intent,goal:item.intent.goal?{...item.intent.goal}:null,focus:item.intent.focus?{...item.intent.focus}:null,region:item.intent.region?{...item.intent.region,center:{...item.intent.region.center}}:null}}));}
   summary(){return[...this.byActor.entries()].flatMap(([actorId,entries])=>entries.map(item=>({actorId,assignmentId:item.assignmentId,obligationId:item.obligationId??null,concernId:item.concernId,responsibility:item.responsibility,satisfied:item.satisfied,proceduralInteraction:item.proceduralInteraction,desiredEffectOwnedElsewhere:item.desiredEffectOwnedElsewhere,intentId:item.intent.id,regionType:item.intent.region?.type??null})));
+  }
 }
