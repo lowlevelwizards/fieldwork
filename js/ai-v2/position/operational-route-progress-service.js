@@ -103,7 +103,11 @@ export class OperationalRouteProgressService{
       terminalDistance<=this.terminalRadius||
       finalSegment&&projection.segmentIndex===finalSegment.index&&projection.rawT>=.96&&projection.crossTrack<=this.preferredCorridor*1.2
     );
-    if(terminalReady&&route.total>0&&projection.segmentIndex===route.segments.length-1&&projection.rawT>=.96){strategicDistance=route.total;strategicProgress=1;}
+    // Terminal readiness is the causal ownership handoff from strategic travel
+    // to local field work. Reaching the broad terminal region proves the route
+    // effect has been fulfilled even if the actor did not trace the final
+    // mathematical segment closely enough to satisfy the old marker geometry.
+    if(terminalReady){strategicDistance=route.total;strategicProgress=1;}
 
     let currentStatus=status;
     const consumedWaypointIds=[];
