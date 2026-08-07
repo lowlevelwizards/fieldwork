@@ -1,3 +1,5 @@
+import { TacticalContactBeliefService } from "./tactical-contact-belief-service.js";
+
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 
@@ -11,12 +13,25 @@ function suppressionState(value){
 }
 
 function clonePoint(point){return point?{x:point.x,y:point.y}:null;}
+function beliefAsThreat(belief){
+  if(!belief)return null;
+  return{
+    id:belief.id,subjectId:belief.subjectId,subjectTeamId:belief.subjectTeamId,relationship:belief.relationship,
+    identity:belief.identity,factionId:belief.factionId,confidence:belief.confidencePercent,
+    approximatePosition:clonePoint(belief.center),currentlyVisible:Boolean(belief.currentlyVisible),
+    lastObservedAt:belief.lastConfirmedAt,distance:null,activity:belief.activity,state:belief.state,
+    tacticalSalience:belief.tacticalSalience,uncertaintyRadius:belief.uncertaintyRadius,
+    spatialPrecision:belief.spatialPrecision,evidenceKinds:[...(belief.evidenceKinds??[])],
+    track:{movementDirection:belief.motion?.direction??"unknown",estimatedSpeed:belief.motion?.speed??0,intentHypothesis:belief.intentHypothesis?{...belief.intentHypothesis}:null}
+  };
+}
 
 export class ActorTacticalPictureService{
-  constructor({directionalCover,firingEdges=null,positionSlots=null,decisionLog=null}={}){
+  constructor({directionalCover,firingEdges=null,positionSlots=null,contactBeliefs=null,decisionLog=null}={}){
     this.directionalCover=directionalCover;
     this.firingEdges=firingEdges;
     this.positionSlots=positionSlots;
+    this.contactBeliefs=contactBeliefs??new TacticalContactBeliefService();
     this.decisionLog=decisionLog;
     this.byActor=new Map();
   }
@@ -29,12 +44,22 @@ export class ActorTacticalPictureService{
       const personal=(personalKnowledge?.getContacts?.(actor.id)??[]).filter(contact=>contact.relationship!=="same_faction");
       const liveClosure=game?.scenarioMode==="live"&&Boolean(game?.livingSandbox?.liveMode);
       const visibleThreats=personal.filter(contact=>contact.currentlyVisible&&contact.subjectTeamId&&(contact.confidence>=24||liveClosure&&Number(contact.distance??999)<=280&&contact.confidence>=10));
-      const recentThreats=personal.filter(contact=>!contact.currentlyVisible&&now-(contact.lastObservedAt??0)<=4.5&&contact.confidence>=20);
       const incoming=threatKnowledge?.getThreats?.(actor.id)??[];
-      const bestThreat=incoming[0]??visibleThreats[0]??recentThreats[0]??null;
-      const threatPoint=clonePoint(bestThreat?.approximatePosition);
+      const receivedReports=teamKnowledge?.getReceivedContacts?.(actor.id)??[];
+      const contactProjection=this.contactBeliefs.buildForActor({actor,personalContacts:personal,receivedReports,incomingThreats:incoming,now});
+      const contactBeliefs=contactProjection.beliefs??[];
+      const bestBelief=contactProjection.best??null;
+      const contactPressure=clamp(contactProjection.contactPressure??0);
+      const recentThreats=contactBeliefs.filter(item=>!item.currentlyVisible&&item.tacticalSalience>=.12).map(beliefAsThreat);
+      const reportedThreats=contactBeliefs.filter(item=>item.evidenceKinds?.includes("report")).map(beliefAsThreat);
+      const bestThreat=beliefAsThreat(bestBelief);
+      if(bestThreat)bestThreat.distance=distance(actor,bestThreat.approximatePosition);
+      const threatPoint=contactPressure>=.08?clonePoint(bestBelief?.center):null;
+      const threatRegion=contactPressure>=.08&&contactProjection.threatRegion?{
+        ...contactProjection.threatRegion,center:clonePoint(contactProjection.threatRegion.center)
+      }:null;
       const teamActors=(game.actors??[]).filter(candidate=>candidate.teamId===actor.teamId&&!candidate.medical?.dead);
-      const coverSearch=threatPoint?this.directionalCover?.findBestSlot?.({
+      const coverSearch=threatPoint&&contactPressure>=.16?this.directionalCover?.findBestSlot?.({
         game,actor,roleId:"tactical_deliberation",threatPoint,teamActors,
         policy:{maximumCoverDistance:520,maximumTravel:520,minimumProtection:.42,maximumCohesionDistance:780},claims:this.positionSlots,now
       }):null;
@@ -57,11 +82,14 @@ export class ActorTacticalPictureService{
       const securitySupport=clamp(teamActors.filter(candidate=>candidate.id!==actor.id&&!candidate.medical?.unconscious&&distance(actor,candidate)<260&&["ready","aiming","firing"].includes(candidate.pose)).length/2);
       const picture={
         actorId:actor.id,teamId:actor.teamId,updatedAt:now,
+        contactBeliefs:contactBeliefs.map(item=>({...item,center:clonePoint(item.center),motion:{...item.motion},evidenceKinds:[...(item.evidenceKinds??[])]})),
+        bestContactBelief:bestBelief?{...bestBelief,center:clonePoint(bestBelief.center),motion:{...bestBelief.motion},evidenceKinds:[...(bestBelief.evidenceKinds??[])]}:null,
+        contactPressure,threatRegion,
         visibleThreats:visibleThreats.map(contact=>({...contact,approximatePosition:clonePoint(contact.approximatePosition)})),
-        recentThreats:recentThreats.map(contact=>({...contact,approximatePosition:clonePoint(contact.approximatePosition)})),
-        reportedThreats:(teamKnowledge?.getTeamContacts?.(actor.teamId)??[]).filter(contact=>contact.subjectTeamId&&contact.confidence>=28).map(contact=>({...contact,approximatePosition:clonePoint(contact.approximatePosition)})),
+        recentThreats,
+        reportedThreats,
         incomingFire:incoming.map(threat=>({...threat,approximatePosition:clonePoint(threat.approximatePosition)})),
-        bestThreat:bestThreat?{...bestThreat,approximatePosition:clonePoint(bestThreat.approximatePosition)}:null,
+        bestThreat,
         threatPoint,
         suppressionValue:Number(actor.aiV2Suppression??0),suppressionState:suppression,
         woundState:assessment?{...assessment}:null,
@@ -76,7 +104,7 @@ export class ActorTacticalPictureService{
         responsibility:role?{roleId:role.roleId,label:role.label,procedureId:role.procedureId,phaseId:role.phase?.id??null}:null,
         agenda:agenda?{intentId:agenda.intentId,selected:agenda.selected?{...agenda.selected}:null}:null,
         currentDestination:clonePoint(actor.aiV2Reposition?.destination??actor.aiV2OperationalTravel?.destination??null),
-        exposed:Boolean(threatPoint&&!currentCover?.protected),
+        exposed:Boolean(threatPoint&&contactPressure>=.18&&!currentCover?.protected),
         canSelfAid:Boolean(treatmentNeed&&Number(actor.aiV2MedicalSupplies?.[treatmentNeed.type]??0)>0),
         cohesionDistance:nearestFriendly?distance(actor,nearestFriendly):0
       };
@@ -85,12 +113,17 @@ export class ActorTacticalPictureService{
         suppressionState:picture.suppressionState,
         visibleThreatCount:picture.visibleThreats.length,
         rememberedThreatCount:picture.recentThreats.length,
+        contactBeliefCount:picture.contactBeliefs.length,
+        contactState:picture.bestContactBelief?.state??null,
         exposed:picture.exposed,
         bestCoverPoint:clonePoint(picture.bestCover?.point),
         responsibility:picture.responsibility?.label??null,
-        treatmentSafe:Boolean(picture.currentCover?.protected&&!picture.incomingFire.length||!picture.threatPoint),
-        contactPressure:clamp((picture.visibleThreats.length? .58:0)+(picture.incomingFire.length? .42:0)),
-        threatPoint:clonePoint(picture.threatPoint)
+        treatmentSafe:Boolean(picture.currentCover?.protected&&!picture.incomingFire.length||!picture.threatPoint||picture.contactPressure<.14),
+        contactPressure:picture.contactPressure,
+        threatPoint:clonePoint(picture.threatPoint),
+        threatUncertaintyRadius:Number(picture.threatRegion?.uncertaintyRadius??0),
+        threatConfidence:Number(picture.threatRegion?.confidence??0),
+        threatPrecision:Number(picture.threatRegion?.spatialPrecision??0)
       };
     }
     for(const actorId of [...this.byActor.keys()])if(!live.has(actorId))this.byActor.delete(actorId);
@@ -98,16 +131,19 @@ export class ActorTacticalPictureService{
 
   get(actorId){
     const picture=this.byActor.get(actorId);if(!picture)return null;
-    return{...picture,threatPoint:clonePoint(picture.threatPoint),bestCover:picture.bestCover?{...picture.bestCover,point:clonePoint(picture.bestCover.point),utility:{...picture.bestCover.utility}}:null,currentCover:picture.currentCover?{...picture.currentCover}:null};
+    return{
+      ...picture,threatPoint:clonePoint(picture.threatPoint),
+      threatRegion:picture.threatRegion?{...picture.threatRegion,center:clonePoint(picture.threatRegion.center)}:null,
+      contactBeliefs:(picture.contactBeliefs??[]).map(item=>({...item,center:clonePoint(item.center),motion:{...item.motion},evidenceKinds:[...(item.evidenceKinds??[])]})),
+      bestContactBelief:picture.bestContactBelief?{...picture.bestContactBelief,center:clonePoint(picture.bestContactBelief.center),motion:{...picture.bestContactBelief.motion},evidenceKinds:[...(picture.bestContactBelief.evidenceKinds??[])]}:null,
+      bestCover:picture.bestCover?{...picture.bestCover,point:clonePoint(picture.bestCover.point),utility:{...picture.bestCover.utility}}:null,
+      currentCover:picture.currentCover?{...picture.currentCover}:null
+    };
   }
   summary(){return[...this.byActor.keys()].map(actorId=>this.get(actorId));}
 
   #currentCover(game,actor,threatPoint,now=0){
     let best=null;
-    // A completed tactical cover move is a durable world relationship, not a
-    // one-frame destination. Preserve it until the actor leaves it or the threat
-    // direction changes materially so the next frame does not order the same
-    // actor back into the same cover point indefinitely.
     const occupancy=actor.aiV2CoverOccupancy;
     if(occupancy?.status==="protected"&&occupancy.point&&distance(actor,occupancy.point)<=76){
       const threatCompatible=!occupancy.threatPoint||distance(occupancy.threatPoint,threatPoint)<=320;

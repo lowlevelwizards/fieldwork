@@ -36,12 +36,18 @@ export function navigationWeights(intent={},actor=null){
   const kind=intentClass(intent.kind??intent.type??"");
   const base=kind==="default"?BASE:{...BASE,...INTENT_WEIGHTS[kind]};
   const pressure=clamp(actor?.aiV2TacticalPicture?.contactPressure??0);
+  const precision=clamp(actor?.aiV2TacticalPicture?.threatPrecision??(pressure>0?1:0));
   const suppression=String(actor?.aiV2TacticalPicture?.suppressionState??"steady");
   const suppressionBoost=suppression==="breaking"?.45:suppression==="pinned"?.3:suppression==="pressured"?.16:0;
+  // Persistent unseen contact should still shape route choice, but its exact
+  // remembered center becomes a weaker directional constraint as uncertainty
+  // grows. Contact pressure preserves caution; precision controls how sharply
+  // the navigator should bend around one estimated point.
+  const directionalConfidence=pressure>0?.62+precision*.38:1;
   return{
     ...base,
     kind,
-    contactFactor:clamp(pressure+suppressionBoost),
+    contactFactor:clamp((pressure+suppressionBoost)*directionalConfidence),
     threatApproachAllowed:Boolean(intent.allowThreatApproach||intent.closeDistance)
   };
 }
