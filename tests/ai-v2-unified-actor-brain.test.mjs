@@ -52,8 +52,9 @@ test("one actor plan may grant compatible channel intentions together",()=>{
   const {scheduler,brain,context}=setup();
   brain.beginFrame({now:1,context});
   brain.submit({actorId:"actor_1",action:new TestAction({type:"Move",actorId:"actor_1",channels:[ACTION_CHANNELS.LOCOMOTION],utility:.7}),score:.7,authorityTier:ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY,source:"test_move"});
-  brain.submit({actorId:"actor_1",action:new TestAction({type:"Observe",actorId:"actor_1",channels:[ACTION_CHANNELS.ATTENTION],utility:.65}),score:.65,authorityTier:ACTION_AUTHORITY_TIERS.SUPPORTING_CONCERN,source:"test_observe",concernId:"contact:test"});
+  brain.submit({actorId:"actor_1",action:new TestAction({type:"Observe",actorId:"actor_1",channels:[ACTION_CHANNELS.ATTENTION],utility:.65}),score:.65,authorityTier:ACTION_AUTHORITY_TIERS.SUPPORTING_CONCERN,source:"test_observe",concernId:"contact:test",obligationId:"staffed:contact:test:security:0"});
   brain.resolve({now:1,context});
   assert.deepEqual(new Set(scheduler.getActions("actor_1").map(action=>action.type)),new Set(["Move","Observe"]));
   assert.deepEqual(brain.getPlan("actor_1").concernIds,["contact:test"]);
+  assert.deepEqual(brain.getPlan("actor_1").obligationIds,["staffed:contact:test:security:0"]);
 });

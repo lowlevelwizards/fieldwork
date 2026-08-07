@@ -13,7 +13,7 @@ export function getAIV2DebugSummary(runtime){
     const issuingWarnings=scheduler.byType.IssueWarning??0;
     const activityUpdates=runtime.teamKnowledge.activityReportCount();
     const activeEncounterCount=runtime.teamEncounters.summary().reduce((sum,entry)=>sum+entry.hypotheses.filter(item=>item.state!=="stale").length,0);
-    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${recovery} recovering casualty · ${evacuation} evacuating · ${reporting} reporting · ${issuingWarnings} warning · ${runtime.heardCommunications.count()} heard warning(s) · ${runtime.casualtyKnowledge.count()} casualty record(s) · ${runtime.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${runtime.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${runtime.teamResponses.count()} response(s) · ${runtime.teamConcerns?.count?.()??0} concurrent concern(s) · ${runtime.concernStaffing?.summary?.().length??0} staffed concern slot(s) · ${runtime.teamProcedures.count()} procedure(s) · ${runtime.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${runtime.invariants.current.length} invariant issue(s)`;
+    return `${observers} observing · ${ready} holding ready · ${repositioning} repositioning · ${withdrawing} withdrawing · ${recovery} recovering casualty · ${evacuation} evacuating · ${reporting} reporting · ${issuingWarnings} warning · ${runtime.heardCommunications.count()} heard warning(s) · ${runtime.casualtyKnowledge.count()} casualty record(s) · ${runtime.personalKnowledge.count()} private contact(s) · ${visible} visible · ${activityUpdates} activity update(s) · ${runtime.teamKnowledge.reportCount()} shared report(s) · ${activeEncounterCount} mission-relevant encounter(s) · ${runtime.teamResponses.count()} response(s) · ${runtime.teamConcerns?.count?.()??0} concurrent concern(s) · ${runtime.concernStaffing?.summary?.().length??0} staffed concern slot(s) · ${(runtime.actorObligations?.summary?.()??[]).filter(item=>!["resolved","abandoned"].includes(item.status)).length} actor obligation(s) · ${runtime.teamProcedures.count()} procedure(s) · ${runtime.encounterOutcomes.count()} outcome memory(s) · ${scheduler.activeActions} action(s) · ${runtime.invariants.current.length} invariant issue(s)`;
   }
 
 export function getAIV2DebugDetails(runtime){
@@ -84,12 +84,13 @@ export function getAIV2DebugDetails(runtime){
       return `${faction}: ${active.map(concern=>`${stateLabel(concern.kind)} ${Math.round(concern.importance*100)} · ${stateLabel(concern.desiredEffect)}`).join(", ")||"no active concerns"}`;
     }).join(" · ")||"none — concern projection not available";
     const staffing=(runtime.concernStaffing?.summary?.()??[]).map(item=>`${item.actorName}: ${stateLabel(item.responsibility)} → ${stateLabel(item.concernKind)}`).join(" · ")||"none — no concern staffing assignments";
+    const obligations=(runtime.actorObligations?.summary?.()??[]).filter(item=>!["resolved","abandoned"].includes(item.status)).map(item=>`${runtime.game.actors.find(actor=>actor.id===item.actorId)?.name??item.actorId}: ${stateLabel(item.status)} ${stateLabel(item.responsibility)} → ${stateLabel(item.desiredEffect)}`).join(" · ")||"none — no active actor obligations";
     const outcomes=runtime.encounterOutcomes.summary().flatMap(entry=>entry.outcomes.map(outcome=>{
       const faction=runtime.game.actors.find(actor=>actor.teamId===entry.teamId)?.factionId??entry.teamId;
       const followUp=outcome.followUp?` · follow-up ${stateLabel(outcome.followUp)}`:"";
       return `${faction}: ${outcome.label} · ${stateLabel(outcome.status)}${followUp} · ${outcome.summary}`;
     })).join(" · ")||"none — no encounter outcome remembered";
-    return{assignment:actionAssignments,personalKnowledge:contacts,activity,communication,teamKnowledge:shared,encounter:encounters,response:responses,concerns,staffing,procedure:procedures,position:positions,outcome:outcomes};
+    return{assignment:actionAssignments,personalKnowledge:contacts,activity,communication,teamKnowledge:shared,encounter:encounters,response:responses,concerns,staffing,obligations,procedure:procedures,position:positions,outcome:outcomes};
   }
 
 export function updateAIV2ActorDiagnostics(runtime){
@@ -125,6 +126,7 @@ export function updateAIV2ActorDiagnostics(runtime){
       const teamConcerns=runtime.teamConcerns?.getActive?.(actor.teamId)??[];
       const concernAssignments=runtime.concernStaffing?.getActorAssignments?.(actor.id)??[];
       const concernFulfillment=runtime.concernFulfillment?.get?.(actor.id)??[];
+      const actorObligations=runtime.actorObligations?.getActorObligations?.(actor.id)??[];
       if(!observeAction)actor.aiV2Observation=null;
       if(!holdAction)actor.aiV2HoldReady=null;
       actor.aiV2Debug={
@@ -134,6 +136,7 @@ export function updateAIV2ActorDiagnostics(runtime){
         teamConcerns:teamConcerns.map(concern=>({id:concern.id,kind:concern.kind,subjectId:concern.subjectId,importance:concern.importance,urgency:concern.urgency,desiredEffect:concern.desiredEffect,status:concern.status,staffing:concern.staffing?.map(item=>({...item,assignedActorIds:[...(item.assignedActorIds??[])]}))??[]})),
         concernAssignments:concernAssignments.map(item=>({...item,point:item.point?{...item.point}:null})),
         concernFulfillment,
+        actorObligations,
         intentField:actor.aiV2IntentField?{...actor.aiV2IntentField,intent:actor.aiV2IntentField.intent?{...actor.aiV2IntentField.intent,goal:actor.aiV2IntentField.intent.goal?{...actor.aiV2IntentField.intent.goal}:null,region:actor.aiV2IntentField.intent.region?{...actor.aiV2IntentField.intent.region,center:{...actor.aiV2IntentField.intent.region.center}}:null}:null}:null,
         task:roleAction?.reason??assignment?.task??teamMission?.immediateTask??actor.currentTask??null,
         procedure:teamProcedure?.label??assignment?.procedure??null,

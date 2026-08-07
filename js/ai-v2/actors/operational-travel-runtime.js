@@ -52,14 +52,14 @@ export class OperationalTravelRuntime{
           routeMode:status.mode,waypointId:status.waypoint.id,waypointIndex:status.index}
       };
       const action=new FollowOperationRouteAction({actorId:actor.id,directive});
-      const staffedConcern=context?.services?.concernStaffing?.findForActor?.(actor.id,{responsibility:status.mode==="return"?"route_security":null})
-        ??context?.services?.concernStaffing?.getPrimaryForActor?.(actor.id)??null;
+      const staffedConcern=context?.services?.concernStaffing?.findForActor?.(actor.id,{concernKind:status.mode==="return"?"safe_return":"mission_progress"})??null;
+      const obligation=staffedConcern?context?.services?.actorObligations?.findForActor?.(actor.id,{sourceAssignmentId:staffedConcern.id})??null:null;
       this.brain?.submit?.({
         actorId:actor.id,action,score:3,urgency:status.mode==="return"?.58:.44,
         authorityTier:ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY,authorityLabel:"Operation route stage",
         reason,source:"operational_travel_runtime",operationId:actor.operationId,missionId:agenda?.missionId??null,
         governingIntentId:agenda?.intentId??null,procedureId:role?.procedureId??null,roleId:role?.roleId??null,
-        concernId:staffedConcern?.concernId??null,desiredEffect:staffedConcern?.desiredEffect??null
+        concernId:staffedConcern?.concernId??null,obligationId:obligation?.id??null,desiredEffect:staffedConcern?.desiredEffect??null
       });
       this.byActor.set(actor.id,{actorId:actor.id,operationId:actor.operationId,roleId:role?.roleId??null,procedureId:role?.procedureId??null,mode:status.mode,index:status.index,total:status.total,waypointId:status.waypoint.id,waypointLabel:status.waypoint.label,destination:{...destination},reason,lastEvaluatedAt:now});
     }

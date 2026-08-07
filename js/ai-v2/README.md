@@ -1,3 +1,13 @@
+## 3.1G persistent actor obligations
+
+Staffing and personal survival evidence now create durable actor-owned obligations that survive individual atomic actions. Obligations remain accepted, acting, or blocked until their physical source resolves or ownership is reassigned, and their IDs travel through the unified actor brain into active plans. Required hostile contact can therefore displace unchanged mission travel without adding another execution authority.
+
+```text
+world problem → staffed/personal obligation → actor brain → atomic action(s)
+                         ↑                         ↓
+                         └──── persists until physically resolved ────┘
+```
+
 ## 3.1E–F spatial intent fields and concurrent concern staffing
 
 Active team concerns now receive stable capability-based staffing. The assigned actor either binds its existing atomic procedure action to that concern or, when unowned in the live sandbox, can directly propose an actor-sized security intent field through the unified brain. Circle and annulus regions replace generic exact-point choreography while finite cover slots, treatment reach, and physical interactions remain exact hard affordances.
