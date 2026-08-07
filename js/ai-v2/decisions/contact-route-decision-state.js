@@ -86,10 +86,11 @@ function inverseSpatial(spatial){
 }
 
 export class ContactRouteDecisionState{
-  constructor({decisionLog=null,minimumHold=3.2,stalemateAfter=8}={}){
+  constructor({decisionLog=null,minimumHold=3.2,stalemateAfter=8,recoveryHold=5.5}={}){
     this.decisionLog=decisionLog;
     this.minimumHold=Math.max(.5,Number(minimumHold)||3.2);
     this.stalemateAfter=Math.max(3,Number(stalemateAfter)||8);
+    this.recoveryHold=Math.max(this.minimumHold,Number(recoveryHold)||5.5);
     this.byPair=new Map();
   }
 
@@ -139,7 +140,7 @@ export class ContactRouteDecisionState{
     const spatialA=sideA?.spatial??(sideB?.spatial?inverseSpatial(sideB.spatial):null);
     const spatialB=sideB?.spatial??(sideA?.spatial?inverseSpatial(sideA.spatial):null);
     const spatials=[spatialA,spatialB].filter(Boolean);
-    const separation=Math.min(...spatials.map(item=>Number(item.separation)||Infinity));
+    const separation=Math.min(...spatials.map(item=>{const value=Number(item.separation);return Number.isFinite(value)?value:Infinity;}));
     const routeConflict=spatials.some(item=>item.routeConflict);
     const objectiveConflict=spatials.some(item=>item.objectiveConflict);
     const routeConflictSeverity=Math.max(0,...spatials.map(item=>Number(item.routeConflictSeverity)||0));
@@ -170,7 +171,9 @@ export class ContactRouteDecisionState{
     }else if(parallelMovement&&separation<560&&!hostile)mode=CONTACT_ROUTE_DECISIONS.SHADOW;
 
     const emergencySwitch=immediateHostile&&obstruction;
-    if(prior&&!emergencySwitch&&now-prior.selectedAt<this.minimumHold&&prior.mode!==CONTACT_ROUTE_DECISIONS.CONTINUE&&obstruction){
+    if(prior?.recoveryFrom&&!emergencySwitch&&obstruction&&now-prior.selectedAt<this.recoveryHold){
+      mode=prior.mode;
+    }else if(prior&&!emergencySwitch&&now-prior.selectedAt<this.minimumHold&&prior.mode!==CONTACT_ROUTE_DECISIONS.CONTINUE&&obstruction){
       mode=prior.mode;
     }
 
@@ -181,8 +184,8 @@ export class ContactRouteDecisionState{
     if(!anchor||metricsChanged(anchor,currentMetrics)){
       anchor=currentMetrics;lastMeaningfulChangeAt=now;
     }
-    let stalemate=now-lastMeaningfulChangeAt>=this.stalemateAfter;
-    let recoveryFrom=null;
+    const stalemate=now-lastMeaningfulChangeAt>=this.stalemateAfter;
+    let recoveryFrom=prior&&prior.mode===mode?prior.recoveryFrom??null:null;
     if(stalemate){
       recoveryFrom=`${mode}_stalemate`;
       if(mode===CONTACT_ROUTE_DECISIONS.ENGAGE||mode===CONTACT_ROUTE_DECISIONS.YIELD)mode=CONTACT_ROUTE_DECISIONS.WITHDRAW;
