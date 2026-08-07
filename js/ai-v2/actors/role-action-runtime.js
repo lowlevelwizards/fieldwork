@@ -23,32 +23,16 @@ import { AssistObjectiveWorkAction } from "../actions/assist-objective-work-acti
 import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 import { buildRoleActionContext } from "./role-action-context.js";
 import { ActorActionEvaluator } from "./actor-action-evaluator.js";
-import {
-  evaluateProtectiveBreakawayActions,
-  extendProtectiveBreakawayContext
-} from "./protective-breakaway-actions.js";
-import {
-  evaluateDemonstrativeFireActions,
-  extendDemonstrativeFireContext
-} from "./demonstrative-fire-actions.js";
-import {
-  evaluateObjectiveMissionActions,
-  extendObjectiveMissionContext
-} from "./objective-mission-actions.js";
+import { CasualtyRecoveryRuntime } from "./casualty-recovery-runtime.js";
+import { evaluateProtectiveBreakawayActions, extendProtectiveBreakawayContext } from "./protective-breakaway-actions.js";
+import { evaluateDemonstrativeFireActions, extendDemonstrativeFireContext } from "./demonstrative-fire-actions.js";
+import { evaluateObjectiveMissionActions, extendObjectiveMissionContext } from "./objective-mission-actions.js";
 import { evaluateLiveOperationActions, extendLiveOperationContext } from "./live-operation-actions.js";
 
 function staffedConcernForRole(actor,role,context){
-  const staffing=context?.services?.concernStaffing;
-  if(!staffing)return null;
-  const roleId=String(role?.roleId??"");
-  const assignments=staffing.getActorAssignments?.(actor.id)??[];
-  const exact=assignments.find(item=>item.responsibility===roleId)??null;
-  if(exact)return exact;
-
-  // 3.1H: only bind a legacy role to a staffed concern when the physical
-  // responsibility is semantically compatible. A generic "primary concern"
-  // fallback let unrelated objective/hold/travel actions masquerade as
-  // casualty care simply because the casualty was important.
+  const staffing=context?.services?.concernStaffing;if(!staffing)return null;
+  const roleId=String(role?.roleId??"");const assignments=staffing.getActorAssignments?.(actor.id)??[];
+  const exact=assignments.find(item=>item.responsibility===roleId)??null;if(exact)return exact;
   const compatible=responsibility=>{
     const value=String(responsibility??"");
     if(roleId.includes("security"))return value.includes("security");
@@ -66,6 +50,7 @@ const ROLE_ACTION_TYPES=new Set([
   "SelectEvacuationRoute","AdvanceRouteSecurity","EvacuateCasualty","ReassessEvacuationCasualty","TransferCasualty",
   "ProtectiveFire","DemonstrativeFire","MoveToObjectivePosition","InspectObjective","PerformObjectiveWork","CollectSupply","RecordSurveyPoint","AssistObjectiveWork"
 ]);
+const MIGRATED_RECOVERY_ACTION_TYPES=new Set(["ApproachCasualty","AssessCasualty","DragCasualty","StabilizeCasualty","TreatAssignedCasualty"]);
 
 const ACTION_CONSTRUCTORS={
   ObserveSector:directive=>new ObserveSectorAction({actorId:directive.actorId,assignment:directive.directive}),
@@ -93,65 +78,67 @@ const ACTION_CONSTRUCTORS={
 };
 
 function authoredDirective(actor){
-  const assignment=actor?.aiV2Assignment;
-  if(assignment?.action!=="observe_sector"||!assignment.sector)return null;
-  return{
-    ...assignment,
-    sector:{...assignment.sector},
-    provenance:{owner:"fixture_assignment",source:"authored_task",roleLabel:assignment.role??"Observer",procedureLabel:assignment.procedure??"Observation Watch",phaseLabel:assignment.phase??"Observe"}
-  };
+  const assignment=actor?.aiV2Assignment;if(assignment?.action!=="observe_sector"||!assignment.sector)return null;
+  return{...assignment,sector:{...assignment.sector},provenance:{owner:"fixture_assignment",source:"authored_task",roleLabel:assignment.role??"Observer",procedureLabel:assignment.procedure??"Observation Watch",phaseLabel:assignment.phase??"Observe"}};
 }
 function roleAction(action){return action?.metadata?.provenance?.owner==="role_action_runtime";}
-function sameProvenance(a,b){return (!a&&!b)||(a?.procedureId===b?.procedureId&&a?.phaseId===b?.phaseId&&a?.roleId===b?.roleId&&a?.owner===b?.owner);}
+function sameProvenance(a,b){return(!a&&!b)||(a?.procedureId===b?.procedureId&&a?.phaseId===b?.phaseId&&a?.roleId===b?.roleId&&a?.owner===b?.owner);}
 
 export class RoleActionRuntime{
-  constructor({scheduler,decisionLog=null,evaluator=new ActorActionEvaluator(),brain=null,arbiter=null}={}){
+  constructor({scheduler,decisionLog=null,evaluator=new ActorActionEvaluator(),brain=null,arbiter=null,casualtyRecovery=null}={}){
     this.scheduler=scheduler;this.decisionLog=decisionLog;this.evaluator=evaluator;this.brain=brain??arbiter;this.assignments=new Map();
+    this.casualtyRecovery=casualtyRecovery??new CasualtyRecoveryRuntime({brain:this.brain,decisionLog:this.decisionLog});
   }
 
   update({game,teamProcedures,teamMissions,teamKnowledge,teamEncounters,casualtyKnowledge,now=0,context={}}={}){
-    const desiredByActor=new Map();
+    const desiredByActor=new Map();const migratedByActor=new Map();this.casualtyRecovery.beginFrame(game);
     for(const procedure of teamProcedures?.summary?.()??[]){
       if(procedure.phase?.id==="establish_responsibilities")continue;
       const mission=teamMissions?.get?.(procedure.teamId)??null;
       for(const role of procedure.roles??[]){
         if(!role.actorId)continue;
         const actor=game?.actors?.find(candidate=>candidate.id===role.actorId);if(!actor)continue;
+
+        const liveDesiredEffectRecovery=Boolean(game?.scenarioMode==="live"&&game?.livingSandbox?.liveMode&&role.fulfillment?.need==="recover_casualty");
+        if(liveDesiredEffectRecovery){
+          const staffedConcern=staffedConcernForRole(actor,role,context);
+          const obligation=staffedConcern?context?.services?.actorObligations?.findForActor?.(actor.id,{sourceAssignmentId:staffedConcern.id})??null:null;
+          if(obligation?.concernKind==="friendly_casualty"&&obligation.responsibility==="carrier_or_aid_provider"){
+            for(const action of [...this.scheduler.getActions(actor.id)]){
+              if(roleAction(action)&&MIGRATED_RECOVERY_ACTION_TYPES.has(action.type))this.#cancelWithCleanup(actor,action,{now,context,reason:"desired_effect_casualty_recovery_migrated"});
+            }
+            const recovery=this.casualtyRecovery.evaluateAndSubmit({
+              game,actor,role,procedure,mission,obligation,casualtyKnowledge,
+              tacticalPictures:context?.services?.tacticalPictures,directionalCover:context?.services?.directionalCover,
+              actorObligations:context?.services?.actorObligations,teamProcedures:context?.services?.teamProcedures,now
+            });
+            migratedByActor.set(actor.id,{actor,role,procedure,mission,recovery});
+            continue;
+          }
+        }
+
         const baseContext=buildRoleActionContext({game,actor,role,procedure,mission,teamKnowledge,teamEncounters,casualtyKnowledge,evacuationRoutes:context?.services?.evacuationRoutes,currentObserveAction:this.scheduler.getAction(actor.id,"ObserveSector")});
         const protectiveContext=extendProtectiveBreakawayContext(baseContext,{game,actor,role,procedure,mission});
         const demonstrativeContext=extendDemonstrativeFireContext(protectiveContext,{game,actor,role,procedure,mission});
-        const objectiveContext=extendObjectiveMissionContext(demonstrativeContext,{
-          game,actor,role,procedure,mission,now,
-          objectives:context?.services?.objectives,
-          objectiveApproaches:context?.services?.objectiveApproaches,
-          positionQueries:context?.services?.positionQueries,
-          directionalCover:context?.services?.directionalCover,
-          destinationClaims:context?.services?.destinationClaims,
-          teamKnowledge,
-          teamAgenda:context?.services?.teamAgenda
-        });
-        const roleContext=extendLiveOperationContext(objectiveContext,{
-          game,actor,role,procedure,mission,now,
-          objectives:context?.services?.objectives,
-          objectiveApproaches:context?.services?.objectiveApproaches,
-          teamKnowledge,
-          teamAgenda:context?.services?.teamAgenda
-        });
-        const candidates=[
-          ...this.evaluator.evaluate(roleContext),
-          ...evaluateProtectiveBreakawayActions(roleContext),
-          ...evaluateDemonstrativeFireActions(roleContext),
-          ...evaluateObjectiveMissionActions(roleContext),
-          ...evaluateLiveOperationActions(roleContext)
-        ].sort((a,b)=>b.score-a.score);
+        const objectiveContext=extendObjectiveMissionContext(demonstrativeContext,{game,actor,role,procedure,mission,now,objectives:context?.services?.objectives,objectiveApproaches:context?.services?.objectiveApproaches,positionQueries:context?.services?.positionQueries,directionalCover:context?.services?.directionalCover,destinationClaims:context?.services?.destinationClaims,teamKnowledge,teamAgenda:context?.services?.teamAgenda});
+        const roleContext=extendLiveOperationContext(objectiveContext,{game,actor,role,procedure,mission,now,objectives:context?.services?.objectives,objectiveApproaches:context?.services?.objectiveApproaches,teamKnowledge,teamAgenda:context?.services?.teamAgenda});
+        const candidates=[...this.evaluator.evaluate(roleContext),...evaluateProtectiveBreakawayActions(roleContext),...evaluateDemonstrativeFireActions(roleContext),...evaluateObjectiveMissionActions(roleContext),...evaluateLiveOperationActions(roleContext)].sort((a,b)=>b.score-a.score);
         const selected=candidates[0]??null;if(!selected)continue;
         desiredByActor.set(actor.id,{actor,role,procedure,mission,candidates,selected});
       }
     }
+
     for(const desired of desiredByActor.values())this.#reconcile(desired,{game,now,context});
-    for(const actor of game?.actors??[])if(!desiredByActor.has(actor.id))this.#releaseActor(actor,{game,now,context});
-    this.assignments=new Map([...desiredByActor].map(([actorId,entry])=>[actorId,{actorId,roleId:entry.role.roleId,roleLabel:entry.role.label,procedureId:entry.procedure.procedureId,phaseId:entry.procedure.phase?.id??null,actionType:entry.selected.type,reason:entry.selected.reason,candidates:entry.candidates.map(candidate=>({type:candidate.type,score:candidate.score,reason:candidate.reason}))}]));
+    for(const actor of game?.actors??[])if(!desiredByActor.has(actor.id)&&!migratedByActor.has(actor.id))this.#releaseActor(actor,{game,now,context});
+
+    const assignments=[...desiredByActor].map(([actorId,entry])=>[actorId,{actorId,roleId:entry.role.roleId,roleLabel:entry.role.label,procedureId:entry.procedure.procedureId,phaseId:entry.procedure.phase?.id??null,actionType:entry.selected.type,reason:entry.selected.reason,candidates:entry.candidates.map(candidate=>({type:candidate.type,score:candidate.score,reason:candidate.reason}))}]);
+    for(const [actorId,entry] of migratedByActor){
+      const selected=entry.recovery?.selected??null;
+      assignments.push([actorId,{actorId,roleId:entry.role.roleId,roleLabel:entry.role.label,procedureId:entry.procedure.procedureId,phaseId:entry.procedure.phase?.id??null,actionType:selected?.type??"DesiredEffectRecoveryStable",reason:selected?.reason??"Casualty recovery desired effect is currently satisfied enough to require no stronger physical method.",candidates:(entry.recovery?.candidates??[]).map(candidate=>({type:candidate.type,score:candidate.score,reason:candidate.reason})),desiredEffectDriven:true}]);
+    }
+    this.assignments=new Map(assignments);
   }
+
   get(actorId){return this.assignments.get(actorId)??null;}
   summary(){return[...this.assignments.values()].map(item=>({...item,candidates:item.candidates.map(candidate=>({...candidate}))}));}
 
@@ -178,36 +165,22 @@ export class RoleActionRuntime{
     }
 
     if(selected.type==="ObserveSector"&&existing){
-      const prior=existing.metadata?.provenance??null;
-      const adopted=existing.adoptDirective(selected.directive,{now,context});
-      bindConcern(existing);
+      const prior=existing.metadata?.provenance??null;const adopted=existing.adoptDirective(selected.directive,{now,context});bindConcern(existing);
       if(adopted.changed||!sameProvenance(prior,selected.directive.provenance))this.#record("role_action_adopted",actor,selected,now,{actionId:existing.id,roleId:role.roleId,procedureId:procedure.procedureId,preservedAction:true});
       return;
     }
     if(selected.type==="HoldReady"&&existing){
-      const prior=existing.metadata?.provenance??null;
-      const adopted=existing.adoptDirective(selected.directive,{now,context});
-      bindConcern(existing);
+      const prior=existing.metadata?.provenance??null;const adopted=existing.adoptDirective(selected.directive,{now,context});bindConcern(existing);
       if(adopted.changed||!sameProvenance(prior,selected.directive.provenance))this.#record("role_action_adopted",actor,selected,now,{actionId:existing.id,roleId:role.roleId,procedureId:procedure.procedureId,preservedAction:true});
       return;
     }
     if(existing){bindConcern(existing);return;}
     const create=ACTION_CONSTRUCTORS[selected.type];if(!create)return;
     const action=create({actorId:actor.id,directive:selected.directive});
-    const authorityTier=agenda?.source==="encounter"
-      ?ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE
-      :ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY;
+    const authorityTier=agenda?.source==="encounter"?ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE:ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY;
     const authorityLabel=agenda?.source==="encounter"?"Governing team response":"Governing mission responsibility";
     const onGranted=result=>this.#record("role_action_started",actor,selected,now,{actionId:result.action?.id??action.id,roleId:role.roleId,procedureId:procedure.procedureId,concernId:staffedConcern?.concernId??null});
-    if(this.brain)this.brain.submit({
-      actorId:actor.id,action,score:selected.score,urgency:agenda?.source==="encounter"?.9:.55,
-      authorityTier,authorityLabel,reason:selected.reason,source:"role_action_runtime",
-      operationId:actor.operationId??null,missionId:procedure.missionId??null,
-      governingIntentId:agenda?.intentId??null,supportingIntentId:agenda?.supporting?.intentId??null,
-      procedureId:procedure.procedureId,roleId:role.roleId,concernId:staffedConcern?.concernId??null,obligationId:obligation?.id??null,
-      desiredEffect:staffedConcern?.desiredEffect??null,onGranted
-    });
-
+    if(this.brain)this.brain.submit({actorId:actor.id,action,score:selected.score,urgency:agenda?.source==="encounter"?.9:.55,authorityTier,authorityLabel,reason:selected.reason,source:"role_action_runtime",operationId:actor.operationId??null,missionId:procedure.missionId??null,governingIntentId:agenda?.intentId??null,supportingIntentId:agenda?.supporting?.intentId??null,procedureId:procedure.procedureId,roleId:role.roleId,concernId:staffedConcern?.concernId??null,obligationId:obligation?.id??null,desiredEffect:staffedConcern?.desiredEffect??null,onGranted});
   }
 
   #cancelWithCleanup(actor,action,{now,context,reason}){
@@ -217,7 +190,7 @@ export class RoleActionRuntime{
       const patientId=action.directive?.casualtyId;const patient=context?.game?.actors?.find(candidate=>candidate.id===patientId);
       context?.services?.casualtyCare?.releasePatient?.(patientId,actor.id);context?.services?.casualtyCare?.releaseDrag?.({patient});
     }
-    if(["StabilizeCasualty","ReassessEvacuationCasualty","TransferCasualty"].includes(action.type))context?.services?.casualtyCare?.releasePatient?.(action.directive?.casualtyId,actor.id);
+    if(["StabilizeCasualty","ReassessEvacuationCasualty","TransferCasualty","TreatAssignedCasualty"].includes(action.type))context?.services?.casualtyCare?.releasePatient?.(action.directive?.casualtyId,actor.id);
     if(["InspectObjective","PerformObjectiveWork"].includes(action.type))context?.services?.objectives?.releaseWork?.(action.directive?.objectiveId,actor.id,{now,reason});
     if(action.type==="AssistObjectiveWork")context?.services?.objectives?.releaseAssist?.(action.directive?.objectiveId,actor.id,{now,reason});
   }
@@ -226,13 +199,10 @@ export class RoleActionRuntime{
     for(const action of [...this.scheduler.getActions(actor.id)]){
       if(!ROLE_ACTION_TYPES.has(action.type)||!roleAction(action))continue;
       if(action.type==="ObserveSector"){
-        const outcome=context?.services?.encounterOutcomes?.getLatest?.(actor.teamId)??null;
-        const missionResolved=outcome?.missionResolved??outcome?.resolved??false;
-        const authored=missionResolved?null:authoredDirective(actor);
+        const outcome=context?.services?.encounterOutcomes?.getLatest?.(actor.teamId)??null;const missionResolved=outcome?.missionResolved??outcome?.resolved??false;const authored=missionResolved?null:authoredDirective(actor);
         if(authored){action.adoptDirective(authored,{now,context});this.#record("role_action_released_to_authored_task",actor,{type:"ObserveSector",reason:"The procedural role ended, but the authored observation task remains valid."},now,{actionId:action.id,preservedAction:true});continue;}
       }
-      this.#cancelWithCleanup(actor,action,{now,context,reason:"procedural_responsibility_ended"});
-      this.#record("role_action_released",actor,{type:action.type,reason:"Procedural responsibility ended."},now,{actionId:action.id});
+      this.#cancelWithCleanup(actor,action,{now,context,reason:"procedural_responsibility_ended"});this.#record("role_action_released",actor,{type:action.type,reason:"Procedural responsibility ended."},now,{actionId:action.id});
     }
   }
   #record(type,actor,selected,now,data={}){this.decisionLog?.record?.({type,time:now,actorId:actor.id,actionType:selected.type,data:{reason:selected.reason,...data}});}
