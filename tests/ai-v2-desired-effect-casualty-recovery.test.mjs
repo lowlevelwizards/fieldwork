@@ -96,6 +96,13 @@ test("casualty drag delegates movement to 3.2D spatial-intent navigation",()=>{
   assert.equal(captured.allowRetreat,true);
 });
 
+test("material visible condition change invalidates an otherwise fresh assessment",()=>{
+  const prior=assessment(10,{condition:"serious",bleeding:.04,need:"pressure_dressing",mobility:"requires_assisted_movement",immediateDanger:false});
+  const {rec}=evaluate({recordAssessment:prior,casualtyPatch:{medical:{condition:"critical",unconscious:false}}});
+  assert.equal(rec.assessmentFresh,false);
+  assert.ok(rec.candidates.some(item=>item.type==="AssessCasualty"));
+});
+
 test("ApproachCasualty continuation is owned by the obligation rather than procedure phase",()=>{
   const {provider,casualty}=actors();provider.x=-200;
   const action=new ApproachCasualtyAction({actorId:provider.id,directive:{obligationId:"staffed:care",casualtyId:casualty.id,interactionRange:92,initialDistance:260,policy:{}}});
