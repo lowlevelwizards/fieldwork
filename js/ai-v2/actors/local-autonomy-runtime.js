@@ -50,10 +50,12 @@ export class LocalAutonomyRuntime{
     const live=new Set();
     for(const actor of game?.actors??[]){
       if(actor.medical?.dead||actor.medical?.unconscious||!actor.operationId)continue;
+      // 3.2B: local autonomy is now a continuous low-authority candidate source.
+      // It no longer disappears merely because another substantive action is
+      // active; channel ownership and centralized replanning decide whether a
+      // local improvement may coexist with or replace the incumbent.
       const activeActionTypes=(this.scheduler?.getActions?.(actor.id)??[]).map(action=>action.type);
-      if(activeActionTypes.some(type=>!["HoldReady","ObserveSector"].includes(type)))continue;
       const assignedAction=roleActions?.get?.(actor.id)?.actionType??null;
-      if(assignedAction&&!['HoldReady','ObserveSector'].includes(assignedAction))continue;
       live.add(actor.id);
       const role=teamProcedures?.getActorRole?.(actor.id)??null;
       const agenda=teamAgenda?.get?.(actor.teamId)??null;
@@ -132,10 +134,10 @@ export class LocalAutonomyRuntime{
         missionId:agenda?.missionId??null,governingIntentId:agenda?.intentId??null,supportingIntentId:interaction?.type??agenda?.supporting?.intentId??null,
         procedureId:role?.procedureId??null,roleId:role?.roleId??null
       });
-      this.byActor.set(actor.id,{actorId:actor.id,operationId:actor.operationId,roleId:role?.roleId??null,kind:source,reason,lastEvaluatedAt:now,...record});
+      this.byActor.set(actor.id,{actorId:actor.id,operationId:actor.operationId,roleId:role?.roleId??null,kind:source,reason,lastEvaluatedAt:now,activeActionTypes,...record});
     }
     for(const actorId of [...this.byActor.keys()])if(!live.has(actorId))this.byActor.delete(actorId);
   }
 
-  summary(){return[...this.byActor.values()].map(item=>({...item,focus:item.focus?{...item.focus}:null,destination:item.destination?{...item.destination}:null}));}
+  summary(){return[...this.byActor.values()].map(item=>({...item,activeActionTypes:[...(item.activeActionTypes??[])],focus:item.focus?{...item.focus}:null,destination:item.destination?{...item.destination}:null}));}
 }
