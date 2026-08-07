@@ -1,0 +1,1 @@
+Temporary validation trigger for AI 3.2F startup/import diagnosis. Safe to delete; no runtime effect.
