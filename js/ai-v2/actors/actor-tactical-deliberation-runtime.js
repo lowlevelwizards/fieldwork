@@ -32,10 +32,13 @@ export class ActorTacticalDeliberationRuntime{
       const existing=this.commitments?.get?.(actor.id)??null;
       if(existing&&existing.responsibilityId&&responsibilityId&&existing.responsibilityId!==responsibilityId)this.commitments.release(actor.id,{now,reason:"governing_responsibility_changed"});
       const activeActions=this.brain?.scheduler?.getActions?.(actor.id)??[];
-      const activeAction=activeActions[0]??null;
+      const activeAction=this.brain?.scheduler?.getPrimaryAction?.(actor.id)??activeActions[0]??null;
       const utility=this.utilityEvaluation.evaluate({game,actor,picture,currentAction:activeAction,currentCommitment:existing,role,agenda,now});
       actor.aiV2UtilityEvaluation=utility;
-      if(actor.aiV2ThreatReaction?.status==="moving_to_cover"||actor.aiV2SelfAid?.status==="active")continue;
+      // 3.2B: deliberation remains live while the actor is already moving,
+      // treating, firing, or otherwise occupied. Channel ownership and the
+      // centralized replanning policy decide whether a new candidate may act;
+      // being busy is no longer equivalent to being unable to reconsider.
       const common={operationId:actor.operationId??null,missionId:agenda?.missionId??null,governingIntentId:agenda?.intentId??null,procedureId:role?.procedureId??null,roleId:role?.roleId??null};
       const contactPressure=utility.contactPressure??0;
       if(contactPressure>=.34){actor.operationPausedByEncounter=true;actor.aiV2ContactSalience={status:"material",pressure:contactPressure,subjectTeamId:picture.bestThreat?.subjectTeamId??null,updatedAt:now};}
