@@ -1,3 +1,13 @@
+AI 3.1H — Behavior Closure
+
+- Nearby opposing operators can no longer ghost past each other solely because both are looking forward.
+- Reaching tactical cover now creates a short-lived protected state instead of immediately ordering another cover move.
+- Self aid eventually wins after bounded deferral when supplies exist, unless the actor is actively reacting to incoming fire or another caregiver owns treatment.
+- A staffed caregiver in Live Sandbox can approach and directly treat a friendly casualty.
+- Unrelated mission movement no longer counts as casualty work or resumes during tiny gaps in a higher contact/care obligation.
+- Avoid/contest responses finish into reassessment cooldowns instead of endlessly reissuing the same local movement.
+- Same-faction teams are no longer counted as hostile pass-by failures in behavioral diagnostics.
+
 AI 3.1G — Persistent Actor Obligations
 
 - Important world problems now remain owned by an actor across individual action changes instead of disappearing when one atomic action ends.

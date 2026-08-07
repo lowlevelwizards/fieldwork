@@ -1,3 +1,15 @@
+## AI 3.1H — Behavior Closure
+
+- Added close-range 360-degree opposing-actor awareness while preserving hard line-of-sight occlusion.
+- Completed tactical cover now persists as a protected relationship, and repeated tactical commitments retain stable anchors and bounded lifetimes.
+- Self aid can break out of indefinite safety deferral after a bounded delay while still yielding to immediate incoming fire or an active caregiver.
+- Staffed live-sandbox caregivers can directly approach and treat a friendly casualty without waiting for unrelated legacy procedure ownership.
+- Atomic actions must explicitly carry an obligation ID to count as fulfilling it; sharing a concern ID no longer falsely keeps casualty obligations active.
+- Ordinary mission-role locomotion pauses while separate governing contact/care obligations remain unresolved.
+- Avoid/contest contact movement now uses acceptable regions, bounded holds, and cooldowns instead of indefinite exact-point kiting.
+- Behavioral truth excludes known same-faction team pairs from hostile close-pass signals.
+- Added focused behavior-closure regression coverage.
+
 ## AI 3.1G — Persistent Actor Obligations
 
 - Added durable actor-owned obligations between concurrent concern staffing/personal survival needs and atomic execution.

@@ -40,12 +40,24 @@ import { evaluateLiveOperationActions, extendLiveOperationContext } from "./live
 function staffedConcernForRole(actor,role,context){
   const staffing=context?.services?.concernStaffing;
   if(!staffing)return null;
-  const direct=staffing.findForActor?.(actor.id,{responsibility:role?.roleId});
-  if(direct)return direct;
-  if(String(role?.roleId??"").includes("security")){
-    return(staffing.getActorAssignments?.(actor.id)??[]).find(item=>String(item.responsibility).includes("security"))??null;
-  }
-  return staffing.getPrimaryForActor?.(actor.id)??null;
+  const roleId=String(role?.roleId??"");
+  const assignments=staffing.getActorAssignments?.(actor.id)??[];
+  const exact=assignments.find(item=>item.responsibility===roleId)??null;
+  if(exact)return exact;
+
+  // 3.1H: only bind a legacy role to a staffed concern when the physical
+  // responsibility is semantically compatible. A generic "primary concern"
+  // fallback let unrelated objective/hold/travel actions masquerade as
+  // casualty care simply because the casualty was important.
+  const compatible=responsibility=>{
+    const value=String(responsibility??"");
+    if(roleId.includes("security"))return value.includes("security");
+    if(["aid_provider","carrier"].includes(roleId))return value==="carrier_or_aid_provider";
+    if(roleId==="route_security")return value==="route_security"||value==="casualty_security";
+    if(roleId==="objective_specialist")return value==="objective_specialist";
+    return false;
+  };
+  return assignments.find(item=>compatible(item.responsibility))??null;
 }
 
 const ROLE_ACTION_TYPES=new Set([
@@ -147,6 +159,14 @@ export class RoleActionRuntime{
     const {actor,selected,role,procedure}=desired;
     const staffedConcern=staffedConcernForRole(actor,role,context);
     const obligation=staffedConcern?context?.services?.actorObligations?.findForActor?.(actor.id,{sourceAssignmentId:staffedConcern.id})??null:null;
+    const agenda=context?.services?.teamAgenda?.get?.(actor.teamId)??null;
+    const primaryObligation=context?.services?.actorObligations?.getPrimaryForActor?.(actor.id)??null;
+    const liveClosure=context?.game?.scenarioMode==="live"&&Boolean(context?.game?.livingSandbox?.liveMode);
+    const unrelatedGoverningObligation=Boolean(liveClosure&&agenda?.source!=="encounter"&&primaryObligation?.authorityTier>=ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE&&!obligation);
+    if(unrelatedGoverningObligation){
+      for(const action of [...this.scheduler.getActions(actor.id)])if(ROLE_ACTION_TYPES.has(action.type)&&roleAction(action))this.#cancelWithCleanup(actor,action,{now,context,reason:`paused_for_${primaryObligation.kind}`});
+      return;
+    }
     const bindConcern=action=>{
       if(!action||!staffedConcern)return;
       action.metadata={...(action.metadata??{}),actorBrainPlan:{...(action.metadata?.actorBrainPlan??{}),concernId:staffedConcern.concernId,obligationId:obligation?.id??null,desiredEffect:staffedConcern.desiredEffect,source:action.metadata?.actorBrainPlan?.source??"role_action_runtime"}};
@@ -174,7 +194,6 @@ export class RoleActionRuntime{
     if(existing){bindConcern(existing);return;}
     const create=ACTION_CONSTRUCTORS[selected.type];if(!create)return;
     const action=create({actorId:actor.id,directive:selected.directive});
-    const agenda=context?.services?.teamAgenda?.get?.(actor.teamId)??null;
     const authorityTier=agenda?.source==="encounter"
       ?ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE
       :ACTION_AUTHORITY_TIERS.MISSION_RESPONSIBILITY;

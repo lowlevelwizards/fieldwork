@@ -2,7 +2,7 @@ import { AIV2Action } from "./action.js";
 import { ACTION_CHANNELS } from "./action-channels.js";
 
 export class SelfAidAction extends AIV2Action{
-  constructor({actorId,duration=2.8}={}){
+  constructor({actorId,duration=2.8,allowExposed=false}={}){
     super({
       type:"SelfAid",
       actorId,
@@ -15,15 +15,17 @@ export class SelfAidAction extends AIV2Action{
       metadata:{provenance:{owner:"actor_initiative",source:"personal_wound_state"}}
     });
     this.duration=Math.max(.8,Number(duration)||2.8);
+    this.allowExposed=Boolean(allowExposed);
     this.elapsed=0;
   }
 
-  canStart({game}={}){
+  canStart({game,services}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);
     const need=actor?game?.wounds?.getTreatmentNeed?.(actor):null;
     const catastrophic=Number(actor?.medical?.bleedingRate??0)>1.2||actor?.medical?.condition==="critical";
     const treatmentSafe=actor?.aiV2TacticalPicture?.treatmentSafe!==false;
-    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&need&&Number(actor.aiV2MedicalSupplies?.[need.type]??0)>0&&(catastrophic||treatmentSafe));
+    const controller=actor?services?.casualtyCare?.getController?.(actor.id)??null:null;
+    return Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&(!controller||controller===actor.id)&&need&&Number(actor.aiV2MedicalSupplies?.[need.type]??0)>0&&(catastrophic||treatmentSafe||this.allowExposed));
   }
 
   canContinue({game}={}){

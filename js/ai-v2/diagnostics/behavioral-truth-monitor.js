@@ -97,6 +97,10 @@ export class BehavioralTruthMonitor{
           }
           continue;
         }
+        // The close-contact truth signal is about opposing factions failing to react.
+        // Multiple teams from the same faction may legitimately share space or routes;
+        // treating those pairs as hostile pass-bys creates a false regression signal.
+        if(left.factionId&&right.factionId&&left.factionId===right.factionId)continue;
         const key=pairKey(left.teamId,right.teamId);
         const metric=this.teamPairMetrics.get(key)??{
           pairId:key,teamIds:[left.teamId,right.teamId].sort(),minimumDistance:Infinity,

@@ -20,6 +20,7 @@ export class ContactResolutionRuntime{
     const role=teamProcedures?.getActorRole?.(actor.id);
     const protectedCare=procedure?.procedureId==="casualty_recovery"&&role?.roleId==="aid_provider"||procedure?.procedureId==="casualty_evacuation"&&["carrier","route_security"].includes(role?.roleId)||this.scheduler.hasAction(actor.id,"SelfAid")||this.scheduler.hasAction(actor.id,"ReactToIncomingFire");
     if(protectedCare){live.add(actor.id);return;}
+    if((actor.aiV2ContactResolutionResolvedUntil??0)>now&&response.selected.id!=="engage_contact"){live.add(actor.id);actor.operationPausedByEncounter=false;return;}
     live.add(actor.id);actor.operationPausedByEncounter=true;
     const lateral=(index-(actors.length-1)/2)*58;
     const mode=response.selected.id==="contest_access"?"contest":response.selected.id==="engage_contact"?"engage":"avoid";

@@ -25,14 +25,17 @@ export class ActorInitiativeRuntime{
       const activeFire=Boolean(tacticalPicture?.incomingFire?.length||tacticalPicture?.visibleThreats?.length&&tacticalPicture?.exposed);
       const treatmentSafe=Boolean(tacticalPicture?.currentCover?.protected&&!activeFire||!tacticalPicture?.threatPoint);
       const catastrophic=bleeding>1.2||actor.medical?.condition==="critical";
-      const mayTreatHere=catastrophic||treatmentSafe;
+      const selfAidDeferredFor=selfAidObligation?Math.max(0,now-(selfAidObligation.acceptedAt??now)):0;
+      const activelyReacting=this.scheduler.hasAction(actor.id,"ReactToIncomingFire");
+      const boundedDeferral=selfAidDeferredFor>=4&&!activelyReacting;
+      const mayTreatHere=catastrophic||treatmentSafe||boundedDeferral;
       if(selfAidUrgent&&mayTreatHere&&!this.scheduler.hasAction(actor.id,"SelfAid")){
-        const action=new SelfAidAction({actorId:actor.id,duration:bleeding>1.2?2.1:2.8});
-        const onGranted=result=>this.#record("actor_initiative_started",actor,now,{actionType:action.type,reason:catastrophic?"catastrophic_personal_bleeding":"protected_personal_bleeding",bleeding,treatmentType:treatmentNeed.type});
+        const action=new SelfAidAction({actorId:actor.id,duration:bleeding>1.2?2.1:2.8,allowExposed:boundedDeferral});
+        const onGranted=result=>this.#record("actor_initiative_started",actor,now,{actionType:action.type,reason:catastrophic?"catastrophic_personal_bleeding":boundedDeferral?"self_aid_deferral_limit_reached":"protected_personal_bleeding",bleeding,treatmentType:treatmentNeed.type});
         if(this.brain)this.brain.submit({
           actorId:actor.id,action,score:1,urgency:Math.min(1,.72+bleeding*.18),
           authorityTier:ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL,
-          authorityLabel:"Immediate survival",reason:catastrophic?"Catastrophic bleeding justifies immediate aid despite exposure.":"A conscious operator may perform self aid only after reaching a protected treatment window.",
+          authorityLabel:"Immediate survival",reason:catastrophic?"Catastrophic bleeding justifies immediate aid despite exposure.":boundedDeferral?"The self-aid obligation has remained unresolved long enough that a temporary treatment window is preferable to endless cover seeking.":"A conscious operator may perform self aid after reaching a protected treatment window.",
           source:"actor_initiative",obligationId:selfAidObligation?.id??null,operationId:actor.operationId??null,missionId:actor.squadMission??null,onGranted
         });
 

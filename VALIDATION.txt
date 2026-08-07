@@ -1,0 +1,51 @@
+AI 3.1H — Behavior Closure
+
+Base:
+- Supplied source ZIP verified as merged AI 3.1G state.
+- 3.1H staged locally only; no GitHub push performed.
+
+Static validation:
+- git diff --check: PASS
+- JavaScript syntax: PASS — 223 modules
+- Import graph: PASS — 177 reachable modules, no cycles, no retired duplicates
+
+Focused regression validation:
+- PASS — 31/31 tests
+- Includes:
+  - 3.1H behavior closure (8 tests)
+  - persistent actor obligations
+  - concern staffing
+  - spatial intent fields
+  - unified actor brain
+  - single execution gateway
+  - adaptive evacuation
+  - casualty recovery
+  - observation/de-escalation
+  - tactical commitment semantics
+
+Long-run validation:
+- live-sandbox-2.1: PASS
+- live-sandbox-2.2: PASS
+
+Behavioral measurement:
+- Same deterministic 60-second Live Sandbox seed, G -> H:
+  - pacing actors: 8 -> 7
+  - direction reversals: 58 -> 55
+  - maximum reversals for one actor: 11 -> 10
+  - action switches: 125 -> 123
+  - overlapping actors: 9 -> 8
+  - close-unreacted pairs: 1 -> 0
+- The G close-unreacted pair was Northline vs Northline; 3.1H corrects the diagnostic so known same-faction teams are not treated as hostile pass-bys.
+- 3.1H improves but does not claim to eliminate all pacing/overlap behavior.
+
+Known incoming failures preserved (not weakened):
+- ai-v2-living-sandbox.test.mjs:
+  ambient mission reporting should identify the approaching operation
+- ai-v2-objective-initiative.test.mjs:
+  expected operation status 'returning', got 'deployed'
+
+Full npm test:
+- Best-effort full suite was attempted and reached the long-running tail before timeout.
+- Before timeout it exposed the two known incoming failures above plus one tactical-commitment assertion whose expected semantics were obsolete after 3.1H stabilized commitment lifetimes.
+- That tactical-commitment test was updated to assert the new non-sliding lifetime contract and now passes.
+- No known incoming failure was removed or weakened.

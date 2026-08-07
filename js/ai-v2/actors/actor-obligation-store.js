@@ -115,9 +115,12 @@ export class ActorObligationStore{
       const activeActions=(scheduler?.getActions?.(record.actorId)??[]).filter(action=>{
         const plan=action.metadata?.actorBrainPlan??{};
         const implicitSelfAid=record.kind==="self_aid"&&action.type==="SelfAid";
-        const implicitConcern=Boolean(record.concernId&&!plan.obligationId&&plan.concernId===record.concernId);
-        const matches=plan.obligationId===id||implicitSelfAid||implicitConcern;
-        if(matches&&plan.obligationId!==id)action.metadata={...(action.metadata??{}),actorBrainPlan:{...plan,obligationId:id}};
+        // Concern identity alone is not proof that an atomic action is serving
+        // this actor obligation. Producers must bind the stable obligation ID.
+        // Otherwise unrelated HoldReady/objective/travel actions can falsely
+        // keep a casualty obligation in the "acting" state.
+        const matches=plan.obligationId===id||implicitSelfAid;
+        if(implicitSelfAid&&plan.obligationId!==id)action.metadata={...(action.metadata??{}),actorBrainPlan:{...plan,obligationId:id}};
         return matches;
       });
       let next=record;

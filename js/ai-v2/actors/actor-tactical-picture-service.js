@@ -27,7 +27,8 @@ export class ActorTacticalPictureService{
       if(actor.medical?.dead||actor.medical?.unconscious)continue;
       live.add(actor.id);
       const personal=(personalKnowledge?.getContacts?.(actor.id)??[]).filter(contact=>contact.relationship!=="same_faction");
-      const visibleThreats=personal.filter(contact=>contact.currentlyVisible&&contact.subjectTeamId&&contact.confidence>=24);
+      const liveClosure=game?.scenarioMode==="live"&&Boolean(game?.livingSandbox?.liveMode);
+      const visibleThreats=personal.filter(contact=>contact.currentlyVisible&&contact.subjectTeamId&&(contact.confidence>=24||liveClosure&&Number(contact.distance??999)<=280&&contact.confidence>=10));
       const recentThreats=personal.filter(contact=>!contact.currentlyVisible&&now-(contact.lastObservedAt??0)<=4.5&&contact.confidence>=20);
       const incoming=threatKnowledge?.getThreats?.(actor.id)??[];
       const bestThreat=incoming[0]??visibleThreats[0]??recentThreats[0]??null;
@@ -42,12 +43,12 @@ export class ActorTacticalPictureService{
       const treatmentNeed=game?.wounds?.getTreatmentNeed?.(actor)??null;
       const role=teamProcedures?.getActorRole?.(actor.id)??null;
       const agenda=teamAgenda?.get?.(actor.teamId)??null;
-      const currentCover=threatPoint?this.#currentCover(game,actor,threatPoint):null;
+      const currentCover=threatPoint?this.#currentCover(game,actor,threatPoint,now):null;
       const suppression=suppressionState(actor.aiV2Suppression);
       const magazineSize=Math.max(1,Number(actor.magazineSize??20));
       const ammoInMagazine=Math.max(0,Number(actor.ammoInMagazine??magazineSize));
       const weaponReadiness={magazineSize,ammoInMagazine,ammoFraction:ammoInMagazine/magazineSize,reloadRequired:ammoInMagazine<=0,reloadAdvised:ammoInMagazine<=Math.max(2,Math.floor(magazineSize*.18)),reloading:Boolean(actor.reloading),effectiveRange:Number(actor.aiV2EffectiveRange??760)};
-      const currentSlot=actor.aiV2DefensivePosition?.slot??coverSearch?.best??null;
+      const currentSlot=actor.aiV2CoverOccupancy?.slot??actor.aiV2DefensivePosition?.slot??coverSearch?.best??null;
       const firingEdge=threatPoint&&currentSlot?this.firingEdges?.evaluate?.({game,actor,slot:currentSlot,threatPoint,friendlies:teamActors})??null:null;
       const teamCenter=teamActors.length?{x:teamActors.reduce((sum,item)=>sum+item.x,0)/teamActors.length,y:teamActors.reduce((sum,item)=>sum+item.y,0)/teamActors.length}:null;
       const maximumTeamSeparation=teamCenter?Math.max(...teamActors.map(item=>distance(item,teamCenter)),0):0;
@@ -101,8 +102,18 @@ export class ActorTacticalPictureService{
   }
   summary(){return[...this.byActor.keys()].map(actorId=>this.get(actorId));}
 
-  #currentCover(game,actor,threatPoint){
+  #currentCover(game,actor,threatPoint,now=0){
     let best=null;
+    // A completed tactical cover move is a durable world relationship, not a
+    // one-frame destination. Preserve it until the actor leaves it or the threat
+    // direction changes materially so the next frame does not order the same
+    // actor back into the same cover point indefinitely.
+    const occupancy=actor.aiV2CoverOccupancy;
+    if(occupancy?.status==="protected"&&occupancy.point&&distance(actor,occupancy.point)<=76){
+      const threatCompatible=!occupancy.threatPoint||distance(occupancy.threatPoint,threatPoint)<=320;
+      const fresh=now-(occupancy.enteredAt??now)<=18;
+      if(threatCompatible&&fresh)best={protected:true,protection:Math.max(.56,Number(occupancy.protection)||0),sourceType:"tactical_cover_occupancy",sourcePoint:{...occupancy.point},slot:occupancy.slot?{...occupancy.slot}:null};
+    }
     for(const obstacle of game?.map?.obstacles??[]){
       const radius=Math.max(18,Number(obstacle.radius)||36);
       const actorDistance=distance(actor,obstacle);

@@ -22,7 +22,7 @@ export class ActorUtilityEvaluationService{
     this.motionHistory.set(actor.id,{x:actor.x,y:actor.y,at:now,lastProgressAt,lastUsefulAt});
 
     const visible=picture?.visibleThreats??[];
-    const hostileContact=visible.reduce((best,item)=>Math.max(best,hostileWeight(item)*clamp((item.confidence??0)/100)),0);
+    const hostileContact=visible.reduce((best,item)=>{const classified=hostileWeight(item)*clamp((item.confidence??0)/100);const close=Number(item.distance??999)<=280?hostileWeight(item)*.76:0;return Math.max(best,classified,close);},0);
     const incoming=clamp((picture?.incomingFire?.length??0)*.45);
     const suppression=clamp((picture?.suppressionValue??0)/82);
     const exposure=picture?.exposed?1:0;

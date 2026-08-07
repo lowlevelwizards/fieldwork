@@ -248,7 +248,7 @@ export function updateAIV2ActorDiagnostics(runtime){
           evacuation:teamProcedure.evacuation?{...teamProcedure.evacuation,waypoints:(teamProcedure.evacuation.waypoints??[]).map(waypoint=>({...waypoint})),carrierHistory:[...(teamProcedure.evacuation.carrierHistory??[])]}:null
         }:null,
         encounterOutcome:encounterOutcome?{...encounterOutcome,facts:[...encounterOutcome.facts],evidence:[...encounterOutcome.evidence]}:null,
-        runtimeStage:"3.1E_F_spatial_intent_concern_staffing"
+        runtimeStage:"3.1H_behavior_closure"
       };
     }
   }

@@ -8,7 +8,9 @@ test("tactical commitments reaffirm the same responsibility without duplicating 
   const store=new ActorTacticalCommitmentStore();
   const first=store.commit({actorId:"a",kind:"maintain_security_sector",responsibilityId:"p:r",threatTrackId:"t",minimumUntil:2,maximumUntil:8},{now:1});
   const second=store.commit({actorId:"a",kind:"maintain_security_sector",responsibilityId:"p:r",threatTrackId:"t",minimumUntil:4,maximumUntil:9},{now:2});
-  assert.equal(store.summary().length,1);assert.equal(first.key,second.key);assert.equal(second.selectedAt,1);assert.equal(second.reaffirmedAt,2);assert.equal(second.minimumUntil,4);
+  assert.equal(store.summary().length,1);assert.equal(first.key,second.key);assert.equal(second.selectedAt,1);assert.equal(second.reaffirmedAt,2);
+  assert.equal(second.minimumUntil,2,"reaffirmation should not slide the minimum commitment window forward");
+  assert.equal(second.maximumUntil,8,"reaffirmation should not make one local tactic immortal");
 });
 
 test("firing edges expose distinct lateral choices and reject a friendly-blocked lane",()=>{

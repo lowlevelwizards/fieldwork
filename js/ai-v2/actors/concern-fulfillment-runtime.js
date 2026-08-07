@@ -1,5 +1,6 @@
 import { MoveWithinIntentFieldAction } from "../actions/move-within-intent-field-action.js";
 import { HoldReadyAction } from "../actions/hold-ready-action.js";
+import { TreatAssignedCasualtyAction } from "../actions/treat-assigned-casualty-action.js";
 import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
@@ -28,12 +29,37 @@ export class ConcernFulfillmentRuntime{
         const urgency=clamp((Number(concern.urgency)||0)+(assignment.required?.08:0));
         const record={assignmentId:assignment.id,obligationId:obligation?.id??null,concernId:concern.id,responsibility:assignment.responsibility,satisfied,intent,proceduralInteraction:Boolean(proceduralInteraction)};
         entries.push(record);
-        // Legacy procedures remain the atomic executor for actors they currently own.
-        // Mission progress and return remain compatibility-bound in 3.1E-F; direct
-        // fulfillment is introduced first for secondary contact/casualty security.
+        // Legacy procedures remain the atomic executor when they are operating on
+        // this exact subject. Otherwise 3.1H can close two narrow staffed effects
+        // directly: secondary security and casualty treatment.
         const directSecondarySecurity=["hostile_contact","uncertain_contact","friendly_casualty"].includes(concern.kind)
           &&String(assignment.responsibility).includes("security");
-        if(proceduralInteraction||!directEnabled||!directSecondarySecurity)continue;
+        const directCasualtyCare=concern.kind==="friendly_casualty"&&assignment.responsibility==="carrier_or_aid_provider";
+        if(!directEnabled||(!directSecondarySecurity&&!directCasualtyCare)||proceduralInteraction&&!directCasualtyCare)continue;
+
+        if(directCasualtyCare){
+          const casualty=(game?.actors??[]).find(candidate=>candidate.id===concern.subjectId)??null;
+          if(!casualty||casualty.medical?.dead)continue;
+          const interactionRange=92;
+          const treatmentNeed=game?.wounds?.getTreatmentNeed?.(casualty)??null;
+          const hasSupply=Boolean(treatmentNeed&&Number(actor.aiV2MedicalSupplies?.[treatmentNeed.type]??0)>0);
+          const distanceToCasualty=Math.hypot(actor.x-casualty.x,actor.y-casualty.y);
+          if(distanceToCasualty>interactionRange){
+            const directive={assignmentId:assignment.id,concernId:concern.id,casualtyId:casualty.id,responsibility:assignment.responsibility,intent,reason:`Reach ${casualty.name??"the casualty"} because the staffed care obligation is still unresolved.`,utilityScore:score,provenance:{owner:"concern_fulfillment_runtime",source:"direct_casualty_care_approach",teamId:actor.teamId,concernId:concern.id,assignmentId:assignment.id,responsibility:assignment.responsibility}};
+            const action=new MoveWithinIntentFieldAction({actorId:actor.id,directive});
+            this.brain?.submit?.({actorId:actor.id,action,score:Math.max(1.3,score,obligation?.priority??0),urgency:Math.max(1.08,urgency,obligation?.urgency??0),authorityTier:obligation?.authorityTier??ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:"Persistent casualty obligation",reason:directive.reason,source:"concern_fulfillment_runtime",concernId:concern.id,obligationId:obligation?.id??null,desiredEffect:concern.desiredEffect,operationId:actor.operationId??null,missionId:concern.missionId??actor.squadMission??null,roleId:assignment.responsibility,onRejected:reason=>{if(obligation?.id)actorObligations?.markBlocked?.(obligation.id,{now,reason});}});
+            continue;
+          }
+          if(hasSupply&&obligation?.id){
+            const directive={obligationId:obligation.id,assignmentId:assignment.id,concernId:concern.id,casualtyId:casualty.id,interactionRange,duration:Math.max(1.8,2.8-urgency*.6),reason:`Treat ${casualty.name??"the casualty"} because the staffed care obligation has reached physical treatment range.`,provenance:{owner:"concern_fulfillment_runtime",source:"direct_staffed_casualty_treatment",teamId:actor.teamId,concernId:concern.id,assignmentId:assignment.id,responsibility:assignment.responsibility}};
+            const action=new TreatAssignedCasualtyAction({actorId:actor.id,directive});
+            this.brain?.submit?.({actorId:actor.id,action,score:Math.max(1.35,score,obligation.priority??0),urgency:Math.max(1.12,urgency,obligation.urgency??0),authorityTier:Math.max(ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,obligation.authorityTier??0),authorityLabel:"Persistent casualty obligation",reason:directive.reason,source:"concern_fulfillment_runtime",concernId:concern.id,obligationId:obligation.id,desiredEffect:concern.desiredEffect,operationId:actor.operationId??null,missionId:concern.missionId??actor.squadMission??null,roleId:assignment.responsibility,onRejected:reason=>actorObligations?.markBlocked?.(obligation.id,{now,reason})});
+            continue;
+          }
+          if(obligation?.id&&!hasSupply)actorObligations?.markBlocked?.(obligation.id,{now,reason:treatmentNeed?`missing_${treatmentNeed.type}`:"no_current_treatment_need"});
+          continue;
+        }
+
         if(!satisfied){
           const directive={assignmentId:assignment.id,concernId:concern.id,responsibility:assignment.responsibility,intent,reason:intent.reason,utilityScore:score,provenance:{owner:"concern_fulfillment_runtime",source:"concurrent_concern_staffing",teamId:actor.teamId,concernId:concern.id,assignmentId:assignment.id,responsibility:assignment.responsibility}};
           const action=new MoveWithinIntentFieldAction({actorId:actor.id,directive});

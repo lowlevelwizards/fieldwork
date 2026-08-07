@@ -1,3 +1,12 @@
+## 3.1H behavior closure
+
+Persistent obligations now close through stable local commitments and physical world-state progress. Close opposing actors receive bounded awareness outside the normal forward FOV, completed cover remains protected long enough to be tactically useful, self aid cannot defer forever, and staffed live-sandbox caregivers can directly approach and treat a casualty. Contact avoid/contest atoms complete into reassessment cooldowns rather than immediately repeating.
+
+```text
+persistent obligation → stable commitment → atomic action
+→ physical progress / resolution → reassessment
+```
+
 ## 3.1G persistent actor obligations
 
 Staffing and personal survival evidence now create durable actor-owned obligations that survive individual atomic actions. Obligations remain accepted, acting, or blocked until their physical source resolves or ownership is reassigned, and their IDs travel through the unified actor brain into active plans. Required hostile contact can therefore displace unchanged mission travel without adding another execution authority.

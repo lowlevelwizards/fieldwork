@@ -15,7 +15,14 @@ export class ActorTacticalCommitmentStore{
     const previous=this.byActor.get(input.actorId)??null;
     const key=input.key??[input.kind,input.responsibilityId??"none",input.threatTrackId??"none"].join(":");
     if(previous?.key===key){
-      const next={...previous,...input,key,status:"active",reaffirmedAt:now,minimumUntil:Math.max(previous.minimumUntil??0,input.minimumUntil??0),maximumUntil:input.maximumUntil??previous.maximumUntil};
+      // Reaffirming the same tactical choice confirms it; it must not move its
+      // anchor or slide its lifetime forward every frame. Stable local plans
+      // are what make movement causal instead of a chain of moving goalposts.
+      const next={...previous,...input,key,status:"active",reaffirmedAt:now,
+        anchorPoint:clonePoint(previous.anchorPoint??input.anchorPoint),
+        threatPoint:clonePoint(input.threatPoint??previous.threatPoint),
+        minimumUntil:previous.minimumUntil??input.minimumUntil??now,
+        maximumUntil:previous.maximumUntil??input.maximumUntil??now+12};
       this.byActor.set(input.actorId,next);return clone(next);
     }
     const record={actorId:input.actorId,key,kind:input.kind,responsibilityId:input.responsibilityId??null,procedureId:input.procedureId??null,roleId:input.roleId??null,threatTrackId:input.threatTrackId??null,subject:input.subject??{},anchorPoint:clonePoint(input.anchorPoint),threatPoint:clonePoint(input.threatPoint),desiredEffect:input.desiredEffect??null,selectedAt:now,reaffirmedAt:now,minimumUntil:input.minimumUntil??now,maximumUntil:input.maximumUntil??now+12,status:"active",reason:input.reason??null,provenance:input.provenance??{}};

@@ -9,9 +9,10 @@ function cloneVisibleMap(source){
 }
 
 export class AmbientPerceptionRuntime{
-  constructor({decisionLog=null,scanInterval=.28}={}){
+  constructor({decisionLog=null,scanInterval=.28,closeAwarenessRange=260}={}){
     this.decisionLog=decisionLog;
     this.scanInterval=Math.max(.08,Number(scanInterval)||.28);
+    this.closeAwarenessRange=Math.max(90,Number(closeAwarenessRange)||260);
     this.accumulator=0;
     this.lastVisibleByObserver=new Map();
   }
@@ -43,7 +44,14 @@ export class AmbientPerceptionRuntime{
         const observationCapability=Math.max(0,Math.min(1,Number(observer.aiV2Capabilities?.observation)||.5));
         const maximumRange=(policy?.maximumRange??780)*(.88+observationCapability*.2);
         const fieldOfViewDegrees=(policy?.fieldOfViewDegrees??112)+observationCapability*10;
-        const evidence=evaluateVisualObservation(game,observer,target,{maximumRange,fieldOfViewDegrees});
+        let evidence=evaluateVisualObservation(game,observer,target,{maximumRange,fieldOfViewDegrees});
+        // At conversational / collision distance an operator should not ghost past an
+        // opposing team merely because their current look angle is forward. Close
+        // awareness is still blocked by hard obstacles; it only relaxes the FOV gate.
+        if(game?.scenarioMode==="live"&&game?.livingSandbox?.liveMode&& !evidence.visible&&evidence.distance<=this.closeAwarenessRange){
+          const close=evaluateVisualObservation(game,observer,target,{maximumRange:this.closeAwarenessRange,fieldOfViewDegrees:360});
+          if(close.visible)evidence={...close,confidenceRate:Math.max(18,close.confidenceRate??0),closeAwareness:true};
+        }
         if(!evidence.visible)continue;
         visibleIds.add(target.id);
         const contact=personalKnowledge?.observe?.({observer,target,evidence,now,delta:sampleDelta});
@@ -53,7 +61,7 @@ export class AmbientPerceptionRuntime{
             time:now,
             actorId:observer.id,
             teamId:observer.teamId,
-            data:{subjectId:target.id,distance:Math.round(evidence.distance),confidence:Math.round(contact.confidence),evidenceType:"ambient_visual"}
+            data:{subjectId:target.id,distance:Math.round(evidence.distance),confidence:Math.round(contact.confidence),evidenceType:evidence.closeAwareness?"close_awareness":"ambient_visual"}
           });
         }
       }

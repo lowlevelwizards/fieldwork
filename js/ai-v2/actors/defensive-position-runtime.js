@@ -51,7 +51,8 @@ export class DefensivePositionRuntime{
           ?this.directionalCover.isSlotValid({game,slot:retainedSlot,threatPoint,policy})
           :{valid:false,reason:"no_retained_slot"};
 
-        if(retainedSlot&&claim&&validity.valid){
+        const minimumCommitmentActive=Boolean(retainedSlot&&claim&&now<(existing?.minimumUntil??0));
+        if(retainedSlot&&claim&&(validity.valid||minimumCommitmentActive)){
           this.positionSlots.renewActor(actor.id,{now,duration:claim.status==="occupied"?30:8});
           const moving=this.scheduler.getAction(actor.id,"MoveToPositionSlot");
           const holding=this.scheduler.getAction(actor.id,"HoldPosition");
@@ -88,6 +89,7 @@ export class DefensivePositionRuntime{
           procedureId:procedure.procedureId,
           status:"proposed",
           selectedAt:now,
+          minimumUntil:now+4,
           committedAt:null,
           lastUpdatedAt:now,
           score:slot.score,

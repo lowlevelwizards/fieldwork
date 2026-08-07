@@ -142,7 +142,7 @@ export class AIV2Runtime{
     this.objectives.syncFromGame(game);
     this.snapshot=captureWorldSnapshot(game,{elapsed:0});
     this.invariants.inspect(this.snapshot,{now:0,procedures:[],roleActions:[]});
-    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"3.1G_persistent_actor_obligations",scenario:game.scenarioMode}});
+    this.decisionLog.record({type:"runtime_started",time:0,data:{mode:"v2",stage:"3.1H_behavior_closure",scenario:game.scenarioMode}});
   }
 
   update(delta){
