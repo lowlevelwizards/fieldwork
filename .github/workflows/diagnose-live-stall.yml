@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/ai-3.2f-live-stall-diagnostic
+  pull_request:
+    branches:
+      - AI-2.0
 
 permissions:
   contents: read
