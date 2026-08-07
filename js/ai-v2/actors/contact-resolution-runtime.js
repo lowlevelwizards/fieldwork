@@ -1,52 +1,83 @@
 import { CircumventContactAction } from "../actions/circumvent-contact-action.js";
-import { HoldReadyAction } from "../actions/hold-ready-action.js";
-import { ContactFireAction } from "../actions/contact-fire-action.js";
 import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
+import { ContactRouteDecisionState } from "../decisions/contact-route-decision-state.js";
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
+function normalized(vector){const l=Math.hypot(vector?.x??0,vector?.y??0)||1;return{x:(vector?.x??0)/l,y:(vector?.y??0)/l};}
+
 export class ContactResolutionRuntime{
- constructor({scheduler,brain=null,arbiter=null,decisionLog=null}={}){this.scheduler=scheduler;this.brain=brain??arbiter;this.decisionLog=decisionLog;this.assignments=new Map();}
+ constructor({scheduler,brain=null,arbiter=null,decisionLog=null,routeDecisions=null}={}){
+  this.scheduler=scheduler;this.brain=brain??arbiter;this.decisionLog=decisionLog;this.assignments=new Map();
+  this.routeDecisions=routeDecisions??new ContactRouteDecisionState({decisionLog});
+ }
  update({game,teamResponses,teamEncounters,teamProcedures=null,now=0}={}){
   if(game?.scenarioMode!=="live")return;
+  this.routeDecisions.update({game,teamResponses,teamEncounters,now});
   const live=new Set();
-  for(const response of teamResponses?.summary?.()??[]){
-   if(!["avoid_contact","contest_access","engage_contact"].includes(response.selected?.id))continue;
-   const encounter=teamEncounters?.getBestTeamHypothesis?.(response.teamId);
-   const spatial=encounter?.contactResolution;if(!spatial?.materiallyRelevant)continue;
-   const procedure=teamProcedures?.get?.(response.teamId)??null;
-   const actors=(game.actors??[]).filter(a=>a.teamId===response.teamId&&!a.medical?.dead&&!a.medical?.unconscious).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
-   const hostileTargets=(game.actors??[]).filter(a=>a.teamId===encounter.subjectTeamId&&!a.medical?.dead&&!a.medical?.unconscious&&a.medical?.condition!=="critical").sort((a,b)=>String(a.id).localeCompare(String(b.id)));
-   const dx=spatial.ownCenter.x-spatial.otherCenter.x,dy=spatial.ownCenter.y-spatial.otherCenter.y,l=Math.hypot(dx,dy)||1,nx=dx/l,ny=dy/l,px=-ny,py=nx;
-   actors.forEach((actor,index)=>{
-    const role=teamProcedures?.getActorRole?.(actor.id);
-    const protectedCare=procedure?.procedureId==="casualty_recovery"&&role?.roleId==="aid_provider"||procedure?.procedureId==="casualty_evacuation"&&["carrier","route_security"].includes(role?.roleId)||this.scheduler.hasAction(actor.id,"SelfAid")||this.scheduler.hasAction(actor.id,"ReactToIncomingFire");
-    if(protectedCare){live.add(actor.id);return;}
-    if((actor.aiV2ContactResolutionResolvedUntil??0)>now&&response.selected.id!=="engage_contact"){live.add(actor.id);actor.operationPausedByEncounter=false;return;}
-    live.add(actor.id);actor.operationPausedByEncounter=true;
-    const lateral=(index-(actors.length-1)/2)*58;
-    const mode=response.selected.id==="contest_access"?"contest":response.selected.id==="engage_contact"?"engage":"avoid";
-    if(mode==="engage"){
-      // Team authority defines the desired effect and permission. It no longer
-      // assigns fixed shooters or physical fire actions; each actor chooses the
-      // safest useful atom from personal perception and position.
-      actor.aiV2ContactIntent={
-        kind:"engage_contact",subjectTeamId:encounter.subjectTeamId,
-        focus:{...spatial.otherCenter},minimumSeparation:Math.max(150,spatial.minimumSeparation*.48),
-        desiredEffect:"halt_hostile_advance",firePermission:"hostile_confirmed",
-        responseId:response.selected.id,updatedAt:now
-      };
-      this.assignments.set(actor.id,{actorId:actor.id,responseId:response.selected.id,subjectId:response.subjectId,actionType:"ActorSelected",at:now});
-      return;
-    }
-    if(mode==="avoid"&&String(response.teamId).localeCompare(String(encounter.subjectTeamId??""))<0){actor.operationPausedByEncounter=false;return;}
-    const distanceOut=mode==="contest"?Math.max(180,spatial.minimumSeparation*.72):Math.max(260,spatial.minimumSeparation);
-    const side=String(response.teamId).localeCompare(String(encounter.subjectTeamId??""))>=0?1:-1;
-    const destination=mode==="avoid"?{x:spatial.ownCenter.x+px*side*distanceOut+nx*80+px*lateral,y:spatial.ownCenter.y+py*side*distanceOut+ny*80+py*lateral}:{x:spatial.otherCenter.x+nx*Math.max(150,spatial.minimumSeparation*.55)+px*lateral,y:spatial.otherCenter.y+ny*Math.max(150,spatial.minimumSeparation*.55)+py*lateral};
-    const action=new CircumventContactAction({actorId:actor.id,directive:{mode,destination,focus:{...spatial.otherCenter},initialDistance:distance(actor,destination),reason:mode==="contest"?"The teams need the same access; occupy a defensible local position instead of passing through.":"The opposing team is materially relevant; create visible spacing and pass around rather than ghosting through.",provenance:{owner:"contact_resolution_runtime",source:"governing_response",responseId:response.selected.id,subjectTeamId:encounter.subjectTeamId}}});
-    this.#submit(actor,action,response,now,mode==="contest"?.94:.88);
-   });
+  for(const actor of game.actors??[]){
+   if(actor.medical?.dead||actor.medical?.unconscious)continue;
+   const directive=actor.aiV2ContactRouteDecision??null;
+   if(!directive)continue;
+   const response=teamResponses?.get?.(actor.teamId)??null;
+   const encounter=teamEncounters?.getBestTeamHypothesis?.(actor.teamId)??null;
+   if(!encounter||directive.subjectTeamId!==encounter.subjectTeamId)continue;
+   const procedure=teamProcedures?.get?.(actor.teamId)??null;
+   const role=teamProcedures?.getActorRole?.(actor.id);
+   const protectedCare=procedure?.procedureId==="casualty_recovery"&&role?.roleId==="aid_provider"||procedure?.procedureId==="casualty_evacuation"&&["carrier","route_security"].includes(role?.roleId)||this.scheduler.hasAction(actor.id,"SelfAid")||this.scheduler.hasAction(actor.id,"ReactToIncomingFire");
+   live.add(actor.id);
+   if(protectedCare){this.assignments.set(actor.id,{actorId:actor.id,responseId:response?.selected?.id??null,subjectId:encounter.subjectId,actionType:"ProtectedCare",routeMode:directive.routeMode,pairKey:directive.pairKey,at:now});continue;}
+
+   if(["continue","circumvent","yield","shadow"].includes(directive.routeMode)){
+    actor.aiV2ContactIntent=null;
+    this.assignments.set(actor.id,{actorId:actor.id,responseId:response?.selected?.id??null,subjectId:encounter.subjectId,actionType:directive.routeMode==="continue"?"RouteContinue":"RouteOverlay",routeMode:directive.routeMode,pairKey:directive.pairKey,stalemate:Boolean(directive.stalemate),at:now});
+    continue;
+   }
+
+   if(directive.routeMode==="engage"){
+    actor.aiV2ContactIntent={
+      kind:"engage_contact",subjectTeamId:encounter.subjectTeamId,
+      focus:directive.contactCenter?{...directive.contactCenter}:{...(encounter.contactResolution?.otherCenter??encounter.approximatePosition)},
+      minimumSeparation:Math.max(150,(directive.minimumSeparation??220)*.48),
+      desiredEffect:"resolve_hostile_route_obstruction",firePermission:"hostile_confirmed",
+      responseId:response?.selected?.id??"engage_contact",pairKey:directive.pairKey,updatedAt:now
+    };
+    this.assignments.set(actor.id,{actorId:actor.id,responseId:response?.selected?.id??"engage_contact",subjectId:encounter.subjectId,actionType:"ActorSelected",routeMode:"engage",pairKey:directive.pairKey,stalemate:Boolean(directive.stalemate),at:now});
+    continue;
+   }
+
+   actor.aiV2ContactIntent=null;
+   const routeDirection=normalized(directive.routeDirection??{x:1,y:0});
+   const perpendicular={x:-routeDirection.y,y:routeDirection.x};
+   const side=directive.side>=0?1:-1;
+   const lateral=(String(actor.id).localeCompare(String((game.actors??[]).filter(item=>item.teamId===actor.teamId)[0]?.id??actor.id)))*28;
+   let mode="contest",destination=null,reason="";
+   if(directive.routeMode==="contest"){
+    const conflict=directive.conflictPoint??directive.contactCenter??actor;
+    const standoff=Math.max(170,Math.min(320,(directive.minimumSeparation??240)*.68));
+    const away=directive.contactCenter?normalized({x:conflict.x-directive.contactCenter.x,y:conflict.y-directive.contactCenter.y}):{x:-routeDirection.y,y:routeDirection.x};
+    destination={x:conflict.x+away.x*standoff+perpendicular.x*side*lateral,y:conflict.y+away.y*standoff+perpendicular.y*side*lateral};
+    reason="The pair-level route decision says access itself is unresolved; occupy a bounded contest position while normal operation travel remains suspended.";
+   }else if(directive.routeMode==="withdraw"){
+    mode="avoid";
+    const contact=directive.contactCenter??directive.conflictPoint??actor;
+    const away=normalized({x:actor.x-contact.x,y:actor.y-contact.y});
+    const retreat=Math.max(300,Number(directive.clearance)||340);
+    destination={x:actor.x+away.x*retreat+perpendicular.x*side*70,y:actor.y+away.y*retreat+perpendicular.y*side*70};
+    reason=directive.recoveryFrom?"The prior contact-route decision reached a stalemate; create real separation before choosing another route relationship.":"The governing contact-route decision requires withdrawal before mission travel can resume.";
+   }
+   if(!destination)continue;
+   const action=new CircumventContactAction({actorId:actor.id,directive:{mode,destination,focus:directive.contactCenter??directive.conflictPoint,initialDistance:distance(actor,destination),reason,holdDuration:directive.routeMode==="contest"?3.5:0,provenance:{owner:"contact_resolution_runtime",source:"contact_route_decision",responseId:response?.selected?.id??null,subjectTeamId:encounter.subjectTeamId,pairKey:directive.pairKey,routeMode:directive.routeMode}}});
+   this.#submit(actor,action,response,encounter,directive,now,directive.routeMode==="contest"?.94:.96);
   }
-  for(const actor of game.actors??[])if(actor.operationPausedByEncounter&&!live.has(actor.id)&&!this.scheduler.hasAction(actor.id,"SelfAid")&&!this.scheduler.hasAction(actor.id,"ReactToIncomingFire")){actor.operationPausedByEncounter=false;actor.aiV2ContactIntent=null;this.assignments.delete(actor.id);}
+  for(const actor of game.actors??[]){
+   if(live.has(actor.id))continue;
+   actor.aiV2ContactIntent=null;
+   if(!this.scheduler.hasAction(actor.id,"SelfAid")&&!this.scheduler.hasAction(actor.id,"ReactToIncomingFire"))actor.operationPausedByEncounter=false;
+   this.assignments.delete(actor.id);
+  }
  }
- #submit(actor,action,response,now,urgency){this.brain?.submit?.({actorId:actor.id,action,score:4,urgency,authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:"Faction contact resolution",reason:action.purpose,source:"contact_resolution_runtime",operationId:actor.operationId??null,missionId:response.missionId??null,governingIntentId:`contact:${response.subjectId}`,onGranted:()=>this.assignments.set(actor.id,{actorId:actor.id,responseId:response.selected.id,subjectId:response.subjectId,actionType:action.type,at:now})});}
+ #submit(actor,action,response,encounter,directive,now,urgency){
+  this.brain?.submit?.({actorId:actor.id,action,score:4,urgency,authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:"Contact route decision",reason:action.purpose,source:"contact_resolution_runtime",operationId:actor.operationId??null,missionId:response?.missionId??null,governingIntentId:`contact-route:${directive.pairKey}`,desiredEffect:directive.desiredEffect,concernId:null,obligationId:null,onGranted:()=>this.assignments.set(actor.id,{actorId:actor.id,responseId:response?.selected?.id??null,subjectId:encounter.subjectId,actionType:action.type,routeMode:directive.routeMode,pairKey:directive.pairKey,stalemate:Boolean(directive.stalemate),at:now})});
+ }
  summary(){return[...this.assignments.values()].map(x=>({...x}));}
+ routeSummary(){return this.routeDecisions.summary();}
 }
