@@ -1,5 +1,3 @@
-import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
-
 export const REPLAN_DECISIONS=Object.freeze({
   PRESERVE:"preserve",
   AMEND:"amend",
@@ -43,7 +41,7 @@ function materialChange(candidate,incumbent,liveness){
   if(candidate.desiredEffect&&prior.desiredEffect&&candidate.desiredEffect!==prior.desiredEffect)return true;
   if(candidate.urgency-(Number(prior.urgency)||0)>=.24)return true;
   if(liveness?.status==="warning"||liveness?.status==="invalid")return true;
-  return directiveChanged(candidate.action,incumbent);
+  return incumbent?.type===candidate.action?.type&&directiveChanged(candidate.action,incumbent);
 }
 
 function minimumCommitment(action){
