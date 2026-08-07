@@ -1,14 +1,11 @@
 import { MoveWithinIntentFieldAction } from "../actions/move-within-intent-field-action.js";
 import { HoldReadyAction } from "../actions/hold-ready-action.js";
-import { TreatAssignedCasualtyAction } from "../actions/treat-assigned-casualty-action.js";
 import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 
 export class ConcernFulfillmentRuntime{
-  constructor({brain,spatialIntentFields,decisionLog=null}={}){
-    this.brain=brain;this.spatialIntentFields=spatialIntentFields;this.decisionLog=decisionLog;this.byActor=new Map();
-  }
+  constructor({brain,spatialIntentFields,decisionLog=null}={}){this.brain=brain;this.spatialIntentFields=spatialIntentFields;this.decisionLog=decisionLog;this.byActor=new Map();}
 
   update({game,teamConcerns,concernStaffing,actorObligations=null,teamProcedures,now=0}={}){
     this.byActor.clear();
@@ -27,38 +24,17 @@ export class ConcernFulfillmentRuntime{
         const proceduralInteraction=Boolean(proceduralRole&&activeProcedure?.subjectId&&activeProcedure.subjectId===concern.subjectId);
         const score=clamp((Number(concern.importance)||0)*.65+(Number(concern.urgency)||0)*.35+(assignment.required?.12:0),0,1.35);
         const urgency=clamp((Number(concern.urgency)||0)+(assignment.required?.08:0));
-        const record={assignmentId:assignment.id,obligationId:obligation?.id??null,concernId:concern.id,responsibility:assignment.responsibility,satisfied,intent,proceduralInteraction:Boolean(proceduralInteraction)};
+        const desiredEffectOwnedElsewhere=Boolean(directEnabled&&concern.kind==="friendly_casualty"&&assignment.responsibility==="carrier_or_aid_provider");
+        const record={assignmentId:assignment.id,obligationId:obligation?.id??null,concernId:concern.id,responsibility:assignment.responsibility,satisfied,intent,proceduralInteraction:Boolean(proceduralInteraction),desiredEffectOwnedElsewhere};
         entries.push(record);
-        // Legacy procedures remain the atomic executor when they are operating on
-        // this exact subject. Otherwise 3.1H can close two narrow staffed effects
-        // directly: secondary security and casualty treatment.
-        const directSecondarySecurity=["hostile_contact","uncertain_contact","friendly_casualty"].includes(concern.kind)
-          &&String(assignment.responsibility).includes("security");
-        const directCasualtyCare=concern.kind==="friendly_casualty"&&assignment.responsibility==="carrier_or_aid_provider";
-        if(!directEnabled||(!directSecondarySecurity&&!directCasualtyCare)||proceduralInteraction&&!directCasualtyCare)continue;
 
-        if(directCasualtyCare){
-          const casualty=(game?.actors??[]).find(candidate=>candidate.id===concern.subjectId)??null;
-          if(!casualty||casualty.medical?.dead)continue;
-          const interactionRange=92;
-          const treatmentNeed=game?.wounds?.getTreatmentNeed?.(casualty)??null;
-          const hasSupply=Boolean(treatmentNeed&&Number(actor.aiV2MedicalSupplies?.[treatmentNeed.type]??0)>0);
-          const distanceToCasualty=Math.hypot(actor.x-casualty.x,actor.y-casualty.y);
-          if(distanceToCasualty>interactionRange){
-            const directive={assignmentId:assignment.id,concernId:concern.id,casualtyId:casualty.id,responsibility:assignment.responsibility,intent,reason:`Reach ${casualty.name??"the casualty"} because the staffed care obligation is still unresolved.`,utilityScore:score,provenance:{owner:"concern_fulfillment_runtime",source:"direct_casualty_care_approach",teamId:actor.teamId,concernId:concern.id,assignmentId:assignment.id,responsibility:assignment.responsibility}};
-            const action=new MoveWithinIntentFieldAction({actorId:actor.id,directive});
-            this.brain?.submit?.({actorId:actor.id,action,score:Math.max(1.3,score,obligation?.priority??0),urgency:Math.max(1.08,urgency,obligation?.urgency??0),authorityTier:obligation?.authorityTier??ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,authorityLabel:"Persistent casualty obligation",reason:directive.reason,source:"concern_fulfillment_runtime",concernId:concern.id,obligationId:obligation?.id??null,desiredEffect:concern.desiredEffect,operationId:actor.operationId??null,missionId:concern.missionId??actor.squadMission??null,roleId:assignment.responsibility,onRejected:reason=>{if(obligation?.id)actorObligations?.markBlocked?.(obligation.id,{now,reason});}});
-            continue;
-          }
-          if(hasSupply&&obligation?.id){
-            const directive={obligationId:obligation.id,assignmentId:assignment.id,concernId:concern.id,casualtyId:casualty.id,interactionRange,duration:Math.max(1.8,2.8-urgency*.6),reason:`Treat ${casualty.name??"the casualty"} because the staffed care obligation has reached physical treatment range.`,provenance:{owner:"concern_fulfillment_runtime",source:"direct_staffed_casualty_treatment",teamId:actor.teamId,concernId:concern.id,assignmentId:assignment.id,responsibility:assignment.responsibility}};
-            const action=new TreatAssignedCasualtyAction({actorId:actor.id,directive});
-            this.brain?.submit?.({actorId:actor.id,action,score:Math.max(1.35,score,obligation.priority??0),urgency:Math.max(1.12,urgency,obligation.urgency??0),authorityTier:Math.max(ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,obligation.authorityTier??0),authorityLabel:"Persistent casualty obligation",reason:directive.reason,source:"concern_fulfillment_runtime",concernId:concern.id,obligationId:obligation.id,desiredEffect:concern.desiredEffect,operationId:actor.operationId??null,missionId:concern.missionId??actor.squadMission??null,roleId:assignment.responsibility,onRejected:reason=>actorObligations?.markBlocked?.(obligation.id,{now,reason})});
-            continue;
-          }
-          if(obligation?.id&&!hasSupply)actorObligations?.markBlocked?.(obligation.id,{now,reason:treatmentNeed?`missing_${treatmentNeed.type}`:"no_current_treatment_need"});
-          continue;
-        }
+        // 3.2E: carrier/aid-provider execution is no longer a generic concern
+        // fulfillment special case. The durable obligation is fulfilled by the
+        // casualty-recovery method selector in RoleActionRuntime's live path.
+        if(desiredEffectOwnedElsewhere)continue;
+
+        const directSecondarySecurity=["hostile_contact","uncertain_contact","friendly_casualty"].includes(concern.kind)&&String(assignment.responsibility).includes("security");
+        if(!directEnabled||!directSecondarySecurity||proceduralInteraction)continue;
 
         if(!satisfied){
           const directive={assignmentId:assignment.id,concernId:concern.id,responsibility:assignment.responsibility,intent,reason:intent.reason,utilityScore:score,provenance:{owner:"concern_fulfillment_runtime",source:"concurrent_concern_staffing",teamId:actor.teamId,concernId:concern.id,assignmentId:assignment.id,responsibility:assignment.responsibility}};
@@ -76,5 +52,5 @@ export class ConcernFulfillmentRuntime{
   }
 
   get(actorId){return(this.byActor.get(actorId)??[]).map(item=>({...item,intent:{...item.intent,goal:item.intent.goal?{...item.intent.goal}:null,focus:item.intent.focus?{...item.intent.focus}:null,region:item.intent.region?{...item.intent.region,center:{...item.intent.region.center}}:null}}));}
-  summary(){return[...this.byActor.entries()].flatMap(([actorId,entries])=>entries.map(item=>({actorId,assignmentId:item.assignmentId,obligationId:item.obligationId??null,concernId:item.concernId,responsibility:item.responsibility,satisfied:item.satisfied,proceduralInteraction:item.proceduralInteraction,intentId:item.intent.id,regionType:item.intent.region?.type??null})));}
+  summary(){return[...this.byActor.entries()].flatMap(([actorId,entries])=>entries.map(item=>({actorId,assignmentId:item.assignmentId,obligationId:item.obligationId??null,concernId:item.concernId,responsibility:item.responsibility,satisfied:item.satisfied,proceduralInteraction:item.proceduralInteraction,desiredEffectOwnedElsewhere:item.desiredEffectOwnedElsewhere,intentId:item.intent.id,regionType:item.intent.region?.type??null})));
 }
