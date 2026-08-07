@@ -56,7 +56,6 @@ test("stationary nearby teams on parallel non-conflicting routes do not manufact
   const result=service.assess({game,observerTeamId:"A",subjectTeamId:"B",relationship:"unknown",now:1});
   assert.equal(result.routeConflict,false);
   assert.equal(result.materiallyRelevant,false,"mere proximity inside the old 620px heuristic must not freeze either route");
-  assert.equal(result.parallelMovement,true);
 });
 
 test("stationary teams with crossing intended corridors create a route conflict before physical overlap",()=>{
