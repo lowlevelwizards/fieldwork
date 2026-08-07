@@ -36,34 +36,45 @@ function priorityFor(game,teamId,response){
     (returning?.12:0)
   );
 }
-function metricsFor(game,teamIds,separation){
+function metricsFor(game,teamIds,separation,routeConflictSeverity){
   const teams={};
   for(const teamId of teamIds){
     const actors=activeActors(game,teamId);
-    teams[teamId]={center:center(actors),progress:routeProgress(actors)};
+    teams[teamId]={progress:routeProgress(actors)};
   }
-  return{teams,separation:Number(separation)||0};
+  return{teams,separation:Number(separation)||0,routeConflictSeverity:Number(routeConflictSeverity)||0};
 }
 function metricsChanged(anchor,current){
   if(!anchor)return true;
   if(Math.abs((current.separation??0)-(anchor.separation??0))>=70)return true;
+  if(Math.abs((current.routeConflictSeverity??0)-(anchor.routeConflictSeverity??0))>=.16)return true;
   for(const [teamId,item] of Object.entries(current.teams??{})){
     const before=anchor.teams?.[teamId];
-    if(!before||!item.center||!before.center)return true;
-    if(distance(item.center,before.center)>=58)return true;
+    if(!before)return true;
     if(Math.abs((item.progress??0)-(before.progress??0))>=.03)return true;
   }
   return false;
 }
 function clonePoint(point){return point?{x:Number(point.x)||0,y:Number(point.y)||0}:null;}
-function cloneDirective(directive){return directive?{...directive,contactCenter:clonePoint(directive.contactCenter),conflictPoint:clonePoint(directive.conflictPoint),routeDirection:clonePoint(directive.routeDirection)}:null;}
+function clonePointMap(map={}){return Object.fromEntries(Object.entries(map).map(([key,value])=>[key,clonePoint(value)]));}
+function cloneDirective(directive){return directive?{
+  ...directive,
+  contactCenter:clonePoint(directive.contactCenter),conflictPoint:clonePoint(directive.conflictPoint),routeDirection:clonePoint(directive.routeDirection),
+  yieldPoint:clonePoint(directive.yieldPoint),withdrawPoint:clonePoint(directive.withdrawPoint),contestPoint:clonePoint(directive.contestPoint)
+}:null;}
 function cloneDecision(decision){
   if(!decision)return null;
   return{
     ...decision,
     teamIds:[...decision.teamIds],
     priorities:{...decision.priorities},
-    geometry:{...decision.geometry,conflictPoint:clonePoint(decision.geometry?.conflictPoint)},
+    geometry:{
+      ...decision.geometry,
+      conflictPoint:clonePoint(decision.geometry?.conflictPoint),
+      yieldPointByTeam:clonePointMap(decision.geometry?.yieldPointByTeam),
+      withdrawPointByTeam:clonePointMap(decision.geometry?.withdrawPointByTeam),
+      contestPointByTeam:clonePointMap(decision.geometry?.contestPointByTeam)
+    },
     directives:Object.fromEntries(Object.entries(decision.directives??{}).map(([teamId,directive])=>[teamId,cloneDirective(directive)])),
     responseIds:{...decision.responseIds}
   };
@@ -84,6 +95,7 @@ function inverseSpatial(spatial){
     otherRouteDistanceToConflict:spatial.routeDistanceToConflict
   };
 }
+function unit(vector,fallback={x:1,y:0}){const length=Math.hypot(vector?.x??0,vector?.y??0);return length>.001?{x:vector.x/length,y:vector.y/length}:{...fallback};}
 
 export class ContactRouteDecisionState{
   constructor({decisionLog=null,minimumHold=3.2,stalemateAfter=8,recoveryHold=5.5}={}){
@@ -114,7 +126,9 @@ export class ContactRouteDecisionState{
       const decision=this.#resolve(group,{game,now,prior});
       this.byPair.set(group.key,decision);
       for(const [teamId,directive] of Object.entries(decision.directives)){
-        if(!group.sides.has(teamId)&&decision.mode!==CONTACT_ROUTE_DECISIONS.YIELD&&decision.mode!==CONTACT_ROUTE_DECISIONS.PASS)continue;
+        // A team that has not itself established material contact never receives
+        // movement instructions merely because the opposite team knows about it.
+        if(!group.sides.has(teamId))continue;
         const current=directiveByTeam.get(teamId);
         const weight=(directive.routeSuspended?2:1)+(decision.routeConflictSeverity??0);
         if(!current||weight>current.weight)directiveByTeam.set(teamId,{weight,directive:{...directive,pairKey:decision.key,pairMode:decision.mode,selectedAt:decision.selectedAt,stalemate:decision.stalemate,recoveryFrom:decision.recoveryFrom??null}});
@@ -137,6 +151,7 @@ export class ContactRouteDecisionState{
   #resolve(group,{game,now,prior}){
     const teamIds=group.teamIds;
     const sideA=group.sides.get(teamIds[0])??null,sideB=group.sides.get(teamIds[1])??null;
+    const mutualAwareness=Boolean(sideA&&sideB);
     const spatialA=sideA?.spatial??(sideB?.spatial?inverseSpatial(sideB.spatial):null);
     const spatialB=sideB?.spatial??(sideA?.spatial?inverseSpatial(sideA.spatial):null);
     const spatials=[spatialA,spatialB].filter(Boolean);
@@ -167,7 +182,7 @@ export class ContactRouteDecisionState{
     else if((contestRequested||objectiveConflict)&&obstruction)mode=CONTACT_ROUTE_DECISIONS.CONTEST;
     else if(routeConflict||separation<minimumSeparation){
       const difference=Math.abs(prioritized(priorities,teamIds[0])-prioritized(priorities,teamIds[1]));
-      mode=difference>.18?CONTACT_ROUTE_DECISIONS.YIELD:CONTACT_ROUTE_DECISIONS.PASS;
+      mode=mutualAwareness&&difference>.18?CONTACT_ROUTE_DECISIONS.YIELD:CONTACT_ROUTE_DECISIONS.PASS;
     }else if(parallelMovement&&separation<560&&!hostile)mode=CONTACT_ROUTE_DECISIONS.SHADOW;
 
     const emergencySwitch=immediateHostile&&obstruction;
@@ -180,7 +195,7 @@ export class ContactRouteDecisionState{
     let selectedAt=prior&&prior.mode===mode?prior.selectedAt:now;
     let anchor=prior&&prior.mode===mode?prior.anchor:null;
     let lastMeaningfulChangeAt=prior&&prior.mode===mode?prior.lastMeaningfulChangeAt:now;
-    const currentMetrics=metricsFor(game,teamIds,separation);
+    const currentMetrics=metricsFor(game,teamIds,separation,routeConflictSeverity);
     if(!anchor||metricsChanged(anchor,currentMetrics)){
       anchor=currentMetrics;lastMeaningfulChangeAt=now;
     }
@@ -189,7 +204,9 @@ export class ContactRouteDecisionState{
     if(stalemate){
       recoveryFrom=`${mode}_stalemate`;
       if(mode===CONTACT_ROUTE_DECISIONS.ENGAGE||mode===CONTACT_ROUTE_DECISIONS.YIELD)mode=CONTACT_ROUTE_DECISIONS.WITHDRAW;
+      else if(mode===CONTACT_ROUTE_DECISIONS.WITHDRAW)mode=CONTACT_ROUTE_DECISIONS.PASS;
       else if(mode===CONTACT_ROUTE_DECISIONS.CONTEST||mode===CONTACT_ROUTE_DECISIONS.PASS)mode=CONTACT_ROUTE_DECISIONS.YIELD;
+      else if(mode===CONTACT_ROUTE_DECISIONS.SHADOW)mode=CONTACT_ROUTE_DECISIONS.PASS;
       if(prior?.mode!==mode){selectedAt=now;anchor=currentMetrics;lastMeaningfulChangeAt=now;}
       this.decisionLog?.record?.({type:"contact_route_stalemate",time:now,data:{pairKey:group.key,from:prior?.mode??null,to:mode,separation:Math.round(separation)}});
     }
@@ -198,21 +215,37 @@ export class ContactRouteDecisionState{
     const directives=this.#directives({teamIds,mode,priorities,spatialA,spatialB,geometry:geometrySource,hostile});
     const decision={
       key:group.key,teamIds:[...teamIds],mode,routeConflict,objectiveConflict,routeConflictSeverity,
-      separation,minimumSeparation,parallelMovement,hostile,priorities,responseIds,directives,
+      separation,minimumSeparation,parallelMovement,hostile,mutualAwareness,priorities,responseIds,directives,
       geometry:geometrySource,selectedAt,updatedAt:now,lastMeaningfulChangeAt,anchor,stalemate,recoveryFrom,
       reason:this.#reason(mode,{routeConflict,objectiveConflict,hostile,stalemate})
     };
-    if(!prior||prior.mode!==decision.mode)this.decisionLog?.record?.({type:"contact_route_decision_selected",time:now,data:{pairKey:group.key,mode:decision.mode,routeConflict,objectiveConflict,routeConflictSeverity:Number(routeConflictSeverity.toFixed(2)),priorities}});
+    if(!prior||prior.mode!==decision.mode)this.decisionLog?.record?.({type:"contact_route_decision_selected",time:now,data:{pairKey:group.key,mode:decision.mode,routeConflict,objectiveConflict,routeConflictSeverity:Number(routeConflictSeverity.toFixed(2)),mutualAwareness,priorities}});
     return decision;
   }
 
   #geometry({teamIds,spatialA,spatialB,minimumSeparation}){
+    const spatialByTeam={[teamIds[0]]:spatialA,[teamIds[1]]:spatialB};
     const conflictPoint=spatialA?.conflictPoint??spatialB?.conflictPoint??spatialA?.otherCenter??spatialB?.otherCenter??null;
-    return{
-      conflictPoint:clonePoint(conflictPoint),
-      clearance:Math.max(250,minimumSeparation+90),
-      sideByTeam:{[teamIds[0]]:-1,[teamIds[1]]:1}
-    };
+    const clearance=Math.max(250,minimumSeparation+90);
+    const sideByTeam={[teamIds[0]]:-1,[teamIds[1]]:1};
+    const yieldPointByTeam={},withdrawPointByTeam={},contestPointByTeam={};
+    for(const teamId of teamIds){
+      const spatial=spatialByTeam[teamId];
+      const own=spatial?.ownCenter??conflictPoint??{x:0,y:0};
+      const other=spatial?.otherCenter??conflictPoint??own;
+      const route=unit(spatial?.ownRouteDirection,{x:1,y:0});
+      const perpendicular={x:-route.y,y:route.x};
+      const side=sideByTeam[teamId];
+      const away=unit({x:own.x-other.x,y:own.y-other.y},{x:perpendicular.x*side,y:perpendicular.y*side});
+      const retreat=Math.max(135,Math.min(215,clearance*.48));
+      yieldPointByTeam[teamId]={x:own.x-route.x*retreat+perpendicular.x*side*Math.min(115,clearance*.28),y:own.y-route.y*retreat+perpendicular.y*side*Math.min(115,clearance*.28)};
+      const withdrawDistance=Math.max(320,clearance+120);
+      withdrawPointByTeam[teamId]={x:own.x+away.x*withdrawDistance+perpendicular.x*side*70,y:own.y+away.y*withdrawDistance+perpendicular.y*side*70};
+      const standoff=Math.max(170,Math.min(320,minimumSeparation*.68));
+      const contestBase=conflictPoint??own;
+      contestPointByTeam[teamId]={x:contestBase.x+away.x*standoff+perpendicular.x*side*46,y:contestBase.y+away.y*standoff+perpendicular.y*side*46};
+    }
+    return{conflictPoint:clonePoint(conflictPoint),clearance,sideByTeam,yieldPointByTeam,withdrawPointByTeam,contestPointByTeam};
   }
 
   #directives({teamIds,mode,priorities,spatialA,spatialB,geometry,hostile}){
@@ -233,6 +266,7 @@ export class ContactRouteDecisionState{
         teamId,subjectTeamId:teamId===teamIds[0]?teamIds[1]:teamIds[0],routeMode,routeSuspended,desiredEffect,
         side:geometry.sideByTeam[teamId],priority:priorities[teamId],priorityTeamId:higher,
         contactCenter:clonePoint(spatial?.otherCenter),conflictPoint:clonePoint(geometry.conflictPoint),routeDirection:clonePoint(spatial?.ownRouteDirection)??{x:0,y:0},
+        yieldPoint:clonePoint(geometry.yieldPointByTeam?.[teamId]),withdrawPoint:clonePoint(geometry.withdrawPointByTeam?.[teamId]),contestPoint:clonePoint(geometry.contestPointByTeam?.[teamId]),
         clearance:geometry.clearance,minimumSeparation:Number(spatial?.minimumSeparation)||geometry.clearance-90,
         hostile:Boolean(hostile),routeConflict:Boolean(spatial?.routeConflict),routeConflictSeverity:Number(spatial?.routeConflictSeverity)||0
       };
@@ -241,10 +275,10 @@ export class ContactRouteDecisionState{
   }
 
   #reason(mode,{routeConflict,objectiveConflict,hostile,stalemate}){
-    if(stalemate)return`The prior contact-route method stopped changing access geometry; recover movement rather than repeating the same local response.`;
+    if(stalemate)return`The prior contact-route method stopped changing separation, route access, or strategic progress; recover movement rather than repeating local motion.`;
     if(mode===CONTACT_ROUTE_DECISIONS.ENGAGE)return`Hostile contact materially obstructs useful movement, so the operation route is deliberately suspended while the obstruction is resolved.`;
     if(mode===CONTACT_ROUTE_DECISIONS.CONTEST)return`Both teams require incompatible local access, so normal route travel yields to an explicit access contest.`;
-    if(mode===CONTACT_ROUTE_DECISIONS.PASS)return`The intended corridors conflict; both teams receive stable opposite passing sides while preserving their original strategic routes.`;
+    if(mode===CONTACT_ROUTE_DECISIONS.PASS)return`The intended corridor overlaps the contact region; use a stable passing side while preserving the original strategic route.`;
     if(mode===CONTACT_ROUTE_DECISIONS.YIELD)return`The intended corridors conflict and one operation has materially higher route priority; the lower-priority team yields temporarily.`;
     if(mode===CONTACT_ROUTE_DECISIONS.SHADOW)return`The teams are moving broadly parallel; maintain bounded offset rather than repeatedly stopping to reassess.`;
     if(mode===CONTACT_ROUTE_DECISIONS.WITHDRAW)return`Current contact cannot be resolved productively in place; create separation before reconsidering the operation route.`;
