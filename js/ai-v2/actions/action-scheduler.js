@@ -1,9 +1,11 @@
 import { ACTION_STATES } from "./action.js";
+import { ActionLivenessMonitor } from "../diagnostics/action-liveness-monitor.js";
 
 export class ActionScheduler{
-  constructor({decisionLog=null}={}){
+  constructor({decisionLog=null,liveness=null}={}){
     this.decisionLog=decisionLog;
     this.activeByActor=new Map();
+    this.liveness=liveness??new ActionLivenessMonitor({decisionLog});
   }
 
   getActions(actorId){return this.activeByActor.get(actorId)??[];}
@@ -22,7 +24,14 @@ export class ActionScheduler{
     },null);
   }
 
-  canStart(action,context={}){
+  canStart(action,context={},now=context?.now??0){
+    const viability=this.liveness?.canStart?.(action,context,now)??{ok:true};
+    if(!viability.ok)return{
+      ok:false,
+      reason:viability.reason??"action_liveness_start_rejected",
+      liveness:viability,
+      preemptions:[]
+    };
     if(!action.canStart(context))return{ok:false,reason:"action_start_condition_failed",preemptions:[]};
     const conflicts=this.#conflicts(action);
     if(!conflicts.length)return{ok:true,preemptions:[]};
@@ -44,12 +53,13 @@ export class ActionScheduler{
   }
 
   start(action,{now=0,context={}}={}){
-    const result=this.canStart(action,context);
+    const result=this.canStart(action,context,now);
     if(!result.ok){
       this.#record("action_rejected",action,{
         reason:result.reason,
         blockingActionId:result.blockingActionId??null,
-        blockingActionType:result.blockingActionType??null
+        blockingActionType:result.blockingActionType??null,
+        liveness:result.liveness??null
       },now);
       return result;
     }
@@ -57,6 +67,7 @@ export class ActionScheduler{
     for(const existing of result.preemptions??[]){
       existing.interrupt(now,`preempted_by:${action.type}`);
       existing.onInterrupted?.(context,{now,reason:existing.endReason,byAction:action});
+      this.liveness?.finish?.(existing,{game:context?.game,now,outcome:"preempted",reason:existing.endReason});
       this.#record("action_preempted",existing,{
         reason:existing.endReason,
         byActionId:action.id,
@@ -69,6 +80,7 @@ export class ActionScheduler{
     action.start(now,context);
     active.push(action);
     this.activeByActor.set(action.actorId,active);
+    this.liveness?.start?.(action,{game:context?.game,now});
     this.#record("action_started",action,{
       purpose:action.purpose,
       channels:action.channels,
@@ -82,18 +94,29 @@ export class ActionScheduler{
     for(const [actorId,actions] of this.activeByActor){
       for(const action of actions){
         if(action.state!==ACTION_STATES.ACTIVE)continue;
+        const liveness=this.liveness?.inspect?.(action,{game:context?.game,services:context?.services,now,delta})??null;
+        if(liveness?.invalid){
+          action.interrupt(now,`liveness:${liveness.reason}`);
+          action.onInterrupted?.(context,{now,reason:action.endReason,liveness});
+          this.liveness?.finish?.(action,{game:context?.game,now,outcome:"invalidated",reason:liveness.reason});
+          this.#record("action_interrupted",action,{reason:action.endReason,liveness},now);
+          continue;
+        }
         if(!action.canContinue(context)){
           action.interrupt(now,"continuation_condition_failed");
           action.onInterrupted?.(context,{now,reason:action.endReason});
+          this.liveness?.finish?.(action,{game:context?.game,now,outcome:"continuation_failed",reason:action.endReason});
           this.#record("action_interrupted",action,{reason:action.endReason},now);
           continue;
         }
         const result=action.update(delta,context);
         if(result?.status==="completed"){
           action.complete(now,result.reason??"completed");
+          this.liveness?.finish?.(action,{game:context?.game,now,outcome:"completed",reason:action.endReason});
           this.#record("action_completed",action,{reason:action.endReason,...(result.data??{})},now);
         }else if(result?.status==="failed"){
           action.fail(now,result.reason??"failed");
+          this.liveness?.finish?.(action,{game:context?.game,now,outcome:"failed",reason:action.endReason});
           this.#record("action_failed",action,{reason:action.endReason,...(result.data??{})},now);
         }
       }
@@ -111,6 +134,7 @@ export class ActionScheduler{
     if(!target||target.state!==ACTION_STATES.ACTIVE)return false;
     target.cancel(now,reason);
     target.onCancelled?.(context,{now,reason});
+    this.liveness?.finish?.(target,{game:context?.game,now,outcome:"cancelled",reason});
     this.#record("action_cancelled",target,{reason},now);
     const remaining=actions.filter(action=>action!==target&&action.state===ACTION_STATES.ACTIVE);
     if(remaining.length)this.activeByActor.set(actorId,remaining);
@@ -124,6 +148,7 @@ export class ActionScheduler{
       if(action.state!==ACTION_STATES.ACTIVE)continue;
       action.cancel(now,reason);
       action.onCancelled?.(context,{now,reason});
+      this.liveness?.finish?.(action,{game:context?.game,now,outcome:"cancelled",reason});
       this.#record("action_cancelled",action,{reason},now);
     }
     this.activeByActor.delete(actorId);
@@ -136,7 +161,7 @@ export class ActionScheduler{
       actionCount+=1;
       byType[action.type]=(byType[action.type]??0)+1;
     }
-    return{actorsWithActions:this.activeByActor.size,activeActions:actionCount,byType};
+    return{actorsWithActions:this.activeByActor.size,activeActions:actionCount,byType,liveness:this.liveness?.summary?.()??[]};
   }
 
   #conflicts(action){
