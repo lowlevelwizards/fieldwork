@@ -1,10 +1,12 @@
 import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
+import { ActorReplanningPolicy, REPLAN_DECISIONS } from "./actor-replanning-policy.js";
 
 const DEFAULT_SWITCH_MARGIN=.08;
 const cloneChannels=channels=>[...(channels??[])];
 const overlaps=(left,right)=>left.some(channel=>right.includes(channel));
 const authorityOf=action=>Number(action?.metadata?.actorBrainPlan?.authorityTier??action?.priority??0)||0;
 const utilityOf=(action,context)=>Number(action?.continuationUtility?.(context)??action?.metadata?.utilityScore??0)||0;
+const softReplacementReason=reason=>String(reason??"").startsWith("procedural_role_requires_");
 
 function cloneCandidate(candidate){
   if(!candidate)return null;
@@ -27,20 +29,30 @@ function cloneCandidate(candidate){
   };
 }
 
+function cloneReplanning(item){
+  return item?{
+    ...item,
+    channels:cloneChannels(item.channels),
+    details:item.details?{...item.details}:null
+  }:null;
+}
+
 let nextBrainProposal=1;
 
 /**
  * The only behavior-facing gateway allowed to forward physical action requests.
  * Other runtimes publish candidates and cancellation requests here; the brain
- * compares them against one another and against the actor's continuing plan,
- * then forwards a coherent channel-compatible set to the execution arbiter.
+ * continuously compares them against one another and against the actor's
+ * currently executing actions, then forwards one coherent channel-compatible
+ * physical plan to the execution arbiter.
  */
 export class UnifiedActorBrain{
-  constructor({scheduler,arbiter,decisionLog=null,switchMargin=DEFAULT_SWITCH_MARGIN}={}){
+  constructor({scheduler,arbiter,decisionLog=null,switchMargin=DEFAULT_SWITCH_MARGIN,replanningPolicy=null}={}){
     this.scheduler=scheduler;
     this.arbiter=arbiter;
     this.decisionLog=decisionLog;
     this.switchMargin=Math.max(0,Number(switchMargin)||DEFAULT_SWITCH_MARGIN);
+    this.replanningPolicy=replanningPolicy??new ActorReplanningPolicy({baseSwitchMargin:this.switchMargin});
     this.pending=new Map();
     this.cancellations=[];
     this.plans=new Map();
@@ -92,7 +104,7 @@ export class UnifiedActorBrain{
 
   requestCancel(actorId,actionOrType,{reason="actor_brain_cancel_requested",onCancelled=null}={}){
     if(!actorId||!actionOrType)return false;
-    this.cancellations.push({actorId,actionOrType,reason,onCancelled});
+    this.cancellations.push({actorId,actionOrType,reason,onCancelled,mode:softReplacementReason(reason)?"soft_replan":"hard"});
     return true;
   }
 
@@ -112,8 +124,8 @@ export class UnifiedActorBrain{
       );
       const accepted=[];
       const rejected=[];
+      const replanning=[];
       const claimedChannels=new Set();
-      const active=this.scheduler?.getActions?.(actorId)??[];
 
       for(const candidate of candidates){
         const channels=cloneChannels(candidate.action.channels);
@@ -121,22 +133,67 @@ export class UnifiedActorBrain{
           this.#reject(candidate,"higher_value_brain_candidate_owns_channel",rejected,now);
           continue;
         }
+
+        const active=this.scheduler?.getActions?.(actorId)??[];
         const incumbentConflicts=active.filter(action=>overlaps(channels,action.channels??[]));
-        const sameType=incumbentConflicts.find(action=>action.type===candidate.action.type)??null;
-        const blocking=incumbentConflicts.filter(action=>action!==sameType);
-        const replacement=this.#replacementDecision(candidate,blocking,context);
-        if(!replacement.ok){
-          this.#reject(candidate,replacement.reason,rejected,now);
+        const decisions=incumbentConflicts.map(incumbent=>({
+          incumbent,
+          result:this.replanningPolicy.evaluate({candidate,incumbent,now,context,scheduler:this.scheduler})
+        }));
+        for(const item of decisions)replanning.push(this.#replanningTrace(candidate,item.incumbent,item.result,channels));
+
+        const preserving=decisions.find(item=>item.result.decision===REPLAN_DECISIONS.PRESERVE)??null;
+        if(preserving){
+          this.#reject(candidate,`incumbent_continuation_utility:${preserving.incumbent.type}:${preserving.result.reason}`,rejected,now);
           continue;
         }
-        if(!candidate.action.canStart?.(context)){
+
+        const amendments=decisions.filter(item=>item.result.decision===REPLAN_DECISIONS.AMEND);
+        if(amendments.length){
+          if(decisions.length!==1||amendments.length!==1){
+            this.#reject(candidate,"multi_channel_amend_requires_stable_incumbents",rejected,now);
+            continue;
+          }
+          const incumbent=amendments[0].incumbent;
+          const amended=Boolean(incumbent.amendFrom?.(candidate.action,{now,context,candidate}));
+          if(!amended){
+            this.#reject(candidate,"same_type_amend_rejected_by_action",rejected,now);
+            continue;
+          }
+          const priorPlan=incumbent.metadata?.actorBrainPlan??{};
+          incumbent.metadata={
+            ...(incumbent.metadata??{}),
+            utilityScore:candidate.score,
+            actorBrainPlan:{
+              ...priorPlan,
+              authorityTier:candidate.authorityTier,authorityLabel:candidate.authorityLabel,
+              urgency:candidate.urgency,source:candidate.source,concernId:candidate.concernId,
+              obligationId:candidate.obligationId,desiredEffect:candidate.desiredEffect,reason:candidate.reason,
+              lastReplannedAt:now
+            }
+          };
+          candidate.status="preserved";
+          candidate.resultReason="matching_action_amended_by_replanning_policy";
+          for(const channel of channels)claimedChannels.add(channel);
+          accepted.push(candidate);
+          candidate.onGranted?.({ok:true,preserved:true,amended:true,action:incumbent},candidate);
+          this.#record("actor_brain_incumbent_amended",candidate,now,{actionId:incumbent.id,replanning:amendments[0].result});
+          continue;
+        }
+
+        if(!this.#candidateViable(candidate,context,now)){
           this.#reject(candidate,"action_start_condition_failed",rejected,now);
           continue;
         }
-        for(const action of replacement.replace){
-          this.scheduler.cancelAction(actorId,action,{now,reason:`actor_brain_replanned_to:${candidate.action.type}`,context});
-          this.#record("actor_brain_incumbent_replaced",candidate,now,{replacedActionId:action.id,replacedActionType:action.type,incumbentUtility:utilityOf(action,context)});
+
+        const replacements=decisions.filter(item=>item.result.decision===REPLAN_DECISIONS.REPLACE);
+        for(const {incumbent,result} of replacements){
+          const incumbentUtility=utilityOf(incumbent,context);
+          this.scheduler.cancelAction(actorId,incumbent,{now,reason:`actor_brain_replanned_to:${candidate.action.type}`,context});
+          this.replanningPolicy.noteSwitch(actorId,incumbent.channels,{now,fromActionType:incumbent.type,toActionType:candidate.action.type});
+          this.#record("actor_brain_incumbent_replaced",candidate,now,{replacedActionId:incumbent.id,replacedActionType:incumbent.type,incumbentUtility,replanning:result});
         }
+
         for(const channel of channels)claimedChannels.add(channel);
         accepted.push(candidate);
         this.arbiter?.submit?.({
@@ -159,10 +216,11 @@ export class UnifiedActorBrain{
 
       this.traces.set(actorId,{
         actorId,frame:this.frame,evaluatedAt:now,
-        accepted:accepted.map(cloneCandidate),rejected:rejected.map(cloneCandidate),
+        accepted:accepted.map(cloneCandidate),rejected:rejected.map(cloneCandidate),replanning:replanning.map(cloneReplanning),
         incumbents:(this.scheduler?.getActions?.(actorId)??[]).map(action=>({
           actionId:action.id,actionType:action.type,channels:cloneChannels(action.channels),
-          utility:utilityOf(action,context),authorityTier:authorityOf(action),purpose:action.purpose
+          utility:utilityOf(action,context),authorityTier:authorityOf(action),purpose:action.purpose,
+          liveness:this.scheduler?.liveness?.byAction?.get?.(action.id)?.status??"healthy"
         }))
       });
     }
@@ -173,7 +231,7 @@ export class UnifiedActorBrain{
 
   getPlan(actorId){
     const plan=this.plans.get(actorId);
-    return plan?{...plan,actions:plan.actions.map(item=>({...item,channels:[...item.channels]})),concernIds:[...plan.concernIds],obligationIds:[...(plan.obligationIds??[])],availableConcerns:(plan.availableConcerns??[]).map(item=>({...item}))}:null;
+    return plan?{...plan,actions:plan.actions.map(item=>({...item,channels:[...item.channels]})),concernIds:[...plan.concernIds],obligationIds:[...(plan.obligationIds??[])],availableConcerns:(plan.availableConcerns??[]).map(item=>({...item})),recentReplanning:(plan.recentReplanning??[]).map(cloneReplanning)}:null;
   }
 
   getTrace(actorId){
@@ -182,6 +240,7 @@ export class UnifiedActorBrain{
       ...trace,
       accepted:trace.accepted.map(item=>({...item,channels:[...item.channels]})),
       rejected:trace.rejected.map(item=>({...item,channels:[...item.channels]})),
+      replanning:(trace.replanning??[]).map(cloneReplanning),
       incumbents:trace.incumbents.map(item=>({...item,channels:[...item.channels]}))
     }:null;
   }
@@ -189,25 +248,18 @@ export class UnifiedActorBrain{
   summary(){return[...this.plans.keys()].map(actorId=>this.getPlan(actorId));}
   traceSummary(){return[...this.traces.keys()].map(actorId=>this.getTrace(actorId));}
 
-  #replacementDecision(candidate,incumbents,context){
-    const replace=[];
-    for(const incumbent of incumbents){
-      if(!incumbent.interruptible)return{ok:false,reason:`incumbent_uninterruptible:${incumbent.type}`,replace:[]};
-      const incumbentAuthority=authorityOf(incumbent);
-      const incumbentUtility=utilityOf(incumbent,context);
-      if(candidate.authorityTier>incumbentAuthority){replace.push(incumbent);continue;}
-      if(candidate.authorityTier<incumbentAuthority)return{ok:false,reason:`incumbent_higher_authority:${incumbent.type}`,replace:[]};
-      const urgencyAdvantage=candidate.urgency-(Number(incumbent.metadata?.actorBrainPlan?.urgency)||0);
-      if(candidate.score+Math.max(0,urgencyAdvantage*.2)<incumbentUtility+this.switchMargin){
-        return{ok:false,reason:`incumbent_continuation_utility:${incumbent.type}`,replace:[]};
-      }
-      replace.push(incumbent);
-    }
-    return{ok:true,replace};
+  #candidateViable(candidate,context,now){
+    if(candidate.action.canStart?.(context)===false)return false;
+    const liveness=this.scheduler?.liveness?.canStart?.(candidate.action,context,now)??{ok:true};
+    return liveness.ok!==false;
   }
 
   #applyCancellationRequests(now,context){
     for(const request of this.cancellations){
+      if(request.mode==="soft_replan"){
+        this.decisionLog?.record?.({type:"actor_brain_soft_replan_requested",time:now,actorId:request.actorId,data:{reason:request.reason}});
+        continue;
+      }
       const cancelled=this.scheduler?.cancelAction?.(request.actorId,request.actionOrType,{now,reason:request.reason,context})??false;
       if(cancelled)request.onCancelled?.();
     }
@@ -225,8 +277,9 @@ export class UnifiedActorBrain{
         :[];
       const concernIds=[...new Set(actions.map(action=>action.metadata?.actorBrainPlan?.concernId).filter(Boolean))];
       const obligationIds=[...new Set(actions.map(action=>action.metadata?.actorBrainPlan?.obligationId).filter(Boolean))];
+      const recentReplanning=(this.traces.get(actorId)?.replanning??[]).slice(-8).map(cloneReplanning);
       const plan={
-        actorId,status:"active",updatedAt:now,concernIds,obligationIds,availableConcerns,
+        actorId,status:"active",updatedAt:now,concernIds,obligationIds,availableConcerns,recentReplanning,
         authorityTier:Math.max(...actions.map(authorityOf),0),
         utility:Math.max(...actions.map(action=>utilityOf(action,context)),0),
         actions:actions.map(action=>({
@@ -234,13 +287,30 @@ export class UnifiedActorBrain{
           purpose:action.purpose,utility:utilityOf(action,context),authorityTier:authorityOf(action),
           source:action.metadata?.actorBrainPlan?.source??action.metadata?.provenance?.owner??null,
           desiredEffect:action.metadata?.actorBrainPlan?.desiredEffect??null,
-          obligationId:action.metadata?.actorBrainPlan?.obligationId??null
+          obligationId:action.metadata?.actorBrainPlan?.obligationId??null,
+          liveness:this.scheduler?.liveness?.byAction?.get?.(action.id)?.status??"healthy"
         }))
       };
       this.plans.set(actorId,plan);
       if(actor)actor.aiV2ActorPlan=this.getPlan(actorId);
     }
     for(const actorId of [...this.plans.keys()])if(!live.has(actorId))this.plans.delete(actorId);
+  }
+
+  #replanningTrace(candidate,incumbent,result,channels){
+    return{
+      candidateId:candidate.id,candidateActionType:candidate.action?.type??null,
+      incumbentActionId:incumbent.id,incumbentActionType:incumbent.type,
+      channels:cloneChannels(channels),decision:result.decision,reason:result.reason,
+      details:{
+        incumbentUtility:result.incumbentUtility,challengerUtility:result.challengerUtility,
+        effectiveChallenger:result.effectiveChallenger??result.challengerUtility,
+        effectiveMargin:Number.isFinite(result.effectiveMargin)?result.effectiveMargin:null,
+        incumbentAuthority:result.incumbentAuthority,challengerAuthority:result.challengerAuthority,
+        incumbentUrgency:result.incumbentUrgency,challengerUrgency:result.challengerUrgency,
+        age:result.age,livenessStatus:result.livenessStatus,materialChange:result.materialChange
+      }
+    };
   }
 
   #reject(candidate,reason,rejected,now){
