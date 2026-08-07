@@ -138,8 +138,8 @@ export class RoleActionRuntime{
         if(migratedByActor.has(actor.id))continue;
         const obligation=(context?.services?.actorObligations?.getActorObligations?.(actor.id)??[]).find(item=>item.concernKind==="friendly_casualty"&&item.responsibility==="carrier_or_aid_provider"&&!["resolved","abandoned"].includes(item.status))??null;
         if(!obligation)continue;
-        const procedure=procedures.find(item=>item.teamId===actor.teamId&&(!item.subjectId||item.subjectId===obligation.subjectId))??null;
-        const role=procedure?.roles?.find(item=>item.actorId===actor.id)??{roleId:obligation.responsibility,label:"Casualty recovery",fulfillment:{need:"recover_casualty"}};
+        const procedure=procedures.find(item=>item.teamId===actor.teamId&&(item.subjectId===obligation.subjectId||item.roles?.some(candidate=>candidate.actorId===actor.id&&candidate.fulfillment?.need==="recover_casualty")))??null;
+        const role=procedure?.roles?.find(item=>item.actorId===actor.id&&item.fulfillment?.need==="recover_casualty")??{roleId:obligation.responsibility,label:"Casualty recovery",fulfillment:{need:"recover_casualty"}};
         const mission=teamMissions?.get?.(actor.teamId)??null;
         for(const action of [...this.scheduler.getActions(actor.id)]){
           if(roleAction(action)&&MIGRATED_RECOVERY_ACTION_TYPES.has(action.type))this.#cancelWithCleanup(actor,action,{now,context,reason:"desired_effect_casualty_recovery_migrated"});
