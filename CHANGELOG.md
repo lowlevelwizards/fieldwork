@@ -10,6 +10,8 @@ Repository-health build. No intended gameplay changes.
 - Added `ARCHITECTURE.md` documenting runtime flow, ownership boundaries, and cleanup rules.
 - Updated the README to describe the actual 1.2H runtime and current systems.
 - Added baseline editor and ignore configuration for future tooling work.
+- Added `scripts/validate-repo.mjs` to enforce source-tree boundaries, required runtime files, and relative-import resolution.
+- Added GitHub Actions validation on pushes and pull requests; remaining internal cache-version strings are reported as warnings until the isolated 1.3B cleanup.
 - Deliberately left runtime module cache-version cleanup for the next isolated stabilization build so it can be verified separately.
 
 ## 1.2H — Reactive Fire, Engagement Momentum & Medical Recovery

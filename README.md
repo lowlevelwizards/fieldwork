@@ -38,6 +38,7 @@ data/                       DATA ONLY
   operator-kits.js
   operators.js
 
+scripts/validate-repo.mjs    Structural/import validation
 ARCHITECTURE.md              Source-of-truth and subsystem boundaries
 CHANGELOG.md                 Stabilization and gameplay history
 ```
@@ -57,6 +58,16 @@ index.html
 
 If code changes gameplay behavior, it belongs under `js/` unless it is genuinely static game data.
 
+## Validation
+
+Run the structural guardrail locally with:
+
+```sh
+node scripts/validate-repo.mjs
+```
+
+It checks the canonical source/data boundaries, required runtime files, browser entrypoint, and relative-import resolution. Internal module cache-version strings are warnings in 1.3A and will become removable debt in the dedicated 1.3B build.
+
 ## Controls
 
 - Touch joystick or WASD: move
@@ -72,7 +83,7 @@ The stabilization sequence is intentionally conservative:
 
 1. Keep `js/` as the single runtime source of truth.
 2. Remove hand-maintained module cache-version drift.
-3. Add format/lint/import validation and CI.
+3. Add format/lint/static validation around the structural guardrail already in place.
 4. Add deterministic simulation time and seeded randomness.
 5. Add headless scenario and invariant tests.
 6. Consolidate actor state and shared spatial queries before deeper AI refactors.
