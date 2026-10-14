@@ -1,28 +1,53 @@
-# Fieldwork 2.5 — Team Recognition, Deconfliction & Local Cooperation
+# Fieldwork 2.7 — Continuous Tactical Deliberation
 
-Fieldwork is an isometric extraction-survival sandbox about persistent small teams doing necessary work in an unstable shared landscape. Build 2.4 extends the authority-constrained live campaign with team-level recognition: operators can aggregate sightings into a practical understanding of another field team, infer visible work or distress, pass safely, divide local security, contribute bounded assistance, or retain the existing warning and breakaway path when operations are genuinely incompatible.
+Fieldwork is an isometric extraction-survival sandbox about persistent small teams doing necessary work in an unstable shared landscape.
 
-## 2.4 authority chain
+The active development direction is **AI V2 — Adaptive Causal Runtime** on the `AI-2.0` branch. Legacy 1.2H remains available as a preserved comparison runtime, but new behavior work should extend the V2 authority chain rather than deepen the legacy combat stack.
+
+Build 2.7 adds continuous tactical deliberation beneath team procedures and above physical execution. Operators combine personal perception, reported knowledge, suppression, wounds, cover, spacing, mission responsibility, and local tactical commitments while the existing authority arbiter remains the only path to physical control.
+
+## Current authority chain
 
 ```text
 faction operation chooses why
-→ team mission and agenda choose what matters
-→ procedure assigns who owns each responsibility
-→ team-contact understanding interprets nearby groups
-→ local interaction contracts permit bounded cooperation or deconfliction
-→ actor autonomy proposes how to help, pass, or preserve spacing
+→ team mission / concurrent concerns choose what matters
+→ procedure and staffing choose who owns each responsibility
+→ personal and shared knowledge constrain what each actor can know
+→ unified actor planning proposes how to satisfy obligations
 → the arbiter and scheduler alone grant physical control
+→ locomotion / attention / stance / action services execute the result
 ```
 
-The Live Sandbox now includes a fit-map spectator view, team/story cycling, distinct faction visuals, local relationship links, and a dashboard showing recognized teams and temporary contracts. Same-faction and cooperating teams are protected across voice warnings, firing lines, suppression, and wounds.
+The Live Sandbox includes persistent faction teams, operational geography, contact recognition, local cooperation and contention, casualty recovery, adaptive evacuation, tactical positioning, spectator controls, and long-running behavioral diagnostics.
+
+## Repository health
+
+- `js/` is the runtime source tree; `js/ai-v2/` contains the causal V2 runtime.
+- `data/` contains world data plus committed Behavior Lab / Live Sandbox fixture definitions.
+- `tests/` contains deterministic regression coverage.
+- `tools/check-imports.mjs` validates the reachable module graph and rejects versioned internal imports.
+- `tools/check-build-hygiene.mjs` keeps HTML build labels and asset revisions synchronized with the canonical `BUILD_ID` in `js/main.js`.
+- `.github/workflows/ai-v2-checks.yml` runs the committed checks for AI V2 pull requests.
+
+Run the full validation suite with:
+
+```bash
+npm test
+```
+
+Run the behavioral truth report with:
+
+```bash
+npm run behavior:report
+```
+
+The architecture contracts live under `docs/architecture/`. Treat those contracts and regression tests as part of the implementation, not optional documentation.
 
 ---
 
-# Fieldwork 2.0P — Actor Initiative & Protective Breakaway
+# Historical reference — Fieldwork 2.0P
 
-Fieldwork is an isometric extraction-survival prototype about small teams doing necessary work in an unstable conflict zone.
-
-Build 2.0P preserves Legacy 1.2H and extends the causal AI V2 foundation through the first bounded combat behavior. A physical hostile act now creates personal threat evidence, an operator may react and report before team deliberation is complete, and the team can organize a finite protective breakaway instead of entering an unrestricted firefight.
+Build 2.0P preserved Legacy 1.2H and established the causal AI V2 foundation through the first bounded combat behavior. A physical hostile act created personal threat evidence, an operator could react and report before team deliberation was complete, and the team could organize a finite protective breakaway instead of entering an unrestricted firefight.
 
 ## AI runtimes
 
@@ -99,11 +124,5 @@ physical hostile event
 2. Observation & Concealment — complete warning, withdrawal, and de-escalation chain
 3. Cover & Position — staged and inert in V2
 4. Casualty Recovery — complete recovery, adaptive evacuation, reassignment, and safe-return chain
-
-Run the committed checks with:
-
-```bash
-npm test
-```
 
 See `docs/architecture/20_ACTOR_INITIATIVE_PROTECTIVE_BREAKAWAY.md` for the actor-authority, scheduler-preemption, bounded-fire, procedure, and explicit-scope contracts.
