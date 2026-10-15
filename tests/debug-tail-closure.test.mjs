@@ -10,7 +10,7 @@ function compactActor(game,actor){
 function relevantEvents(game,types){
   return game.aiV2.decisionLog.entries.filter(entry=>types.has(entry.actionType)||[
     "action_liveness_invalidated","action_interrupted","action_failed","action_completed","action_started","role_action_started","procedure_transition","team_procedure_transition"
-  ].includes(entry.type)).filter(entry=>!entry.actionType||types.has(entry.actionType)).map(entry=>({time:entry.time,type:entry.type,actorId:entry.actorId,actionType:entry.actionType,data:entry.data}));
+  ].includes(entry.type)).filter(entry=>!entry.actionType||types.has(entry.actionType)).map(entry=>({time:entry.time,type:entry.type,actorId:entry.actorId,teamId:entry.teamId,actionType:entry.actionType,data:entry.data}));
 }
 
 test("debug defensive position closure",()=>{
@@ -23,6 +23,16 @@ test("debug defensive position closure",()=>{
 test("debug protective breakaway closure",()=>{
   const game=simulateFixture("objective_initiative",{seconds:20});
   const team=game.operations.teams.find(candidate=>candidate.id==="living_team_sandbox_operation_2");
-  console.log("DEBUG_BREAKAWAY",JSON.stringify({procedure:team?game.aiV2.teamProcedures.get(team.id):null,response:team?game.aiV2.teamResponses.get(team.id):null,actors:game.actors.filter(actor=>!team||actor.teamId===team.id).map(actor=>compactActor(game,actor)),claims:game.aiV2.destinationClaims?.summary?.(game.aiV2.elapsed)??[],events:relevantEvents(game,new Set(["WithdrawToRoute","ProtectiveFire"]))}));
+  console.log("DEBUG_BREAKAWAY",JSON.stringify({procedure:team?game.aiV2.teamProcedures.get(team.id):null,response:team?game.aiV2.teamResponses.get(team.id):null,actors:game.actors.filter(actor=>!team||actor.teamId===team.id).map(actor=>compactActor(game,actor)),claims:game.aiV2.destinationClaims?.summary?.(game.aiV2.elapsed)??[],events:relevantEvents(game,new Set(["WithdrawToRoute","ProtectiveFire","TacticalReposition"]))}));
+  assert.ok(true);
+});
+
+test("debug warning enforcement closure",()=>{
+  const game=simulateFixture("objective_initiative",{seconds:12});
+  const selectedTypes=new Set(["IssueWarning","DemonstrativeFire","ProtectiveFire","ContactFire"]);
+  const events=game.aiV2.decisionLog.entries.filter(entry=>selectedTypes.has(entry.actionType)||[
+    "directed_warning_delivered","team_response_changed","contact_activity_update_delivered","actor_brain_candidate_rejected","action_proposal_rejected"
+  ].includes(entry.type)).filter(entry=>!entry.actionType||selectedTypes.has(entry.actionType)).map(entry=>({time:entry.time,type:entry.type,actorId:entry.actorId,teamId:entry.teamId,actionType:entry.actionType,data:entry.data}));
+  console.log("DEBUG_WARNING_ENFORCEMENT",JSON.stringify({warnings:entriesOf(game,"directed_warning_delivered"),demonstrativeStarts:entriesOf(game,"action_started","DemonstrativeFire"),demonstrativeCompletions:entriesOf(game,"action_completed","DemonstrativeFire"),responses:entriesOf(game,"team_response_changed"),events}));
   assert.ok(true);
 });
