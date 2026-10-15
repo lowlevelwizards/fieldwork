@@ -15,13 +15,8 @@ test("diagnose interrupted objective casualty recovery and return handoff",()=>{
     const objective=game.aiV2.objectives.get("central_field_relay");
     const actors=team?game.actors.filter(actor=>actor.teamId===team.id):[];
     snapshots.push({
-      t:Number(game.aiV2.elapsed.toFixed(2)),
-      teamStatus:team?.operationStatus??null,
-      operationStatus:operation?.status??null,
-      objectiveState:objective?.state??null,
-      objectiveProgress:Number((objective?.progress??0).toFixed(2)),
-      objectiveComplete:Boolean(agenda?.objectiveComplete),
-      phase:procedure?.phase?.id??null,
+      t:Number(game.aiV2.elapsed.toFixed(2)),teamStatus:team?.operationStatus??null,operationStatus:operation?.status??null,
+      objectiveState:objective?.state??null,objectiveProgress:Number((objective?.progress??0).toFixed(2)),objectiveComplete:Boolean(agenda?.objectiveComplete),phase:procedure?.phase?.id??null,
       actors:actors.map(actor=>({role:actor.role,condition:actor.medical?.condition??null,action:actor.currentAction??null,primary:game.aiV2.scheduler.getPrimaryAction(actor.id)?.type??null}))
     });
   }
@@ -32,5 +27,6 @@ test("diagnose interrupted objective casualty recovery and return handoff",()=>{
   console.log("OBJECTIVE_COMPACT",JSON.stringify(snapshots));
   console.log("OBJECTIVE_EVENTS",JSON.stringify(eventSummary));
   console.log("THREAT_EVENTS",JSON.stringify((game.aiV2ThreatEvents??[]).map(event=>({t:event.emittedAt,kind:event.kind,sourceTeamId:event.sourceTeamId,targetActorId:event.targetActorId}))));
+  console.log("TEAM_RESPONSES",JSON.stringify(game.aiV2.teamResponses.summary?.()??[]));
   assert.ok(true);
 });
