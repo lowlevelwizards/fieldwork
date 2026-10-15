@@ -12,6 +12,8 @@ const urgencyOf=action=>Number(action?.metadata?.actorBrainPlan?.urgency??0)||0;
 const point=value=>value&&Number.isFinite(Number(value.x))&&Number.isFinite(Number(value.y))?{x:Number(value.x),y:Number(value.y)}:null;
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 const supportsAmend=action=>typeof action?.amendFrom==="function"&&action.amendFrom!==AIV2Action.prototype.amendFrom;
+const ownsLocomotion=action=>(action?.channels??[]).includes("locomotion");
+const governingProcedureLocomotion=candidate=>Boolean(candidate?.procedureId&&candidate.authorityTier>=500&&ownsLocomotion(candidate.action));
 
 function directiveSignature(action){
   const directive=action?.directive??action?.metadata?.directive??{};
@@ -79,6 +81,14 @@ export class ActorReplanningPolicy{
     };
 
     if(!incumbent.interruptible)return{decision:REPLAN_DECISIONS.PRESERVE,reason:`incumbent_uninterruptible:${incumbent.type}`,effectiveMargin:Infinity,...common};
+    // TacticalReposition is a local optimization of the physical method. Once a
+    // governing team procedure owns locomotion, that procedure must be able to
+    // reclaim the channel even if the local cover move was temporarily raised
+    // to survival authority. Truly immediate danger is represented separately
+    // by the uninterruptible ReactToIncomingFire action and still wins above.
+    if(incumbent.type==="TacticalReposition"&&governingProcedureLocomotion(candidate)){
+      return{decision:REPLAN_DECISIONS.REPLACE,reason:"governing_procedure_reclaims_locomotion",effectiveMargin:0,...common};
+    }
     if(candidate.authorityTier>incumbentAuthority)return{decision:REPLAN_DECISIONS.REPLACE,reason:"higher_authority_challenger",effectiveMargin:0,...common};
     if(candidate.authorityTier<incumbentAuthority)return{decision:REPLAN_DECISIONS.PRESERVE,reason:`incumbent_higher_authority:${incumbent.type}`,effectiveMargin:Infinity,...common};
 

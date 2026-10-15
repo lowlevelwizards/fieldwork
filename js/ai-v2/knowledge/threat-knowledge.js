@@ -41,6 +41,9 @@ export class ThreatKnowledgeStore{
       observerId:actor.id,
       teamId:actor.teamId,
       subjectId:event.subjectId??`threat_source_${event.id}`,
+      sourceActorId:event.sourceActorId??null,
+      sourceTeamId:event.sourceTeamId??null,
+      sourceFactionId:event.sourceFactionId??null,
       classification:"armed_contact",
       identity:"unknown",
       factionId:null,
@@ -83,6 +86,8 @@ export class ThreatKnowledgeStore{
       data:{
         eventId:event.id,
         subjectId:threat.subjectId,
+        sourceActorId:threat.sourceActorId,
+        sourceTeamId:threat.sourceTeamId,
         eventKind:threat.eventKind,
         confidence:Math.round(threat.confidence),
         approximatePosition:{...threat.approximatePosition}

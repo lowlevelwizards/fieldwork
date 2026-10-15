@@ -40,7 +40,10 @@ export class ApproachCasualtyAction extends AIV2Action{
   start(now,context){
     super.start(now,context);
     const actor=context.game.actors.find(candidate=>candidate.id===this.actorId);
-    if(actor){actor.currentAction="Approaching casualty";actor.aiV2Recovery={status:"approaching",phase:"desired_effect_access",casualtyId:this.directive.casualtyId,progress:0,startedAt:now};}
+    if(actor){
+      actor.currentAction="Approaching casualty";
+      actor.aiV2Recovery={status:"approaching",phase:this.directive.procedureId?"reach_casualty":"desired_effect_access",casualtyId:this.directive.casualtyId,progress:0,startedAt:now};
+    }
   }
 
   update(delta,{game,services,now=0}={}){
@@ -49,7 +52,7 @@ export class ApproachCasualtyAction extends AIV2Action{
     if(!actor||!casualty)return{status:"failed",reason:"actor_or_casualty_missing"};
     const interactionRange=Math.max(48,Number(this.directive.interactionRange)||92);
     const currentDistance=distance(actor,casualty);
-    if(currentDistance<=interactionRange){services.locomotion.stop(actor);actor.currentAction="At casualty";actor.aiV2Recovery={status:"at_casualty",phase:"desired_effect_access",casualtyId:casualty.id,progress:1,distance:currentDistance,startedAt:this.startedAt};return{status:"completed",reason:"casualty_access_established"};}
+    if(currentDistance<=interactionRange)return this.#completeAccess(actor,casualty,services,now,currentDistance);
     const intent={
       kind:"casualty_approach",goal:{x:casualty.x,y:casualty.y},
       region:{type:"circle",center:{x:casualty.x,y:casualty.y},innerRadius:0,outerRadius:interactionRange*.82,preferredRadius:interactionRange*.68},
@@ -61,10 +64,23 @@ export class ApproachCasualtyAction extends AIV2Action{
     const result=services.locomotion.moveWithIntent(actor,intent,delta,{game,now,speedMultiplier:this.directive.policy?.speedMultiplier??.78,arrivalRadius:this.directive.policy?.arrivalRadius??10,task:"Reaching casualty",pose:"walk"});
     const remaining=distance(actor,casualty);
     this.progress=Math.max(0,Math.min(1,1-remaining/Math.max(1,this.initialDistance||remaining)));
-    actor.aiV2Recovery={status:remaining<=interactionRange?"at_casualty":"approaching",phase:"desired_effect_access",casualtyId:casualty.id,destination:{x:casualty.x,y:casualty.y},progress:this.progress,distance:remaining,startedAt:this.startedAt};
-    if(result.failed)return{status:"failed",reason:result.reason};
+    actor.aiV2Recovery={status:remaining<=interactionRange?"at_casualty":"approaching",phase:this.directive.procedureId?"reach_casualty":"desired_effect_access",casualtyId:casualty.id,destination:{x:casualty.x,y:casualty.y},progress:this.progress,distance:remaining,startedAt:this.startedAt};
+    if(result.failed){
+      if(this.directive.procedureId)services.teamProcedures?.notifyEvent?.({teamId:actor.teamId,event:"casualty_recovery_failed",now,data:{actorId:actor.id,casualtyId:casualty.id,phase:"reach_casualty",reason:result.reason}});
+      return{status:"failed",reason:result.reason};
+    }
     if(remaining>interactionRange)return null;
-    services.locomotion.stop(actor);actor.currentAction="At casualty";
+    return this.#completeAccess(actor,casualty,services,now,remaining);
+  }
+
+  #completeAccess(actor,casualty,services,now,currentDistance){
+    services.locomotion.stop(actor);
+    actor.currentAction="At casualty";
+    actor.aiV2Recovery={status:"at_casualty",phase:this.directive.procedureId?"reach_casualty":"desired_effect_access",casualtyId:casualty.id,progress:1,distance:currentDistance,startedAt:this.startedAt};
+    if(this.directive.procedureId){
+      services.teamProcedures?.notifyEvent?.({teamId:actor.teamId,event:"casualty_reached",now,data:{actorId:actor.id,casualtyId:casualty.id}});
+      return{status:"completed",reason:"casualty_reached"};
+    }
     return{status:"completed",reason:"casualty_access_established"};
   }
 }

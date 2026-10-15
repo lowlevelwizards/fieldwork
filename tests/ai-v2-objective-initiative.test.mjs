@@ -10,7 +10,7 @@ test("objective initiative resumes and completes useful work after a natural int
   const actors=game.actors.filter(actor=>actor.teamId===team.id);
   assert.equal(actors.length,3);
   assert.equal(actors.some(actor=>actor.aiV2Assignment),false);
-  assert.equal(game.aiV2.teamResponses.count(),0);
+  assert.equal(game.aiV2.teamResponses.get(team.id),null);
   assert.equal(entriesOf(game,"team_response_changed").some(entry=>entry.teamId===team.id&&entry.data.to==="hold_defensively"),true);
 
   const agenda=game.aiV2.teamAgenda.get(team.id);

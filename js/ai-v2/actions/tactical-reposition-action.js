@@ -1,7 +1,17 @@
 import { AIV2Action } from "./action.js";
 import { ACTION_CHANNELS } from "./action-channels.js";
+import { ACTION_AUTHORITY_TIERS } from "../authority/actor-action-arbiter.js";
 
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
+const GOVERNING_RELOCATION_PROCEDURES=new Set(["protective_breakaway","break_contact_quietly","casualty_evacuation","casualty_recovery"]);
+
+function governingProcedureOwnsMovement(actor,action,services){
+  if(action?.metadata?.provenance?.source!=="continuous_utility")return false;
+  if(Number(action?.metadata?.actorBrainPlan?.authorityTier??0)>=ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL)return false;
+  const role=services?.teamProcedures?.getActorRole?.(actor?.id)??null;
+  if(!role?.permissions?.relocate)return false;
+  return role.fulfillment?.need==="objective_mission_role"||GOVERNING_RELOCATION_PROCEDURES.has(role.procedureId);
+}
 
 export class TacticalRepositionAction extends AIV2Action{
   constructor({actorId,directive}={}){
@@ -17,8 +27,8 @@ export class TacticalRepositionAction extends AIV2Action{
   }
   amendFrom(action){if(!action?.directive)return false;this.directive={...this.directive,...action.directive,destination:action.directive.destination?{...action.directive.destination}:this.directive.destination,threatPoint:action.directive.threatPoint?{...action.directive.threatPoint}:this.directive.threatPoint,coverSlot:action.directive.coverSlot?{...action.directive.coverSlot,point:action.directive.coverSlot.point?{...action.directive.coverSlot.point}:null,obstacle:action.directive.coverSlot.obstacle?{...action.directive.coverSlot.obstacle}:null}:this.directive.coverSlot};this.metadata.utilityScore=Number(action.metadata?.utilityScore??action.directive?.utilityScore??this.metadata.utilityScore??0);return true;}
   continuationUtility(){return Number(this.metadata?.utilityScore??0);}
-  canStart({game}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);return Boolean(actor&&this.directive.destination&&!actor.medical?.dead&&!actor.medical?.unconscious);}
-  canContinue({game}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);return Boolean(actor&&this.directive.destination&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.elapsed<(this.directive.maximumDuration??5.5));}
+  canStart({game,services}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);return Boolean(actor&&this.directive.destination&&!actor.medical?.dead&&!actor.medical?.unconscious&&!governingProcedureOwnsMovement(actor,this,services));}
+  canContinue({game,services}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);return Boolean(actor&&this.directive.destination&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.elapsed<(this.directive.maximumDuration??5.5)&&!governingProcedureOwnsMovement(actor,this,services));}
   start(now,{game}={}){super.start(now,{game});const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);if(actor){this.initialDistance=Math.max(1,distance(actor,this.directive.destination));actor.aiV2TacticalMove={status:"moving",kind:this.directive.kind??"improve_position",destination:{...this.directive.destination},startedAt:now};actor.currentAction=this.directive.label??"Improving tactical position";}}
   update(delta,{game,services,now=0}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);if(!actor)return{status:"failed",reason:"actor_missing"};
@@ -39,6 +49,6 @@ export class TacticalRepositionAction extends AIV2Action{
     if(movement.arrived||this.elapsed>=(this.directive.minimumCommitment??1.4)&&movement.distance<34){services?.locomotion?.stop?.(actor,{pose:"brace"});if(["seek_cover","seek_treatment_cover","acquire_directional_cover"].includes(this.directive.kind)){actor.aiV2CoverOccupancy={status:"protected",kind:this.directive.kind,point:{x:actor.x,y:actor.y},threatPoint:this.directive.threatPoint?{...this.directive.threatPoint}:null,slot:this.directive.coverSlot?{...this.directive.coverSlot,point:this.directive.coverSlot.point?{...this.directive.coverSlot.point}:null,obstacle:this.directive.coverSlot.obstacle?{...this.directive.coverSlot.obstacle}:null}:null,protection:Number(this.directive.coverSlot?.utility?.protection??.62),enteredAt:now,lastUsefulAt:now};services?.positionSlots?.releaseActor?.(actor.id,{now,reason:"tactical_cover_position_reached"});}return{status:"completed",reason:"tactical_position_reached"};}
     return null;
   }
-  onInterrupted({game,services,now=0}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);if(actor)actor.aiV2TacticalMove={...(actor.aiV2TacticalMove??{}),status:"interrupted"};if(["seek_cover","seek_treatment_cover","acquire_directional_cover"].includes(this.directive.kind))services?.positionSlots?.releaseActor?.(this.actorId,{now,reason:"tactical_reposition_interrupted"});}
+  onInterrupted({game,services,now=0}={}){const actor=game?.actors?.find(a=>a.id===this.actorId);if(actor)actor.aiV2TacticalMove={...(actor.aiV2TacticalMove??{}),status:"interrupted"};if(["seek_cover","seek_treatment_cover","acquire_directional_cover"].includes(this.directive.kind))services?.positionSlots?.releaseActor?.(this.actorId,{now,reason:"tactical_reposition_interrupted"});}
   onCancelled(context={}){this.onInterrupted(context);}
 }

@@ -55,8 +55,15 @@ export class PerformObjectiveWorkAction extends AIV2Action{
     actor.currentAction=this.directive.workLabel??"Working field objective";
     actor.aiV2Objective={status:result.completed?"operational":"working",objectiveId:this.directive.objectiveId,roleId:this.directive.roleId,progress:this.progress};
     if(!result.completed)return null;
+
     services.objectives.releaseWork(this.directive.objectiveId,actor.id,{now,reason:"objective_restored"});
     services.teamProcedures.notifyEvent({teamId:actor.teamId,event:this.directive.completionEvent??"objective_restored",now,data:{actorId:actor.id,objectiveId:this.directive.objectiveId,state:result.objective?.state}});
+
+    // ObjectiveStateStore mutates the canonical world entity directly. Leave the
+    // operation transition to CombatSandboxDirector on the next campaign update
+    // so operation, team, actor, route, score, and presentation state all cross
+    // the return boundary through one owner. Calling LivingSandboxState here
+    // would advance only the low-level operation and strand the director mirror.
     actor.currentAction=this.directive.completedLabel??"Field objective complete";
     return{status:"completed",reason:"objective_restored",data:{objectiveId:this.directive.objectiveId,state:result.objective?.state}};
   }

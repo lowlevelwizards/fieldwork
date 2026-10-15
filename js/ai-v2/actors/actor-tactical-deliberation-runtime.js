@@ -60,7 +60,13 @@ export class ActorTacticalDeliberationRuntime{
         if(!liveClosure){
           const action=new TacticalRepositionAction({actorId:actor.id,directive:{kind:treatmentNeedsCover?"seek_treatment_cover":"seek_cover",label:treatmentNeedsCover?"Creating a treatment window":"Reacting to material contact",destination:{...bestCover.point},threatPoint:picture.threatPoint?{...picture.threatPoint}:null,speedMultiplier:emergency?.96:.78,minimumCommitment:1.2,reason:treatmentNeedsCover?"Self aid is useful but unsafe here; first occupy a distinct protected slot.":"Material hostile contact makes unchanged exposed travel low utility; move to a claimed directional-cover slot.",provenance:{owner:"actor_tactical_deliberation",source:"continuous_utility"}}});
           proposal={action,score:Math.max(.74,utility.candidates.find(x=>x.kind==="seek_cover")?.score??0),urgency:emergency?.98:Math.max(.58,contactPressure),tier:emergency?ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,label:emergency?"Immediate survival":"Material contact response",kind:treatmentNeedsCover?"acquire_treatment_cover":"acquire_directional_cover",desiredEffect:treatmentNeedsCover?"create_treatment_window":"break_exposed_contact_route",minimumUntil:now+1.4,maximumUntil:now+10,anchorPoint:bestCover.point,slot:bestCover,...common};
-        }else if(!procedureOwnsMovement||emergency){
+        }else if(!procedureOwnsMovement){
+          // Once a governing live procedure owns relocation, its movement is
+          // already the selected method for escaping danger. Continuous cover
+          // optimization may still inform attention/fire choices, but must not
+          // repeatedly steal locomotion from staged withdrawal or casualty
+          // movement. Truly immediate danger retains its separate
+          // ReactToIncomingFire survival override.
           const coverKind=treatmentNeedsCover?"acquire_treatment_cover":"acquire_directional_cover";
           const stickyCover=existing?.kind===coverKind&&existing.anchorPoint&&existing.threatTrackId===threatTrackId&&now<(existing.minimumUntil??0);
           const destination=stickyCover?{...existing.anchorPoint}:{...bestCover.point};

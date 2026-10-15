@@ -73,11 +73,22 @@ export function predictedFriendlyCongestion(actor,candidate,game,{predictionSeco
   const start={x:actor.x,y:actor.y};
   for(const other of team){
     const predicted={x:other.x+(Number(other.vx)||0)*predictionSeconds,y:other.y+(Number(other.vy)||0)*predictionSeconds};
+    const currentDistance=distance(start,predicted);
     const endpointDistance=distance(candidate,predicted);
     const segmentDistance=pointSegmentProjection(predicted,start,candidate).distance;
     nearest=Math.min(nearest,endpointDistance);
     if(endpointDistance<preferredMin)penalty+=clamp((preferredMin-endpointDistance)/preferredMin)*.72;
     if(segmentDistance<preferredMin*.68)penalty+=clamp((preferredMin*.68-segmentDistance)/(preferredMin*.68))*.46;
+
+    // When actors begin inside their preferred separation, a route that first
+    // squeezes even closer before escaping can win on forward progress alone.
+    // Penalize that transient body conflict while still permitting a path that
+    // immediately opens separation. This keeps the strategic goal intact but
+    // makes the short-horizon steering target deform around the teammate.
+    if(currentDistance<preferredMin&&segmentDistance<currentDistance){
+      penalty+=clamp((currentDistance-segmentDistance)/Math.max(1,currentDistance))*1.2;
+    }
+
     const otherTarget=other.aiV2Steering?.target;
     if(otherTarget){
       const targetDistance=distance(candidate,otherTarget);

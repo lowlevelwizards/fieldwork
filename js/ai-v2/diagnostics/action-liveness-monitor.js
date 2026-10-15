@@ -3,6 +3,7 @@ const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 const point=value=>value&&Number.isFinite(Number(value.x))&&Number.isFinite(Number(value.y))?{x:Number(value.x),y:Number(value.y)}:null;
 const locomotionAction=action=>Boolean(action?.channels?.includes?.("locomotion"));
 const immediateSurvival=action=>Number(action?.metadata?.actorBrainPlan?.authorityTier??0)>=600;
+const replannedAt=action=>Number(action?.metadata?.actorBrainPlan?.lastReplannedAt??0)||0;
 
 const THREAT_SENSITIVE_TRAVEL=new Set([
   "FollowOperationRoute",
@@ -83,7 +84,9 @@ export class ActionLivenessMonitor{
     const record={
       actionId:action.id,actorId:action.actorId,actionType:action.type,kind:actionKind(action),
       startedAt:now,lastSampleAt:now,lastProgressAt:now,lastPosition:{x:actor.x,y:actor.y},
+      progressAnchorPosition:{x:actor.x,y:actor.y},progressAnchorGoalDistance:remaining,
       startPosition:{x:actor.x,y:actor.y},goal:point(goal),lastGoalDistance:remaining,minGoalDistance:remaining,
+      lastReplannedAt:replannedAt(action),
       obstacleJamSeconds:0,reversalTimes:[],recentCells:[{key:cellKey(actor),at:now,x:actor.x,y:actor.y}],
       loopHits:0,lastVelocity:null,status:"healthy",reason:null,signals:{},updatedAt:now
     };
@@ -109,11 +112,41 @@ export class ActionLivenessMonitor{
     const age=Math.max(0,now-(action.startedAt??record.startedAt??now));
     const radius=acceptanceRadius(action);
     const remainingMeaningful=remaining===null||remaining>radius+16;
-    const goalProgress=remaining!==null&&record.lastGoalDistance!==null?record.lastGoalDistance-remaining:0;
-    const lateralProgress=moved>=9&&(remaining===null||goalProgress>=-3);
-    const meaningfulProgress=goalProgress>=3.5||lateralProgress;
 
-    if(meaningfulProgress)record.lastProgressAt=now;
+    // Same-type replanning can amend an active action in place. When that
+    // amendment changes the physical goal, the previous goal-distance anchor
+    // is no longer a meaningful liveness baseline. Rebase only on an explicit
+    // brain replan so ordinary target jitter cannot continuously hide stalls.
+    const currentReplannedAt=replannedAt(action);
+    const goalChanged=Boolean(goal&&record.goal&&distance(goal,record.goal)>.5);
+    if(goalChanged&&currentReplannedAt>Number(record.lastReplannedAt??0)){
+      record.lastProgressAt=now;
+      record.progressAnchorPosition={x:actor.x,y:actor.y};
+      record.progressAnchorGoalDistance=remaining;
+      record.lastGoalDistance=remaining;
+      record.minGoalDistance=remaining;
+      record.goal={...goal};
+      record.lastReplannedAt=currentReplannedAt;
+    }
+
+    const goalProgress=remaining!==null&&record.lastGoalDistance!==null?record.lastGoalDistance-remaining:0;
+
+    // Liveness must not depend on simulation frame size. A slow but healthy
+    // action (for example dragging a casualty) may move only a few pixels per
+    // tick and would never satisfy a per-frame movement threshold. Measure
+    // meaningful progress from the last accepted progress mark instead.
+    const movedSinceProgress=distance(actor,record.progressAnchorPosition??record.lastPosition);
+    const goalProgressSinceProgress=remaining!==null&&record.progressAnchorGoalDistance!==null
+      ?record.progressAnchorGoalDistance-remaining
+      :0;
+    const lateralProgress=movedSinceProgress>=9&&(remaining===null||goalProgressSinceProgress>=-3);
+    const meaningfulProgress=goalProgressSinceProgress>=3.5||lateralProgress;
+
+    if(meaningfulProgress){
+      record.lastProgressAt=now;
+      record.progressAnchorPosition={x:actor.x,y:actor.y};
+      record.progressAnchorGoalDistance=remaining;
+    }
     if(remaining!==null){
       record.minGoalDistance=record.minGoalDistance===null?remaining:Math.min(record.minGoalDistance,remaining);
       record.lastGoalDistance=remaining;
@@ -150,7 +183,7 @@ export class ActionLivenessMonitor{
     const sourceInvalidation=this.#sourceInvalidation(action,actor,services);
 
     const signals={
-      age,moved,remaining,goalProgress,stalledFor,regression,
+      age,moved,remaining,goalProgress,movedSinceProgress,goalProgressSinceProgress,stalledFor,regression,
       recentReversals:record.reversalTimes.length,loopHits:record.loopHits,
       obstacleJamSeconds:record.obstacleJamSeconds,truthPacing,
       destinationDanger:Boolean(threatInvalidation),sourceInvalid:Boolean(sourceInvalidation)

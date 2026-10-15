@@ -1,3 +1,6 @@
+const GOVERNING_PROCEDURES=new Set(["protective_breakaway","break_contact_quietly","casualty_evacuation","casualty_recovery"]);
+const actionAuthority=action=>Number(action?.metadata?.actorBrainPlan?.authorityTier??action?.priority??0)||0;
+
 export class InvariantMonitor{
   constructor({decisionLog=null}={}){
     this.decisionLog=decisionLog;
@@ -14,6 +17,13 @@ export class InvariantMonitor{
       if(!Number.isFinite(actor.x)||!Number.isFinite(actor.y))violations.push({code:"invalid_actor_position",actorId:actor.id});
     }
 
+    const activeActions=actorId=>scheduler?.getActions?.(actorId)??[];
+    const hasStablePositionOwner=actorId=>activeActions(actorId).some(action=>{
+      if(action.type==="HoldPosition")return true;
+      if((action.channels??[]).includes("locomotion"))return false;
+      return actionAuthority(action)>=400;
+    });
+
     const travelByActor=new Map((operationalTravel??[]).map(item=>[item.actorId,item]));
     const arbiterByActor=new Map((actionArbiter??[]).map(item=>[item.actorId,item]));
     const roleActionByActor=new Map();
@@ -24,9 +34,17 @@ export class InvariantMonitor{
       if(scheduler&&!scheduler.hasAction(assignment.actorId,assignment.actionType)&&!scheduler.hasAction(assignment.actorId,"FollowOperationRoute")){
         const trace=arbiterByActor.get(assignment.actorId);
         const rejected=trace?.rejected?.find(proposal=>proposal.actionType===assignment.actionType)??null;
-        const highestActive=Math.max(...(trace?.active??[]).map(action=>Number(action.priority)||0),0);
+        const schedulerHighest=Math.max(...activeActions(assignment.actorId).map(actionAuthority),0);
+        const arbiterHighest=Math.max(...(trace?.active??[]).map(action=>Number(action.priority)||0),0);
+        const highestActive=Math.max(schedulerHighest,arbiterHighest);
+        // RoleActionRuntime describes the currently desired procedure method,
+        // not a promise that the action won arbitration this frame. A live
+        // equal/higher-authority owner is an explicit scheduling explanation,
+        // so only report a loss when there is neither that owner nor an arbiter
+        // rejection explaining the displacement.
+        const requiredAuthority=GOVERNING_PROCEDURES.has(assignment.procedureId)?500:400;
         const deliberatelyPreempted=Boolean(
-          highestActive>=500||
+          highestActive>=requiredAuthority||
           (rejected&&(
             rejected.resultReason==="higher_authority_proposal_owns_channel"||
             (String(rejected.resultReason??"").startsWith("channel_busy:")&&highestActive>=Number(rejected.authorityTier??0))
@@ -62,7 +80,11 @@ export class InvariantMonitor{
       if(position.status==="moving"&&scheduler&&!scheduler.hasAction(position.actorId,"MoveToPositionSlot")){
         violations.push({code:"moving_defensive_position_without_action",actorId:position.actorId});
       }
-      if(position.status==="holding"&&scheduler&&!scheduler.hasAction(position.actorId,"HoldPosition")){
+      // The durable defensive relationship is the occupied finite slot, not a
+      // requirement that one specific cosmetic hold atom own attention. A
+      // higher-authority stationary attention/stance action may legitimately
+      // preserve the same physical position through the unified brain.
+      if(position.status==="holding"&&scheduler&&!hasStablePositionOwner(position.actorId)){
         violations.push({code:"held_defensive_position_without_action",actorId:position.actorId});
       }
     }
@@ -86,7 +108,7 @@ export class InvariantMonitor{
       slotActors.add(claim.actorId);
       if(!ids.has(claim.actorId))violations.push({code:"unknown_position_slot_actor",actorId:claim.actorId});
       if(scheduler&&claim.status==="reserved"&&!scheduler.hasAction(claim.actorId,"MoveToPositionSlot"))violations.push({code:"reserved_slot_without_movement_action",actorId:claim.actorId,slotId:claim.slotId});
-      if(scheduler&&claim.status==="occupied"&&!scheduler.hasAction(claim.actorId,"HoldPosition"))violations.push({code:"occupied_slot_without_hold_action",actorId:claim.actorId,slotId:claim.slotId});
+      if(scheduler&&claim.status==="occupied"&&!hasStablePositionOwner(claim.actorId))violations.push({code:"occupied_slot_without_hold_action",actorId:claim.actorId,slotId:claim.slotId});
     }
 
     const claimedPatients=new Set();

@@ -26,6 +26,56 @@ export class TeamEncounterMemory{
 
       const heardWarning=heardCommunications?.getLatestForTeam?.(mission.teamId)??null;
       const outgoingWarning=heardCommunications?.getLatestOutgoing?.(mission.teamId)??null;
+
+      // A directed warning is itself bounded perceptual evidence. The recipient
+      // may hear a warning before its observer has acquired and locally reported
+      // the speaker. In that case we still need an encounter hypothesis so the
+      // decision layer can react to the fact of detection. Preserve epistemic
+      // limits: use only the heard warning's approximate source position and
+      // confidence; do not expose source faction/team identity to the hypothesis.
+      const warningAlreadyRepresented=Boolean(heardWarning&&reports.some(entry=>
+        entry.kind==="contact"&&(
+          entry.report?.subjectId===heardWarning.sourceActorId||
+          (heardWarning.sourceTeamId&&entry.report?.subjectTeamId===heardWarning.sourceTeamId)
+        )
+      ));
+      if(heardWarning&&!warningAlreadyRepresented&&heardWarning.approximateSourcePosition){
+        reports.push({
+          kind:"contact",
+          report:{
+            id:`heard_warning_report:${heardWarning.id}`,
+            reportKind:"heard_warning",
+            teamId:mission.teamId,
+            sourceActorId:null,
+            subjectId:`heard_warning_source:${heardWarning.id}`,
+            classification:"unknown_person",
+            identity:"unknown",
+            factionId:null,
+            factionConfidence:0,
+            subjectTeamId:null,
+            relationship:"unknown",
+            confidence:Math.max(1,Math.min(88,Number(heardWarning.confidence)||72)),
+            evidenceType:"heard_directed_warning",
+            method:heardWarning.method??"heard_voice",
+            approximatePosition:{...heardWarning.approximateSourcePosition},
+            previousApproximatePosition:null,
+            sourceObservationAt:heardWarning.heardAt??now,
+            reportedAt:heardWarning.heardAt??now,
+            lastUpdatedAt:now,
+            recipientIds:[...(heardWarning.recipientIds??[])],
+            independentlyConfirmed:false,
+            supersedesReportId:null,
+            activity:null,
+            activityLabel:null,
+            activityReason:null,
+            activityRevision:0,
+            movementDirection:null,
+            estimatedSpeed:0,
+            intentHypothesis:null
+          }
+        });
+      }
+
       for(const entry of reports){
         const report=entry.report;
         const actorBackedSubject=String(report.subjectId??"").startsWith("living_actor_");

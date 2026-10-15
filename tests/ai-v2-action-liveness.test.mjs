@@ -66,3 +66,25 @@ test("scheduler interrupts a stalled active move and rejects immediate recreatio
   assert.equal(result.ok,false);
   assert.equal(result.reason,"recently_invalidated_destination");
 });
+
+test("amending an active action to a farther goal rebases meaningful-progress anchors",()=>{
+  const monitor=new ActionLivenessMonitor({stallSeconds:1.2});
+  const game=gameWithActor();
+  const actor=game.actors[0];
+  const action=new MoveAction({destination:{x:300,y:0},type:"FollowOperationRoute"});
+  action.start(0);monitor.start(action,{game,now:0});
+
+  actor.x=20;
+  assert.equal(monitor.inspect(action,{...context(game),now:.8}).invalid,false);
+
+  action.directive.destination={x:600,y:0};
+  action.metadata.actorBrainPlan={lastReplannedAt:.9};
+  assert.equal(monitor.inspect(action,{...context(game),now:.9}).invalid,false);
+
+  actor.x=40;
+  assert.equal(monitor.inspect(action,{...context(game),now:1.5}).invalid,false);
+  actor.x=60;
+  const result=monitor.inspect(action,{...context(game),now:2.1});
+  assert.equal(result.invalid,false);
+  assert.ok(result.signals.goalProgressSinceProgress>=0);
+});
