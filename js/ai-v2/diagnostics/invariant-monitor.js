@@ -1,3 +1,6 @@
+const GOVERNING_PROCEDURES=new Set(["protective_breakaway","break_contact_quietly","casualty_evacuation","casualty_recovery"]);
+const actionAuthority=action=>Number(action?.metadata?.actorBrainPlan?.authorityTier??action?.priority??0)||0;
+
 export class InvariantMonitor{
   constructor({decisionLog=null}={}){
     this.decisionLog=decisionLog;
@@ -18,8 +21,7 @@ export class InvariantMonitor{
     const hasStablePositionOwner=actorId=>activeActions(actorId).some(action=>{
       if(action.type==="HoldPosition")return true;
       if((action.channels??[]).includes("locomotion"))return false;
-      const authority=Number(action.metadata?.actorBrainPlan?.authorityTier??action.priority??0)||0;
-      return authority>=400;
+      return actionAuthority(action)>=400;
     });
 
     const travelByActor=new Map((operationalTravel??[]).map(item=>[item.actorId,item]));
@@ -32,9 +34,17 @@ export class InvariantMonitor{
       if(scheduler&&!scheduler.hasAction(assignment.actorId,assignment.actionType)&&!scheduler.hasAction(assignment.actorId,"FollowOperationRoute")){
         const trace=arbiterByActor.get(assignment.actorId);
         const rejected=trace?.rejected?.find(proposal=>proposal.actionType===assignment.actionType)??null;
-        const highestActive=Math.max(...(trace?.active??[]).map(action=>Number(action.priority)||0),0);
+        const schedulerHighest=Math.max(...activeActions(assignment.actorId).map(actionAuthority),0);
+        const arbiterHighest=Math.max(...(trace?.active??[]).map(action=>Number(action.priority)||0),0);
+        const highestActive=Math.max(schedulerHighest,arbiterHighest);
+        // RoleActionRuntime describes the currently desired procedure method,
+        // not a promise that the action won arbitration this frame. A live
+        // equal/higher-authority owner is an explicit scheduling explanation,
+        // so only report a loss when there is neither that owner nor an arbiter
+        // rejection explaining the displacement.
+        const requiredAuthority=GOVERNING_PROCEDURES.has(assignment.procedureId)?500:400;
         const deliberatelyPreempted=Boolean(
-          highestActive>=500||
+          highestActive>=requiredAuthority||
           (rejected&&(
             rejected.resultReason==="higher_authority_proposal_owns_channel"||
             (String(rejected.resultReason??"").startsWith("channel_busy:")&&highestActive>=Number(rejected.authorityTier??0))
