@@ -10,14 +10,6 @@ function explicitlyHostileContact(contact){
  return HOSTILE_RELATIONSHIPS.has(String(contact?.relationship??"").toLowerCase());
 }
 
-function personalContactJustifiesFire(contact){
- if(!contact)return false;
- if(explicitlyHostileContact(contact))return true;
- const activity=String(contact.track?.currentActivity??contact.activity??"").toLowerCase();
- const intent=String(contact.track?.intentHypothesis?.id??contact.intentHypothesis?.id??"").toLowerCase();
- return activity==="firing"||intent==="hostile";
-}
-
 function threatSourceTeamId(threat,game){
  if(threat?.sourceTeamId)return threat.sourceTeamId;
  let sourceActorId=threat?.sourceActorId??null;
@@ -46,16 +38,14 @@ function incomingFireEvidence(actorId,subjectTeamId,game,services,now=0){
 }
 
 function firePermission({actorId,subjectTeamId,game,services,now=0}={}){
- // Tactical salience is broader than permission to injure. A deliberate
- // warning shot must still produce threat reaction and break-contact behavior,
- // but it cannot by itself promote an unresolved team into a lethal target.
+ // Tactical salience is broader than permission to injure. A contact looking
+ // dangerous enough to watch, evade, warn, or suppress is not enough by
+ // itself to authorize aimed lethal fire. Require either an explicitly hostile
+ // relationship or physical incoming-fire evidence from the target team.
  const personal=(services?.personalKnowledge?.getContacts?.(actorId)??[])
   .filter(contact=>contact.subjectTeamId===subjectTeamId);
  if(personal.some(explicitlyHostileContact))return true;
- const incoming=incomingFireEvidence(actorId,subjectTeamId,game,services,now);
- if(incoming.hostile)return true;
- if(incoming.warning)return false;
- return personal.some(personalContactJustifiesFire);
+ return incomingFireEvidence(actorId,subjectTeamId,game,services,now).hostile;
 }
 
 export class ContactFireAction extends AIV2Action{
