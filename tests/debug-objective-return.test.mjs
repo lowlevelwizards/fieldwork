@@ -30,11 +30,12 @@ test("diagnose interrupted objective casualty recovery and return handoff",()=>{
       }))
     });
   }
-  const interesting=new Set(["DragCasualty","ApproachCasualty","AssessCasualty","StabilizeCasualty","ProtectiveFire","DemonstrativeFire","PerformObjectiveWork"]);
-  const events=game.aiV2.decisionLog.entries.filter(entry=>
-    interesting.has(entry.actionType)||String(entry.type).includes("objective")||String(entry.type).includes("operation")||String(entry.type).includes("procedure")||String(entry.type).includes("return")||String(entry.type).includes("liveness")
-  );
+  const interesting=new Set(["DragCasualty","ApproachCasualty","AssessCasualty","StabilizeCasualty","ProtectiveFire","DemonstrativeFire","ContactFire","ReactToIncomingFire","PerformObjectiveWork"]);
+  const events=game.aiV2.decisionLog.entries.filter(entry=>{
+    const type=String(entry.type??"");
+    return interesting.has(entry.actionType)||type.includes("objective")||type.includes("operation")||type.includes("procedure")||type.includes("return")||type.includes("liveness")||type.includes("wound")||type.includes("fire")||type.includes("threat");
+  });
   console.log("OBJECTIVE_RECOVERY_SNAPSHOTS",JSON.stringify(snapshots));
-  console.log("OBJECTIVE_RECOVERY_EVENTS",JSON.stringify(events.slice(0,800)));
+  console.log("OBJECTIVE_RECOVERY_EVENTS",JSON.stringify(events.slice(0,1400)));
   assert.ok(true);
 });
