@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ContinuousGameState } from "../js/continuous-game-state.js";
 
+// Temporary focused trace: removed once the broken warning-chain link is repaired.
 test("diagnose boundary warning chain",()=>{
   const game=new ContinuousGameState({scenario:"sandbox",aiRuntime:"v2",sandboxFixture:"observation"});
   const snapshots=[];
@@ -17,7 +18,7 @@ test("diagnose boundary warning chain",()=>{
       actions:game.actors.flatMap(a=>(game.aiV2.scheduler.getActions(a.id)??[]).map(x=>({actorId:a.id,type:x.type,state:x.state})))
     });
   }
-  const interesting=game.aiV2.decisionLog.entries.filter(e=>["contact_report_delivered","contact_update_delivered","team_response_selected","procedure_started","procedure_transition","directed_warning_delivered","action_started","action_completed","action_rejected"].includes(e.type));
+  const interesting=game.aiV2.decisionLog.entries.filter(e=>["contact_report_delivered","contact_update_delivered","team_response_selected","team_response_changed","procedure_started","procedure_transition","directed_warning_delivered","action_started","action_completed","action_rejected"].includes(e.type));
   console.log("WARNING_SNAPSHOTS",JSON.stringify(snapshots));
   console.log("WARNING_EVENTS",JSON.stringify(interesting.slice(0,500)));
   assert.ok(true);
