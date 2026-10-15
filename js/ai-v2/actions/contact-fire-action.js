@@ -26,8 +26,7 @@ function incomingFireEvidence(actorId,subjectTeamId,game,services,now=0){
    continue;
   }
   const immediate=now<=Number(threat.immediateUntil??-Infinity);
-  const intent=String(threat.track?.intentHypothesis?.id??"").toLowerCase();
-  if(immediate||intent==="hostile")hostile=true;
+  if(immediate)hostile=true;
  }
  return{warning,hostile};
 }
