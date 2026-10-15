@@ -53,6 +53,17 @@ test("a deliberate warning shot can trigger threat reaction without independentl
   assert.equal(learned.eventKind,"warning_shot_near_miss");
 });
 
+test("ambiguous observed firing does not become lethal authorization without grounded hostile evidence",()=>{
+  const observer=actor("observer",{teamId:"team_b",factionId:"commune",x:180,y:0});
+  const contactActor=actor("contact",{teamId:"team_a",factionId:"northline",x:0,y:0});
+  const action=new ContactFireAction({actorId:observer.id,directive:{subjectTeamId:contactActor.teamId,targetPoint:{x:contactActor.x,y:contactActor.y}}});
+  const services={
+    personalKnowledge:{getContacts:()=>[contact({subjectTeamId:contactActor.teamId,activity:"firing",intent:"hostile"})]},
+    threatKnowledge:{getThreats:()=>[]}
+  };
+  assert.equal(action.canStart({game:{actors:[observer,contactActor]},services,now:8}),false);
+});
+
 test("actual hostile incoming fire from the target team still authorizes bounded contact fire",()=>{
   const source=actor("source",{teamId:"team_a",factionId:"northline",x:0,y:0});
   const target=actor("target",{teamId:"team_b",factionId:"commune",x:180,y:0});
