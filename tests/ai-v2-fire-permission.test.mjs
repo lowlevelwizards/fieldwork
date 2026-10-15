@@ -20,7 +20,7 @@ function contact({subjectTeamId,relationship="unknown",activity="stationary",int
   };
 }
 
-test("a deliberate warning shot can trigger threat reaction without independently authorizing lethal return fire",()=>{
+test("warning provenance prevents derived hostility from independently authorizing lethal return fire",()=>{
   const source=actor("source",{teamId:"team_a",factionId:"northline",x:0,y:0});
   const warned=actor("warned",{teamId:"team_b",factionId:"commune",x:180,y:0});
   const threats=new ThreatKnowledgeStore();
@@ -43,10 +43,10 @@ test("a deliberate warning shot can trigger threat reaction without independentl
   });
   const action=new ContactFireAction({actorId:warned.id,directive:{subjectTeamId:source.teamId,targetPoint:{x:source.x,y:source.y}}});
   const services={
-    personalKnowledge:{getContacts:()=>[contact({subjectTeamId:source.teamId,activity:"firing",intent:"hostile"})]},
+    personalKnowledge:{getContacts:()=>[contact({subjectTeamId:source.teamId,relationship:"hostile",activity:"firing",intent:"hostile"})]},
     threatKnowledge:threats
   };
-  assert.equal(action.canStart({game:{actors:[source,warned]},services,now:1.2}),false);
+  assert.equal(action.canStart({game:{actors:[source,warned]},services,now:8}),false);
   const learned=threats.getBestThreat(warned.id);
   assert.equal(learned.sourceActorId,source.id);
   assert.equal(learned.sourceTeamId,source.teamId);
