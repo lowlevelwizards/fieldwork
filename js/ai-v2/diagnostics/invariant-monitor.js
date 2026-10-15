@@ -14,6 +14,14 @@ export class InvariantMonitor{
       if(!Number.isFinite(actor.x)||!Number.isFinite(actor.y))violations.push({code:"invalid_actor_position",actorId:actor.id});
     }
 
+    const activeActions=actorId=>scheduler?.getActions?.(actorId)??[];
+    const hasStablePositionOwner=actorId=>activeActions(actorId).some(action=>{
+      if(action.type==="HoldPosition")return true;
+      if((action.channels??[]).includes("locomotion"))return false;
+      const authority=Number(action.metadata?.actorBrainPlan?.authorityTier??action.priority??0)||0;
+      return authority>=400;
+    });
+
     const travelByActor=new Map((operationalTravel??[]).map(item=>[item.actorId,item]));
     const arbiterByActor=new Map((actionArbiter??[]).map(item=>[item.actorId,item]));
     const roleActionByActor=new Map();
@@ -62,7 +70,11 @@ export class InvariantMonitor{
       if(position.status==="moving"&&scheduler&&!scheduler.hasAction(position.actorId,"MoveToPositionSlot")){
         violations.push({code:"moving_defensive_position_without_action",actorId:position.actorId});
       }
-      if(position.status==="holding"&&scheduler&&!scheduler.hasAction(position.actorId,"HoldPosition")){
+      // The durable defensive relationship is the occupied finite slot, not a
+      // requirement that one specific cosmetic hold atom own attention. A
+      // higher-authority stationary attention/stance action may legitimately
+      // preserve the same physical position through the unified brain.
+      if(position.status==="holding"&&scheduler&&!hasStablePositionOwner(position.actorId)){
         violations.push({code:"held_defensive_position_without_action",actorId:position.actorId});
       }
     }
@@ -86,7 +98,7 @@ export class InvariantMonitor{
       slotActors.add(claim.actorId);
       if(!ids.has(claim.actorId))violations.push({code:"unknown_position_slot_actor",actorId:claim.actorId});
       if(scheduler&&claim.status==="reserved"&&!scheduler.hasAction(claim.actorId,"MoveToPositionSlot"))violations.push({code:"reserved_slot_without_movement_action",actorId:claim.actorId,slotId:claim.slotId});
-      if(scheduler&&claim.status==="occupied"&&!scheduler.hasAction(claim.actorId,"HoldPosition"))violations.push({code:"occupied_slot_without_hold_action",actorId:claim.actorId,slotId:claim.slotId});
+      if(scheduler&&claim.status==="occupied"&&!hasStablePositionOwner(claim.actorId))violations.push({code:"occupied_slot_without_hold_action",actorId:claim.actorId,slotId:claim.slotId});
     }
 
     const claimedPatients=new Set();
