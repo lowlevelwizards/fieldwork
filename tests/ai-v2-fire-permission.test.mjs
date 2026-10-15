@@ -92,4 +92,5 @@ test("actual hostile incoming fire from the target team still authorizes bounded
     threatKnowledge:threats
   };
   assert.equal(action.canStart({game:{actors:[source,target]},services,now:1.2}),true);
+  assert.equal(action.canStart({game:{actors:[source,target]},services,now:4.3}),false);
 });
