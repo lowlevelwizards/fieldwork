@@ -2,11 +2,13 @@ import { AIV2Action } from "./action.js";
 import { ACTION_CHANNELS } from "./action-channels.js";
 
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
+const GOVERNING_RELOCATION_PROCEDURES=new Set(["protective_breakaway","break_contact_quietly","casualty_evacuation","casualty_recovery"]);
 
-function objectiveProcedureOwnsMovement(actor,action,services){
+function governingProcedureOwnsMovement(actor,action,services){
   if(action?.metadata?.provenance?.source!=="continuous_utility")return false;
   const role=services?.teamProcedures?.getActorRole?.(actor?.id)??null;
-  return Boolean(role?.permissions?.relocate&&role?.fulfillment?.need==="objective_mission_role");
+  if(!role?.permissions?.relocate)return false;
+  return role.fulfillment?.need==="objective_mission_role"||GOVERNING_RELOCATION_PROCEDURES.has(role.procedureId);
 }
 
 export class TacticalRepositionAction extends AIV2Action{
@@ -23,8 +25,8 @@ export class TacticalRepositionAction extends AIV2Action{
   }
   amendFrom(action){if(!action?.directive)return false;this.directive={...this.directive,...action.directive,destination:action.directive.destination?{...action.directive.destination}:this.directive.destination,threatPoint:action.directive.threatPoint?{...action.directive.threatPoint}:this.directive.threatPoint,coverSlot:action.directive.coverSlot?{...action.directive.coverSlot,point:action.directive.coverSlot.point?{...action.directive.coverSlot.point}:null,obstacle:action.directive.coverSlot.obstacle?{...action.directive.coverSlot.obstacle}:null}:this.directive.coverSlot};this.metadata.utilityScore=Number(action.metadata?.utilityScore??action.directive?.utilityScore??this.metadata.utilityScore??0);return true;}
   continuationUtility(){return Number(this.metadata?.utilityScore??0);}
-  canStart({game,services}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);return Boolean(actor&&this.directive.destination&&!actor.medical?.dead&&!actor.medical?.unconscious&&!objectiveProcedureOwnsMovement(actor,this,services));}
-  canContinue({game,services}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);return Boolean(actor&&this.directive.destination&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.elapsed<(this.directive.maximumDuration??5.5)&&!objectiveProcedureOwnsMovement(actor,this,services));}
+  canStart({game,services}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);return Boolean(actor&&this.directive.destination&&!actor.medical?.dead&&!actor.medical?.unconscious&&!governingProcedureOwnsMovement(actor,this,services));}
+  canContinue({game,services}={}){const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);return Boolean(actor&&this.directive.destination&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.elapsed<(this.directive.maximumDuration??5.5)&&!governingProcedureOwnsMovement(actor,this,services));}
   start(now,{game}={}){super.start(now,{game});const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);if(actor){this.initialDistance=Math.max(1,distance(actor,this.directive.destination));actor.aiV2TacticalMove={status:"moving",kind:this.directive.kind??"improve_position",destination:{...this.directive.destination},startedAt:now};actor.currentAction=this.directive.label??"Improving tactical position";}}
   update(delta,{game,services,now=0}={}){
     const actor=game?.actors?.find(candidate=>candidate.id===this.actorId);if(!actor)return{status:"failed",reason:"actor_missing"};
