@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ActorUtilityEvaluationService } from "../js/ai-v2/actors/actor-utility-evaluation-service.js";
 import { DirectionalCoverService } from "../js/ai-v2/position/directional-cover-service.js";
+import { TacticalRepositionAction } from "../js/ai-v2/actions/tactical-reposition-action.js";
+import { ACTION_AUTHORITY_TIERS } from "../js/ai-v2/authority/actor-action-arbiter.js";
 
 test("material hostile contact sharply devalues unchanged mission travel",()=>{
   const service=new ActorUtilityEvaluationService();
@@ -26,4 +28,20 @@ test("one cover object exposes distinct actor-sized rear slots",()=>{
   assert.ok(rockSlots.length>=2);
   assert.equal(new Set(rockSlots.map(slot=>slot.id)).size,rockSlots.length);
   assert.ok(rockSlots.every(slot=>slot.capacity===1));
+});
+
+test("immediate-survival cover movement may preempt objective relocation ownership",()=>{
+  const actor={id:"a",x:0,y:0,medical:{condition:"healthy",dead:false,unconscious:false}};
+  const services={teamProcedures:{getActorRole:()=>({
+    procedureId:"restore_field_relay",
+    fulfillment:{need:"objective_mission_role"},
+    permissions:{relocate:true}
+  })}};
+  const localMove=new TacticalRepositionAction({actorId:actor.id,directive:{destination:{x:120,y:0},provenance:{source:"continuous_utility"}}});
+  localMove.metadata.actorBrainPlan={authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE};
+  assert.equal(localMove.canStart({game:{actors:[actor]},services}),false);
+
+  const emergencyMove=new TacticalRepositionAction({actorId:actor.id,directive:{destination:{x:120,y:0},provenance:{source:"continuous_utility"}}});
+  emergencyMove.metadata.actorBrainPlan={authorityTier:ACTION_AUTHORITY_TIERS.IMMEDIATE_SURVIVAL};
+  assert.equal(emergencyMove.canStart({game:{actors:[actor]},services}),true);
 });
