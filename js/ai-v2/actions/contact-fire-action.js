@@ -4,31 +4,58 @@ import { ACTION_CHANNELS } from "./action-channels.js";
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 const capableTarget=actor=>Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&actor.medical?.condition!=="critical");
 const HOSTILE_RELATIONSHIPS=new Set(["hostile","enemy","opposed"]);
+const NON_LETHAL_FIRE_EVENTS=new Set(["warning_shot_near_miss"]);
+
+function explicitlyHostileContact(contact){
+ return HOSTILE_RELATIONSHIPS.has(String(contact?.relationship??"").toLowerCase());
+}
 
 function personalContactJustifiesFire(contact){
  if(!contact)return false;
- if(HOSTILE_RELATIONSHIPS.has(String(contact.relationship??"").toLowerCase()))return true;
+ if(explicitlyHostileContact(contact))return true;
  const activity=String(contact.track?.currentActivity??contact.activity??"").toLowerCase();
  const intent=String(contact.track?.intentHypothesis?.id??contact.intentHypothesis?.id??"").toLowerCase();
  return activity==="firing"||intent==="hostile";
 }
 
-function incomingFireJustifiesFire(actorId,subjectTeamId,game,services,now=0){
+function threatSourceTeamId(threat,game){
+ if(threat?.sourceTeamId)return threat.sourceTeamId;
+ let sourceActorId=threat?.sourceActorId??null;
+ const subjectId=String(threat?.subjectId??"");
+ if(!sourceActorId&&subjectId.startsWith("threat_source_"))sourceActorId=subjectId.slice("threat_source_".length);
+ return game?.actors?.find?.(candidate=>candidate.id===sourceActorId)?.teamId??null;
+}
+
+function incomingFireEvidence(actorId,subjectTeamId,game,services,now=0){
  const threats=services?.threatKnowledge?.getThreats?.(actorId)??[];
- return threats.some(threat=>{
-  if(now>Number(threat.immediateUntil??-Infinity)&&String(threat.track?.intentHypothesis?.id??"")!=="hostile")return false;
-  const sourceActor=game?.actors?.find?.(candidate=>candidate.id===threat.subjectId)??null;
-  return !subjectTeamId||!sourceActor?.teamId||sourceActor.teamId===subjectTeamId;
- });
+ let warning=false;
+ let hostile=false;
+ for(const threat of threats){
+  const sourceTeamId=threatSourceTeamId(threat,game);
+  if(subjectTeamId&&sourceTeamId!==subjectTeamId)continue;
+  const eventKind=String(threat.eventKind??"").toLowerCase();
+  const immediate=now<=Number(threat.immediateUntil??-Infinity);
+  if(NON_LETHAL_FIRE_EVENTS.has(eventKind)){
+   if(immediate)warning=true;
+   continue;
+  }
+  const intent=String(threat.track?.intentHypothesis?.id??"").toLowerCase();
+  if(immediate||intent==="hostile")hostile=true;
+ }
+ return{warning,hostile};
 }
 
 function firePermission({actorId,subjectTeamId,game,services,now=0}={}){
- // Runtime execution must distinguish tactical salience from permission to
- // injure. Unknown or unresolved contacts can be important enough to watch,
- // avoid, warn, or seek cover from without becoming lawful firing targets.
- const personal=services?.personalKnowledge?.getContacts?.(actorId)??[];
- if(personal.some(contact=>contact.subjectTeamId===subjectTeamId&&personalContactJustifiesFire(contact)))return true;
- return incomingFireJustifiesFire(actorId,subjectTeamId,game,services,now);
+ // Tactical salience is broader than permission to injure. A deliberate
+ // warning shot must still produce threat reaction and break-contact behavior,
+ // but it cannot by itself promote an unresolved team into a lethal target.
+ const personal=(services?.personalKnowledge?.getContacts?.(actorId)??[])
+  .filter(contact=>contact.subjectTeamId===subjectTeamId);
+ if(personal.some(explicitlyHostileContact))return true;
+ const incoming=incomingFireEvidence(actorId,subjectTeamId,game,services,now);
+ if(incoming.hostile)return true;
+ if(incoming.warning)return false;
+ return personal.some(personalContactJustifiesFire);
 }
 
 export class ContactFireAction extends AIV2Action{
