@@ -83,6 +83,7 @@ export class ActionLivenessMonitor{
     const record={
       actionId:action.id,actorId:action.actorId,actionType:action.type,kind:actionKind(action),
       startedAt:now,lastSampleAt:now,lastProgressAt:now,lastPosition:{x:actor.x,y:actor.y},
+      progressAnchorPosition:{x:actor.x,y:actor.y},progressAnchorGoalDistance:remaining,
       startPosition:{x:actor.x,y:actor.y},goal:point(goal),lastGoalDistance:remaining,minGoalDistance:remaining,
       obstacleJamSeconds:0,reversalTimes:[],recentCells:[{key:cellKey(actor),at:now,x:actor.x,y:actor.y}],
       loopHits:0,lastVelocity:null,status:"healthy",reason:null,signals:{},updatedAt:now
@@ -110,10 +111,23 @@ export class ActionLivenessMonitor{
     const radius=acceptanceRadius(action);
     const remainingMeaningful=remaining===null||remaining>radius+16;
     const goalProgress=remaining!==null&&record.lastGoalDistance!==null?record.lastGoalDistance-remaining:0;
-    const lateralProgress=moved>=9&&(remaining===null||goalProgress>=-3);
-    const meaningfulProgress=goalProgress>=3.5||lateralProgress;
 
-    if(meaningfulProgress)record.lastProgressAt=now;
+    // Liveness must not depend on simulation frame size. A slow but healthy
+    // action (for example dragging a casualty) may move only a few pixels per
+    // tick and would never satisfy a per-frame movement threshold. Measure
+    // meaningful progress from the last accepted progress mark instead.
+    const movedSinceProgress=distance(actor,record.progressAnchorPosition??record.lastPosition);
+    const goalProgressSinceProgress=remaining!==null&&record.progressAnchorGoalDistance!==null
+      ?record.progressAnchorGoalDistance-remaining
+      :0;
+    const lateralProgress=movedSinceProgress>=9&&(remaining===null||goalProgressSinceProgress>=-3);
+    const meaningfulProgress=goalProgressSinceProgress>=3.5||lateralProgress;
+
+    if(meaningfulProgress){
+      record.lastProgressAt=now;
+      record.progressAnchorPosition={x:actor.x,y:actor.y};
+      record.progressAnchorGoalDistance=remaining;
+    }
     if(remaining!==null){
       record.minGoalDistance=record.minGoalDistance===null?remaining:Math.min(record.minGoalDistance,remaining);
       record.lastGoalDistance=remaining;
@@ -150,7 +164,7 @@ export class ActionLivenessMonitor{
     const sourceInvalidation=this.#sourceInvalidation(action,actor,services);
 
     const signals={
-      age,moved,remaining,goalProgress,stalledFor,regression,
+      age,moved,remaining,goalProgress,movedSinceProgress,goalProgressSinceProgress,stalledFor,regression,
       recentReversals:record.reversalTimes.length,loopHits:record.loopHits,
       obstacleJamSeconds:record.obstacleJamSeconds,truthPacing,
       destinationDanger:Boolean(threatInvalidation),sourceInvalid:Boolean(sourceInvalidation)
