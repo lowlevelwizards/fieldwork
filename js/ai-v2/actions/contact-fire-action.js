@@ -3,12 +3,7 @@ import { ACTION_CHANNELS } from "./action-channels.js";
 
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 const capableTarget=actor=>Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&actor.medical?.condition!=="critical");
-const HOSTILE_RELATIONSHIPS=new Set(["hostile","enemy","opposed"]);
 const NON_LETHAL_FIRE_EVENTS=new Set(["warning_shot_near_miss"]);
-
-function explicitlyHostileContact(contact){
- return HOSTILE_RELATIONSHIPS.has(String(contact?.relationship??"").toLowerCase());
-}
 
 function threatSourceTeamId(threat,game){
  if(threat?.sourceTeamId)return threat.sourceTeamId;
@@ -27,9 +22,6 @@ function incomingFireEvidence(actorId,subjectTeamId,game,services,now=0){
   if(subjectTeamId&&sourceTeamId!==subjectTeamId)continue;
   const eventKind=String(threat.eventKind??"").toLowerCase();
   if(NON_LETHAL_FIRE_EVENTS.has(eventKind)){
-   // Preserve the provenance distinction for as long as this physical event
-   // remains in personal threat knowledge. The warning can make a contact look
-   // hostile without itself granting permission to injure that contact.
    warning=true;
    continue;
   }
@@ -41,16 +33,11 @@ function incomingFireEvidence(actorId,subjectTeamId,game,services,now=0){
 }
 
 function firePermission({actorId,subjectTeamId,game,services,now=0}={}){
- // Tactical salience is broader than permission to injure. Physical hostile
- // fire is decisive. Warning-shot provenance is explicitly non-lethal and must
- // constrain hostility labels derived from that same event. Only without such
- // warning-only evidence may an independently hostile relationship suffice.
- const personal=(services?.personalKnowledge?.getContacts?.(actorId)??[])
-  .filter(contact=>contact.subjectTeamId===subjectTeamId);
- const incoming=incomingFireEvidence(actorId,subjectTeamId,game,services,now);
- if(incoming.hostile)return true;
- if(incoming.warning)return false;
- return personal.some(explicitlyHostileContact);
+ // ContactFire is a reflexive return-fire action. Relationship labels and
+ // inferred contact intent may justify observation, cover, warnings, or a team
+ // response, but they cannot independently authorize aimed injury here.
+ // Physical incoming hostile-fire evidence from the target team is required.
+ return incomingFireEvidence(actorId,subjectTeamId,game,services,now).hostile;
 }
 
 export class ContactFireAction extends AIV2Action{
