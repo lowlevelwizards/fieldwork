@@ -6,7 +6,7 @@
   "scripts": {
     "cleanup": "node tools/remove-retired-duplicates.mjs",
     "check:build": "node tools/check-build-hygiene.mjs",
-    "test": "node tools/check-syntax.mjs && node tools/check-imports.mjs && node tools/check-build-hygiene.mjs && node --test tests/ai-v2-casualty-recovery.test.mjs tests/ai-v2-adaptive-evacuation.test.mjs tests/ai-v2-behavior-closure.test.mjs tests/ai-v2-desired-effect-casualty-recovery.test.mjs",
+    "test": "node tools/check-syntax.mjs && node tools/check-imports.mjs && node tools/check-build-hygiene.mjs && node --test tests/debug-casualty-continuity.test.mjs",
     "validate": "npm test",
     "behavior:report": "node tools/report-behavioral-truth.mjs"
   }
