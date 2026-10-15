@@ -28,10 +28,14 @@ async function visit(file){
   for(const pattern of importPatterns){
     pattern.lastIndex=0;
     for(const match of source.matchAll(pattern)){
-      const dependency=resolveSpecifier(file,match[1]);
+      const specifier=match[1];
+      if(specifier.startsWith(".")&&/[?#]/.test(specifier)){
+        throw new Error(`Versioned relative import in ${relative(root,file)}: ${specifier}. Cache revision belongs at the HTML asset boundary, not inside the ES module graph.`);
+      }
+      const dependency=resolveSpecifier(file,specifier);
       if(!dependency)continue;
       try{await access(dependency,constants.R_OK);}catch{
-        throw new Error(`Unresolved import in ${relative(root,file)}: ${match[1]}`);
+        throw new Error(`Unresolved import in ${relative(root,file)}: ${specifier}`);
       }
       dependencies.push(dependency);
     }
@@ -74,7 +78,6 @@ await visit(entry);
 const cycle=findCycle();
 if(cycle)throw new Error(`Import cycle: ${cycle.map(file=>relative(root,file)).join(" -> ")}`);
 
-
 for(const path of RETIRED_DUPLICATE_PATHS){
   try{await access(resolve(root,path),constants.F_OK);throw new Error(`Retired duplicate still exists: ${path}`);}catch(error){
     if(error?.message?.startsWith("Retired duplicate"))throw error;
@@ -84,4 +87,4 @@ for(const path of RETIRED_DUPLICATE_PATHS){
 const all=await collectJavaScript(root);
 const unreachable=all.filter(file=>!reachable.has(file));
 if(unreachable.length)throw new Error(`Unreachable active JavaScript: ${unreachable.map(file=>relative(root,file)).join(", ")}`);
-console.log(`Imports OK: ${reachable.size} reachable modules, no cycles, no retired duplicates`);
+console.log(`Imports OK: ${reachable.size} reachable modules, no cycles, no retired duplicates, no versioned internal imports`);
