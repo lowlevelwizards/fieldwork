@@ -3,12 +3,21 @@ import assert from "node:assert/strict";
 import { activeActions, entriesOf, simulateFixture } from "./helpers/simulate-fixture.mjs";
 
 test("objective initiative resumes and completes useful work after a natural interruption",()=>{
-  // Objective work completes during AI V2. The campaign director owns the
-  // operation lifecycle and observes that canonical objective state on the
-  // following simulation tick before beginning physical return travel.
   const game=simulateFixture("objective_initiative",{seconds:42.1});
   const team=game.operations.teams.find(candidate=>candidate.factionId==="northline");
   assert.ok(team);
+  const terminalObjective=game.aiV2.objectives.get("central_field_relay");
+  const terminalOperation=team.operationId?game.livingSandbox?.getOperation?.(team.operationId):null;
+  const terminalProcedure=game.aiV2.teamProcedures.get(team.id);
+  const terminalAgenda=game.aiV2.teamAgenda.get(team.id);
+  console.log("OBJECTIVE_INITIATIVE_TERMINAL",JSON.stringify({
+    elapsed:game.aiV2.elapsed,
+    teamStatus:team.operationStatus,
+    operation:terminalOperation?{status:terminalOperation.status,desiredState:terminalOperation.desiredState,objectiveCompletedAt:terminalOperation.objectiveCompletedAt}:null,
+    objective:terminalObjective?{state:terminalObjective.state,progress:terminalObjective.progress,completedByTeamId:terminalObjective.completedByTeamId}:null,
+    procedure:terminalProcedure?{id:terminalProcedure.procedureId,phase:terminalProcedure.phase?.id,status:terminalProcedure.status}:null,
+    agenda:terminalAgenda?{source:terminalAgenda.source,intentId:terminalAgenda.intentId,objectiveComplete:terminalAgenda.objectiveComplete}:null
+  }));
   assert.equal(team.operationStatus,"returning");
   const actors=game.actors.filter(actor=>actor.teamId===team.id);
   assert.equal(actors.length,3);
