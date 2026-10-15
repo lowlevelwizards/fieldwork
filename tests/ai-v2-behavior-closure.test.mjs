@@ -4,7 +4,7 @@ import { AmbientPerceptionRuntime } from "../js/ai-v2/senses/ambient-perception-
 import { ActorTacticalPictureService } from "../js/ai-v2/actors/actor-tactical-picture-service.js";
 import { ActorObligationStore } from "../js/ai-v2/actors/actor-obligation-store.js";
 import { ActorTacticalCommitmentStore } from "../js/ai-v2/actors/actor-tactical-commitment-store.js";
-import { ConcernFulfillmentRuntime } from "../js/ai-v2/actors/concern-fulfillment-runtime.js";
+import { CasualtyRecoveryRuntime } from "../js/ai-v2/actors/casualty-recovery-runtime.js";
 import { SelfAidAction } from "../js/ai-v2/actions/self-aid-action.js";
 import { CircumventContactAction } from "../js/ai-v2/actions/circumvent-contact-action.js";
 import { ActionScheduler } from "../js/ai-v2/actions/action-scheduler.js";
@@ -88,20 +88,24 @@ test("bounded self aid can start after deferral but yields to another active car
 test("live staffed casualty care directly approaches and then treats the assigned casualty",()=>{
   const provider=actor("provider",{x:0,y:0});
   const casualty=actor("casualty",{x:180,y:0});casualty.medical.condition="serious";casualty.medical.bleedingRate=.8;
-  const assignment={id:"casualty:casualty:carrier_or_aid_provider:0",concernId:"casualty:casualty",responsibility:"carrier_or_aid_provider",required:true};
-  const concern={id:assignment.concernId,teamId:"team_a",kind:"friendly_casualty",subjectId:casualty.id,missionId:"m",status:"active",desiredEffect:"stabilize_and_recover",importance:1,urgency:1};
-  const obligation={id:`staffed:${assignment.id}`,priority:1.2,urgency:1,authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE};
+  const obligation={id:"staffed:casualty:casualty:carrier_or_aid_provider:0",actorId:provider.id,teamId:provider.teamId,concernId:"casualty:casualty",concernKind:"friendly_casualty",subjectId:casualty.id,responsibility:"carrier_or_aid_provider",desiredEffect:"stabilize_and_recover",priority:1.2,urgency:1,authorityTier:ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE,status:"accepted"};
   const proposals=[];
-  const runtime=new ConcernFulfillmentRuntime({brain:{submit:proposal=>proposals.push(proposal)},spatialIntentFields:{build:()=>({id:"care",goal:{x:180,y:0},focus:{x:180,y:0},region:{type:"circle",center:{x:180,y:0},innerRadius:0,outerRadius:32}}),isSatisfied:()=>false}});
-  const game={scenarioMode:"live",livingSandbox:{liveMode:true},actors:[provider,casualty],wounds:{getTreatmentNeed:()=>({type:"bandage"})}};
-  const common={game,teamConcerns:{get:()=>concern},concernStaffing:{getActorAssignments:id=>id===provider.id?[assignment]:[]},actorObligations:{findForActor:()=>obligation,markBlocked:()=>true},teamProcedures:{getActorRole:()=>null,get:()=>null}};
-  runtime.update({...common,now:0});
-  assert.equal(proposals[0].action.type,"MoveWithinIntentField");
+  const runtime=new CasualtyRecoveryRuntime({
+    brain:{submit:proposal=>proposals.push(proposal)},
+    positionService:{assess:()=>({currentProtection:.72,currentExposure:.08,betterGroundAvailable:false,treatmentWindow:"good",treatmentWindowScore:.82,bestRecoveryPosition:null})}
+  });
+  const game={scenarioMode:"live",livingSandbox:{liveMode:true},actors:[provider,casualty],map:{obstacles:[]},wounds:{getTreatmentNeed:()=>({type:"bandage"}),getAssessment:()=>({})}};
+  const assessment={condition:"serious",dead:false,bleeding:.2,blood:.8,shock:.1,mobility:"requires_assisted_movement",immediateDanger:true,treatmentNeed:{type:"bandage"},assessedAt:0,assessedBy:provider.id};
+  const casualtyKnowledge={getPersonalCasualties:()=>[],getReceivedCasualties:()=>[],getTeamCasualties:()=>[{subjectId:casualty.id,assessmentRevision:1,reportedAt:0,approximatePosition:{x:casualty.x,y:casualty.y},assessment}]};
+  const common={game,actor:provider,mission:{recoveryPlan:{interactionRange:92,reportRange:520}},obligation,casualtyKnowledge,tacticalPictures:{get:()=>({threatPoint:null,incomingFire:[],securitySupport:.5})},actorObligations:{markBlocked:()=>true},now:0};
+
+  runtime.evaluateAndSubmit(common);
+  assert.equal(proposals[0].action.type,"ApproachCasualty");
   assert.equal(proposals[0].obligationId,obligation.id);
   assert.equal(proposals[0].authorityTier,ACTION_AUTHORITY_TIERS.GOVERNING_RESPONSE);
 
   proposals.length=0;provider.x=130;
-  runtime.update({...common,now:1});
+  runtime.evaluateAndSubmit({...common,now:1});
   assert.equal(proposals[0].action.type,"TreatAssignedCasualty");
   assert.equal(proposals[0].obligationId,obligation.id);
 });
