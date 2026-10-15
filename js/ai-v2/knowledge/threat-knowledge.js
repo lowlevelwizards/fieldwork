@@ -117,7 +117,7 @@ export class ThreatKnowledgeStore{
     this.decisionLog?.record?.({
       type:"personal_threat_reaction_completed",
       time:now,
-      actorId:actor.id,
+      actorId,
       teamId:threat.teamId,
       data:{subjectId,eventId:threat.eventId}
     });
