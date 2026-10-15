@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { activeActions, entriesOf, simulateFixture } from "./helpers/simulate-fixture.mjs";
 
 test("objective initiative resumes and completes useful work after a natural interruption",()=>{
-  const game=simulateFixture("objective_initiative",{seconds:42});
+  // Objective work completes during AI V2. The campaign director owns the
+  // operation lifecycle and observes that canonical objective state on the
+  // following simulation tick before beginning physical return travel.
+  const game=simulateFixture("objective_initiative",{seconds:42.1});
   const team=game.operations.teams.find(candidate=>candidate.factionId==="northline");
   assert.ok(team);
   assert.equal(team.operationStatus,"returning");
