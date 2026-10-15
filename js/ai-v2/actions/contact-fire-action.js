@@ -26,11 +26,14 @@ function incomingFireEvidence(actorId,subjectTeamId,game,services,now=0){
   const sourceTeamId=threatSourceTeamId(threat,game);
   if(subjectTeamId&&sourceTeamId!==subjectTeamId)continue;
   const eventKind=String(threat.eventKind??"").toLowerCase();
-  const immediate=now<=Number(threat.immediateUntil??-Infinity);
   if(NON_LETHAL_FIRE_EVENTS.has(eventKind)){
-   if(immediate)warning=true;
+   // Preserve the provenance distinction for as long as this physical event
+   // remains in personal threat knowledge. The warning can make a contact look
+   // hostile without itself granting permission to injure that contact.
+   warning=true;
    continue;
   }
+  const immediate=now<=Number(threat.immediateUntil??-Infinity);
   const intent=String(threat.track?.intentHypothesis?.id??"").toLowerCase();
   if(immediate||intent==="hostile")hostile=true;
  }
@@ -38,14 +41,16 @@ function incomingFireEvidence(actorId,subjectTeamId,game,services,now=0){
 }
 
 function firePermission({actorId,subjectTeamId,game,services,now=0}={}){
- // Tactical salience is broader than permission to injure. A contact looking
- // dangerous enough to watch, evade, warn, or suppress is not enough by
- // itself to authorize aimed lethal fire. Require either an explicitly hostile
- // relationship or physical incoming-fire evidence from the target team.
+ // Tactical salience is broader than permission to injure. Physical hostile
+ // fire is decisive. Warning-shot provenance is explicitly non-lethal and must
+ // constrain hostility labels derived from that same event. Only without such
+ // warning-only evidence may an independently hostile relationship suffice.
  const personal=(services?.personalKnowledge?.getContacts?.(actorId)??[])
   .filter(contact=>contact.subjectTeamId===subjectTeamId);
- if(personal.some(explicitlyHostileContact))return true;
- return incomingFireEvidence(actorId,subjectTeamId,game,services,now).hostile;
+ const incoming=incomingFireEvidence(actorId,subjectTeamId,game,services,now);
+ if(incoming.hostile)return true;
+ if(incoming.warning)return false;
+ return personal.some(explicitlyHostileContact);
 }
 
 export class ContactFireAction extends AIV2Action{
