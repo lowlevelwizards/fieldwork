@@ -22,17 +22,6 @@ jobs:
         with:
           node-version: 22
       - name: Run syntax, import, and regression checks
-        shell: bash
-        run: |
-          set -o pipefail
-          npm test 2>&1 | tee test-output.txt
-      - name: Upload regression output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: regression-output
-          path: test-output.txt
-          if-no-files-found: error
+        run: npm test
       - name: Report validated tree
-        if: success()
         run: git rev-parse HEAD^{tree}
