@@ -9,33 +9,28 @@ test("diagnose interrupted objective casualty recovery and return handoff",()=>{
     game.update(.05,{x:0,y:0});
     if(step%20!==0)continue;
     const team=game.operations.teams.find(candidate=>candidate.factionId==="northline");
+    const operation=team?.operationId?game.livingSandbox?.getOperation?.(team.operationId):null;
     const procedure=team?game.aiV2.teamProcedures.get(team.id):null;
     const agenda=team?game.aiV2.teamAgenda.get(team.id):null;
-    const operation=team?.operationId?game.livingSandbox?.getOperation?.(team.operationId):null;
-    const mission=team?game.aiV2.teamMissions.get(team.id):null;
     const objective=game.aiV2.objectives.get("central_field_relay");
     const actors=team?game.actors.filter(actor=>actor.teamId===team.id):[];
     snapshots.push({
       t:Number(game.aiV2.elapsed.toFixed(2)),
-      team:team?{id:team.id,operationId:team.operationId,operationStatus:team.operationStatus,currentTask:team.currentTask}:null,
-      operation:operation?{id:operation.id,status:operation.status,currentStageIndex:operation.currentStageIndex,objectiveId:operation.objectiveId,objectiveCompletedAt:operation.objectiveCompletedAt,returnStartedAt:operation.returnStartedAt}:null,
-      procedure:procedure?{id:procedure.procedureId,phase:procedure.phase?.id,status:procedure.status,subjectId:procedure.subjectId,roles:procedure.roles?.map(role=>({roleId:role.roleId,actorId:role.actorId,phase:role.phase?.id,need:role.fulfillment?.need}))}:null,
-      agenda:agenda?{source:agenda.source,intentId:agenda.intentId,objectiveComplete:agenda.objectiveComplete}:null,
-      mission:mission?{recoveryPoint:mission.recoveryPlan?.recoveryPoint,exit:mission.withdrawalPlan?.exitPoint}:null,
-      objective:objective?{state:objective.state,progress:objective.progress,completedByTeamId:objective.completedByTeamId}:null,
-      actors:actors.map(actor=>({
-        id:actor.id,role:actor.role,x:Number(actor.x.toFixed(1)),y:Number(actor.y.toFixed(1)),medical:actor.medical?{condition:actor.medical.condition,blood:actor.medical.blood,bleedingRate:actor.medical.bleedingRate,unconscious:actor.medical.unconscious,dead:actor.medical.dead}:null,
-        action:actor.currentAction,recovery:actor.aiV2Recovery??null,liveness:actor.aiV2ActionLiveness??null,
-        actions:(game.aiV2.scheduler.getActions(actor.id)??[]).map(action=>({id:action.id,type:action.type,state:action.state,endReason:action.endReason??null,destination:action.directive?.destination??action.directive?.recoveryPoint??null}))
-      }))
+      teamStatus:team?.operationStatus??null,
+      operationStatus:operation?.status??null,
+      objectiveState:objective?.state??null,
+      objectiveProgress:Number((objective?.progress??0).toFixed(2)),
+      objectiveComplete:Boolean(agenda?.objectiveComplete),
+      phase:procedure?.phase?.id??null,
+      actors:actors.map(actor=>({role:actor.role,condition:actor.medical?.condition??null,action:actor.currentAction??null,primary:game.aiV2.scheduler.getPrimaryAction(actor.id)?.type??null}))
     });
   }
-  const interesting=new Set(["DragCasualty","ApproachCasualty","AssessCasualty","StabilizeCasualty","ProtectiveFire","DemonstrativeFire","ContactFire","ReactToIncomingFire","PerformObjectiveWork"]);
-  const events=game.aiV2.decisionLog.entries.filter(entry=>{
+  const eventSummary=game.aiV2.decisionLog.entries.filter(entry=>{
     const type=String(entry.type??"");
-    return interesting.has(entry.actionType)||type.includes("objective")||type.includes("operation")||type.includes("procedure")||type.includes("return")||type.includes("liveness")||type.includes("wound")||type.includes("fire")||type.includes("threat");
-  });
-  console.log("OBJECTIVE_RECOVERY_SNAPSHOTS",JSON.stringify(snapshots));
-  console.log("OBJECTIVE_RECOVERY_EVENTS",JSON.stringify(events.slice(0,1400)));
+    return type==="team_response_changed"||type==="objective_completed"||type.includes("operation_return")||type==="action_started"&&["ContactFire","ProtectiveFire","DemonstrativeFire","PerformObjectiveWork","ReactToIncomingFire"].includes(entry.actionType);
+  }).map(entry=>({t:Number((entry.time??0).toFixed(2)),type:entry.type,actorId:entry.actorId??null,teamId:entry.teamId??null,actionType:entry.actionType??null,data:entry.data??null}));
+  console.log("OBJECTIVE_COMPACT",JSON.stringify(snapshots));
+  console.log("OBJECTIVE_EVENTS",JSON.stringify(eventSummary));
+  console.log("THREAT_EVENTS",JSON.stringify((game.aiV2ThreatEvents??[]).map(event=>({t:event.emittedAt,kind:event.kind,sourceTeamId:event.sourceTeamId,targetActorId:event.targetActorId}))));
   assert.ok(true);
 });
