@@ -55,8 +55,21 @@ export class PerformObjectiveWorkAction extends AIV2Action{
     actor.currentAction=this.directive.workLabel??"Working field objective";
     actor.aiV2Objective={status:result.completed?"operational":"working",objectiveId:this.directive.objectiveId,roleId:this.directive.roleId,progress:this.progress};
     if(!result.completed)return null;
+
     services.objectives.releaseWork(this.directive.objectiveId,actor.id,{now,reason:"objective_restored"});
     services.teamProcedures.notifyEvent({teamId:actor.teamId,event:this.directive.completionEvent??"objective_restored",now,data:{actorId:actor.id,objectiveId:this.directive.objectiveId,state:result.objective?.state}});
+
+    // The objective becoming physically complete is the causal end of an
+    // infrastructure/build field mission. Hand the already-existing campaign
+    // operation lifecycle back to return travel immediately; otherwise the AI
+    // procedure reaches objective_operational while the operation remains
+    // permanently deployed and blocks turnover, roster release, and later work.
+    const operationId=this.directive.operationId??actor.operationId??null;
+    const operation=operationId?game?.livingSandbox?.getOperation?.(operationId):null;
+    if(operation?.status==="deployed"&&["service_infrastructure","establish_forward_position"].includes(operation.kind)){
+      game.livingSandbox.beginReturn(operationId,{now});
+    }
+
     actor.currentAction=this.directive.completedLabel??"Field objective complete";
     return{status:"completed",reason:"objective_restored",data:{objectiveId:this.directive.objectiveId,state:result.objective?.state}};
   }
