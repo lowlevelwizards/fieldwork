@@ -7,7 +7,8 @@ test("material hostile contact sharply devalues unchanged mission travel",()=>{
   const service=new ActorUtilityEvaluationService();
   const actor={id:"a",x:0,y:0};
   const result=service.evaluate({actor,game:{},agenda:{selected:{id:"travel"}},now:1,picture:{
-    visibleThreats:[{relationship:"hostile",confidence:90}],incomingFire:[],suppressionValue:0,exposed:true,
+    visibleThreats:[{relationship:"hostile",confidence:90}],contactPressure:.82,threatPrecision:1,
+    incomingFire:[],suppressionValue:0,exposed:true,
     currentCover:{protected:false,protection:0},bestCover:{utility:{protection:.8}},selfAidNeed:null,woundState:null,
     weaponReadiness:{reloadRequired:false},nearestFriendly:null,localCongestion:0,securitySupport:0
   }});
