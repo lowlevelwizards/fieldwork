@@ -3,14 +3,49 @@ import { ACTION_CHANNELS } from "./action-channels.js";
 
 const distance=(a,b)=>Math.hypot((a?.x??0)-(b?.x??0),(a?.y??0)-(b?.y??0));
 const capableTarget=actor=>Boolean(actor&&!actor.medical?.dead&&!actor.medical?.unconscious&&actor.medical?.condition!=="critical");
+const HOSTILE_RELATIONSHIPS=new Set(["hostile","enemy","opposed"]);
+
+function personalContactJustifiesFire(contact){
+ if(!contact)return false;
+ if(HOSTILE_RELATIONSHIPS.has(String(contact.relationship??"").toLowerCase()))return true;
+ const activity=String(contact.track?.currentActivity??contact.activity??"").toLowerCase();
+ const intent=String(contact.track?.intentHypothesis?.id??contact.intentHypothesis?.id??"").toLowerCase();
+ return activity==="firing"||intent==="hostile";
+}
+
+function incomingFireJustifiesFire(actorId,subjectTeamId,game,services,now=0){
+ const threats=services?.threatKnowledge?.getThreats?.(actorId)??[];
+ return threats.some(threat=>{
+  if(now>Number(threat.immediateUntil??-Infinity)&&String(threat.track?.intentHypothesis?.id??"")!=="hostile")return false;
+  const sourceActor=game?.actors?.find?.(candidate=>candidate.id===threat.subjectId)??null;
+  return !subjectTeamId||!sourceActor?.teamId||sourceActor.teamId===subjectTeamId;
+ });
+}
+
+function firePermission({actorId,subjectTeamId,game,services,now=0}={}){
+ // Runtime execution must distinguish tactical salience from permission to
+ // injure. Unknown or unresolved contacts can be important enough to watch,
+ // avoid, warn, or seek cover from without becoming lawful firing targets.
+ const personal=services?.personalKnowledge?.getContacts?.(actorId)??[];
+ if(personal.some(contact=>contact.subjectTeamId===subjectTeamId&&personalContactJustifiesFire(contact)))return true;
+ return incomingFireJustifiesFire(actorId,subjectTeamId,game,services,now);
+}
 
 export class ContactFireAction extends AIV2Action{
  constructor({actorId,directive}={}){
   super({type:"ContactFire",actorId,purpose:directive?.reason??"Conduct a bounded hostile-contact engagement",channels:[ACTION_CHANNELS.WEAPON,ACTION_CHANNELS.ATTENTION,ACTION_CHANNELS.STANCE],primary:true,displayPriority:126,priority:126,interruptible:true,metadata:{directive:{...directive},provenance:directive?.provenance??null}});
   this.directive={...directive,targetPoint:directive?.targetPoint?{...directive.targetPoint}:null};this.cooldown=0;this.shots=0;this.recoil=0;
  }
- canStart({game}={}){const actor=game?.actors?.find(a=>a.id===this.actorId);return Boolean(actor&&this.directive.targetPoint&&!actor.medical?.dead&&!actor.medical?.unconscious);}
- canContinue({game,services}={}){const actor=game?.actors?.find(a=>a.id===this.actorId);const personal=services?.personalKnowledge?.getContacts?.(this.actorId)??[];const targetKnown=personal.some(contact=>contact.subjectTeamId===this.directive.subjectTeamId&&contact.confidence>=18);return Boolean(actor&&actor.operationPausedByEncounter&&targetKnown&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.shots<(this.directive.maximumRounds??6));}
+ canStart({game,services,now=0}={}){
+  const actor=game?.actors?.find(a=>a.id===this.actorId);
+  return Boolean(actor&&this.directive.targetPoint&&!actor.medical?.dead&&!actor.medical?.unconscious&&firePermission({actorId:this.actorId,subjectTeamId:this.directive.subjectTeamId,game,services,now}));
+ }
+ canContinue({game,services,now=0}={}){
+  const actor=game?.actors?.find(a=>a.id===this.actorId);
+  const personal=services?.personalKnowledge?.getContacts?.(this.actorId)??[];
+  const targetKnown=personal.some(contact=>contact.subjectTeamId===this.directive.subjectTeamId&&contact.confidence>=18);
+  return Boolean(actor&&actor.operationPausedByEncounter&&targetKnown&&!actor.medical?.dead&&!actor.medical?.unconscious&&this.shots<(this.directive.maximumRounds??6)&&firePermission({actorId:this.actorId,subjectTeamId:this.directive.subjectTeamId,game,services,now}));
+ }
  start(now,{game}={}){super.start(now,{game});const actor=game?.actors?.find(a=>a.id===this.actorId);if(actor){actor.currentAction="Engaging hostile contact";actor.workPose="brace";actor.aiV2ContactFire={status:"active",shotsFired:0,targetActorId:this.directive.targetActorId??null,targetPoint:{...this.directive.targetPoint},startedAt:now};}}
  update(delta,{game,services,now=0}={}){
   const actor=game?.actors?.find(a=>a.id===this.actorId);if(!actor)return{status:"failed",reason:"actor_missing"};
